@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Light theme (default) ---- */
+:root {
+  --bg-900: 243 245 249;     /* canvas */
+  --bg-800: 255 255 255;     /* panels */
+  --bg-700: 238 241 245;     /* hover / secondary */
+  --bg-600: 227 231 238;     /* interactive */
+  --line: 216 221 230;
+  --text-primary: 26 32 48;
+  --text-secondary: 91 103 118;
+  --text-muted: 139 152 169;
+  --accent-blue: 37 99 235;
+  --accent-green: 22 163 74;
+  --accent-yellow: 202 138 4;
+  --accent-red: 220 38 38;
+  --accent-violet: 124 58 237;
+}
+
+/* ---- Dark theme ---- */
+.dark {
+  --bg-900: 10 14 20;
+  --bg-800: 15 20 27;
+  --bg-700: 22 28 37;
+  --bg-600: 31 39 51;
+  --line: 37 46 59;
+  --text-primary: 231 236 243;
+  --text-secondary: 139 152 169;
+  --text-muted: 91 103 118;
+  --accent-blue: 96 165 250;
+  --accent-green: 74 222 128;
+  --accent-yellow: 251 191 36;
+  --accent-red: 239 68 68;
+  --accent-violet: 167 139 250;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    background: rgb(var(--bg-900));
+    color: rgb(var(--text-primary));
+    font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: rgb(var(--bg-700)); }
+  *::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 4px; }
+  *::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted)); }
+}
+
+@layer components {
+  .panel {
+    @apply bg-bg-800 border border-line rounded-md shadow-sm;
+  }
+  .panel-title {
+    @apply text-xs uppercase tracking-wider text-text-secondary px-3 py-2 border-b border-line flex items-center justify-between;
+  }
+  .kpi-card {
+    @apply bg-bg-800 border border-line rounded-md p-3 flex flex-col gap-1 shadow-sm;
+  }
+  .kpi-label {
+    @apply text-[11px] uppercase tracking-wider text-text-muted;
+  }
+  .kpi-value {
+    @apply text-2xl font-semibold text-text-primary;
+  }
+  .kpi-sub {
+    @apply text-[11px] text-text-secondary;
+  }
+  .pill {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider;
+  }
+  .pill-green { @apply bg-accent-green/15 text-accent-green; }
+  .pill-yellow { @apply bg-accent-yellow/15 text-accent-yellow; }
+  .pill-red { @apply bg-accent-red/15 text-accent-red; }
+  .pill-blue { @apply bg-accent-blue/15 text-accent-blue; }
+  .pill-violet { @apply bg-accent-violet/15 text-accent-violet; }
+  .btn {
+    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded border border-line hover:border-accent-blue hover:text-accent-blue transition-colors;
+  }
+  .btn-primary {
+    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded bg-accent-blue/15 text-accent-blue border border-accent-blue/40 hover:bg-accent-blue/25 transition-colors;
+  }
+  .btn-danger {
+    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded bg-accent-red/15 text-accent-red border border-accent-red/40 hover:bg-accent-red/25 transition-colors;
+  }
+  .input {
+    @apply bg-bg-700 border border-line rounded px-2 py-1 text-text-primary text-xs focus:outline-none focus:border-accent-blue;
+  }
+}
+
+.maplibregl-ctrl-logo,
+.maplibregl-ctrl-attrib { display: none !important; }
