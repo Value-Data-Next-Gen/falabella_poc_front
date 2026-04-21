@@ -159,6 +159,238 @@ export type EventType =
   | 'incident_manual'
   | 'day_reset';
 
+// ---- Seguimiento (fpoc) ----
+export interface AvailableDates {
+  dates: string[];
+  min_date: string | null;
+  max_date: string | null;
+}
+
+export interface SeguimientoKPIs {
+  planned_date: string;
+  total: number;
+  completed: number;
+  failed: number;
+  completion_pct: number;
+  ruta_anomala: number;
+  ruta_anomala_pct: number;
+  sla_hour_avg: number;
+  sla_hour_p50: number;
+  sla_hour_p90: number;
+  on_time: number;
+  early: number;
+  late: number;
+  empresas: number;
+  drivers: number;
+}
+
+export interface SlaBin {
+  bin_label: string;
+  bin_start: number;
+  count: number;
+}
+
+export interface MotivoItem {
+  motivo: string;
+  count: number;
+}
+
+export interface EmpresaPerf {
+  empresa_id: number;
+  nombre: string;
+  total: number;
+  completed: number;
+  failed: number;
+  ruta_anomala: number;
+  sla_hour_avg: number;
+  on_time_pct: number;
+}
+
+export interface LocalidadPerf {
+  localidad: string;
+  total: number;
+  failed: number;
+  failed_pct: number;
+}
+
+export interface RutaAnomalaBreakdown {
+  flag: string;
+  count: number;
+  pct: number;
+}
+
+export interface FpocVisitRow {
+  id: number;
+  planned_date: string;
+  title: string;
+  order: number;
+  address: string;
+  status: string;
+  checkout_cl: string | null;
+  current_eta_cl: string | null;
+  sla_hour_checkout_eta: number;
+  ct: string;
+  drivername: string;
+  empresa_id: number;
+  ruta_anomala: boolean;
+  am_pm: string;
+}
+
+export interface FpocVisitsPage {
+  rows: FpocVisitRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ---- Plan Diario ----
+export interface PlanVisit {
+  tracking_id: string;
+  order: number;
+  title: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  window_start: string;
+  window_end: string;
+  planned_arrival_time: string;
+  estimated_time_arrival: string;
+  slack_min: number;
+  alert_slack: string;
+  p_fallo: number;
+  status: string;
+  priority: 'low' | 'normal' | 'high' | 'vip';
+  priority_reason: string | null;
+  is_vip: boolean;
+  alert_valuedata: boolean;
+}
+
+export interface PlanDriver {
+  vehicle_id: number;
+  vehicle_name: string;
+  driver_name: string;
+  total_visits: number;
+  completed: number;
+  pending: number;
+  red_visits: number;
+  vip_visits: number;
+  high_priority: number;
+  visits: PlanVisit[];
+}
+
+export interface PlanEmpresa {
+  empresa_id: number;
+  nombre: string;
+  total_visits: number;
+  completed: number;
+  pending: number;
+  red_visits: number;
+  vip_visits: number;
+  high_priority: number;
+  drivers: PlanDriver[];
+}
+
+export interface PlanDiarioResponse {
+  planned_date: string;
+  sim_clock: string;
+  empresas: PlanEmpresa[];
+}
+
+// ---- Notifications / Preferences / VIP / Priority ----
+export interface UserPreferences {
+  phone_e164: string | null;
+  notify_whatsapp: boolean;
+  notify_pfallo_threshold: number; // 0-1
+  notify_slack_min_threshold: number;
+  notify_only_vip: boolean;
+}
+
+export interface NotificationResult {
+  to_number: string;
+  status: 'sent' | 'dry_run' | 'error';
+  twilio_sid: string | null;
+  error: string | null;
+  user_id: number | null;
+}
+
+export interface WhatsAppResponse {
+  dry_run: boolean;
+  sent: number;
+  failed: number;
+  results: NotificationResult[];
+}
+
+export interface NotificationLogRow {
+  notification_id: number;
+  user_id: number | null;
+  to_number: string;
+  channel: string;
+  subject: string | null;
+  body: string;
+  tracking_id: string | null;
+  twilio_sid: string | null;
+  status: string;
+  error_msg: string | null;
+  triggered_by: string;
+  created_at: string;
+}
+
+export interface NotificationsConfig {
+  enabled: boolean;
+  dry_run: boolean;
+  from_number: string;
+  has_creds: boolean;
+}
+
+export type MatchType = 'customer_id' | 'title' | 'reference';
+
+export interface VipClient {
+  vip_id: number;
+  match_type: MatchType;
+  match_value: string;
+  empresa_id: number | null;
+  tier: string;
+  notes: string | null;
+  active: boolean;
+  created_by: number | null;
+  created_at: string;
+}
+
+export type Priority = 'low' | 'normal' | 'high' | 'vip';
+
+export interface PriorityOverride {
+  tracking_id: string;
+  priority: Priority;
+  reason: string | null;
+  set_by: number | null;
+  set_by_name: string | null;
+  set_at: string;
+}
+
+// ---- Auth ----
+export type UserRole = 'falabella_admin' | 'falabella_ops' | 'transport_manager';
+
+export interface AuthUser {
+  user_id: number;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}
+
+export interface Empresa {
+  empresa_id: number;
+  nombre: string;
+  activo: boolean;
+}
+
 export interface StreamEvent {
   event_id: string;
   type: EventType;

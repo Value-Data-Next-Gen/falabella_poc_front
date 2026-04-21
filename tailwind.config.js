@@ -20,6 +20,12 @@ export default {
           secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
           muted: 'rgb(var(--text-muted) / <alpha-value>)',
         },
+        brand: {
+          DEFAULT: 'rgb(var(--brand) / <alpha-value>)',
+          hover: 'rgb(var(--brand-hover) / <alpha-value>)',
+          soft: 'rgb(var(--brand-soft) / <alpha-value>)',
+        },
+        cmr: 'rgb(var(--cmr) / <alpha-value>)',
         accent: {
           green: 'rgb(var(--accent-green) / <alpha-value>)',
           yellow: 'rgb(var(--accent-yellow) / <alpha-value>)',

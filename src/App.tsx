@@ -4,12 +4,16 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Bell,
+  CalendarClock,
   Database,
+  LineChart,
   Map as MapIcon,
   Truck,
 } from 'lucide-react';
 import { api } from './api';
 import { Header } from './components/Header';
+import { LoginPage } from './components/LoginPage';
 import { Sidebar } from './components/Sidebar';
 import { KPIBar } from './components/KPIBar';
 import { OperationsMap } from './components/OperationsMap';
@@ -19,11 +23,33 @@ import { ModelPanel } from './components/ModelPanel';
 import { VehiclesPanel } from './components/VehiclesPanel';
 import { EventStream } from './components/EventStream';
 import { MastersPanel } from './components/MastersPanel';
+import { NotificationsPanel } from './components/NotificationsPanel';
+import { PlanDiarioPanel } from './components/PlanDiarioPanel';
+import { SeguimientoPanel } from './components/SeguimientoPanel';
+import { useAuth } from './hooks/useAuth';
 
-type Tab = 'ops' | 'model' | 'fleet' | 'masters';
+type Tab = 'seguimiento' | 'plan' | 'ops' | 'notif' | 'model' | 'fleet' | 'masters';
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('ops');
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg-900 text-text-muted text-sm">
+        Cargando sesión…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  const [tab, setTab] = useState<Tab>('seguimiento');
   const [selectedVehicles, setSelectedVehicles] = useState<number[]>([]);
 
   const stateQ = useQuery({
@@ -39,7 +65,10 @@ export default function App() {
   }, [stateQ.data]);
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
-    { key: 'ops', label: 'Operacional', icon: Activity },
+    { key: 'seguimiento', label: 'Seguimiento', icon: LineChart },
+    { key: 'plan', label: 'Plan Diario', icon: CalendarClock },
+    { key: 'ops', label: 'Operacional (live)', icon: Activity },
+    { key: 'notif', label: 'Notificaciones', icon: Bell },
     { key: 'model', label: 'Modelo', icon: BarChart3 },
     { key: 'fleet', label: 'Flota', icon: Truck },
     { key: 'masters', label: 'Maestros', icon: Database },
@@ -64,7 +93,7 @@ export default function App() {
                 onClick={() => setTab(key)}
                 className={`flex items-center gap-2 px-4 py-2 text-xs uppercase tracking-wider rounded-t-md border-b-2 transition-colors ${
                   tab === key
-                    ? 'border-accent-blue text-accent-blue bg-bg-800'
+                    ? 'border-brand text-brand bg-bg-800'
                     : 'border-transparent text-text-secondary hover:text-text-primary'
                 }`}
               >
@@ -74,11 +103,14 @@ export default function App() {
             ))}
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
-            {tab === 'ops' && <OperationsView selectedVehicles={selectedVehicles} />}
-            {tab === 'model' && <ModelPanel />}
-            {tab === 'fleet' && <VehiclesPanel />}
-            {tab === 'masters' && <MastersPanel />}
+          <div className="flex-1 overflow-auto">
+            {tab === 'seguimiento' && <SeguimientoPanel />}
+            {tab === 'plan' && <PlanDiarioPanel />}
+            {tab === 'ops' && <div className="p-4"><OperationsView selectedVehicles={selectedVehicles} /></div>}
+            {tab === 'notif' && <NotificationsPanel />}
+            {tab === 'model' && <div className="p-4"><ModelPanel /></div>}
+            {tab === 'fleet' && <div className="p-4"><VehiclesPanel /></div>}
+            {tab === 'masters' && <div className="p-4"><MastersPanel /></div>}
           </div>
         </main>
       </div>
