@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, MessageSquare, Send, Truck, X } from 'lucide-react';
 import { api } from '../api';
 import { AnticipatedAlert } from '../types';
+import { NotifiedBadge } from './NotifiedBadge';
 
 export function AlertsPanel() {
   const { data, isLoading } = useQuery({
@@ -11,6 +12,14 @@ export function AlertsPanel() {
     refetchInterval: 5000,
   });
   const [notifyFor, setNotifyFor] = useState<AnticipatedAlert | null>(null);
+
+  const trackingIds = useMemo(() => (data ?? []).map(a => a.tracking_id), [data]);
+  const notifMap = useQuery({
+    queryKey: ['alerts-notif-summary', trackingIds.join(',')],
+    queryFn: () => api.notif.byTrackings(trackingIds),
+    enabled: trackingIds.length > 0,
+    refetchInterval: 10_000,
+  });
 
   if (isLoading) {
     return <div className="p-4 text-text-muted text-xs">Cargando...</div>;
@@ -33,7 +42,10 @@ export function AlertsPanel() {
         <div key={alert.tracking_id} className="p-3 hover:bg-bg-700/50 transition-colors">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="min-w-0">
-              <div className="font-semibold text-sm truncate">{alert.title}</div>
+              <div className="font-semibold text-sm truncate flex items-center gap-1.5">
+                <span className="truncate">{alert.title}</span>
+                <NotifiedBadge summary={notifMap.data?.[alert.tracking_id]} />
+              </div>
               <div className="text-[11px] text-text-muted flex items-center gap-2 mt-0.5">
                 <Truck size={10} />
                 {alert.vehicle_name}

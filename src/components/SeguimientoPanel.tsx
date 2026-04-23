@@ -20,12 +20,17 @@ const FLAG_LABELS: Record<string, string> = {
 type PeriodPreset = 'latest' | 'prev_day' | 'prev_week' | 'prev_month' | 'custom';
 
 function dateOffset(baseIso: string, days: number): string {
+  if (!baseIso) return '';
   const d = new Date(`${baseIso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
 }
 
 function computeDates(base: string, preset: PeriodPreset, custom: string) {
+  if (!base) {
+    return { primary: '', compareTo: null as string | null, comparelabel: '' };
+  }
   let primary = base;
   let compareTo: string | null = null;
   let comparelabel = '';

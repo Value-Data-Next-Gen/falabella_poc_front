@@ -9,13 +9,16 @@ import {
   FeatureImportance,
   FpocVisitsPage,
   KPIs,
+  LiveGenStats,
   LocalidadPerf,
   LoginResponse,
   ModelMetrics,
   MotivoItem,
   NotificationLogRow,
   NotificationsConfig,
+  TrackingNotifSummary,
   PlanDiarioResponse,
+  WatchlistResponse,
   Priority,
   PriorityOverride,
   RutaAnomalaBreakdown,
@@ -145,6 +148,25 @@ export const api = {
   planDiario: (empresaId?: number) =>
     get<PlanDiarioResponse>(`/plan-diario${empresaId != null ? `?empresa_id=${empresaId}` : ''}`),
 
+  // Watchlist
+  watchlist: (empresaId?: number) =>
+    get<WatchlistResponse>(`/watchlist${empresaId != null ? `?empresa_id=${empresaId}` : ''}`),
+
+  // Live generator
+  liveGen: {
+    stats: () => get<LiveGenStats>('/live-gen/stats'),
+    toggle: (enabled: boolean) => post<LiveGenStats>('/live-gen/toggle', { enabled }),
+    reset: () => post<{ deleted: number }>('/live-gen/reset', {}),
+    batch: (rows: number, date?: string) =>
+      post<{ date: string; inserted: number; elapsed_sec: number }>(
+        '/live-gen/batch', { rows, date },
+      ),
+    simulateDays: (days: number, rows_per_day: number, include_today = true) =>
+      post<{ total_inserted: number; per_day: Record<string, number>; elapsed_sec: number }>(
+        '/live-gen/simulate-days', { days, rows_per_day, include_today },
+      ),
+  },
+
   // Preferences
   me: {
     prefs: () => get<UserPreferences>('/me/preferences'),
@@ -175,6 +197,10 @@ export const api = {
       triggered_by?: string;
     }) => post<WhatsAppResponse>('/notifications/whatsapp', req),
     log: (limit = 50) => get<NotificationLogRow[]>(`/notifications/log?limit=${limit}`),
+    byTrackings: (ids: string[]) => {
+      if (!ids.length) return Promise.resolve({} as Record<string, TrackingNotifSummary>);
+      return get<Record<string, TrackingNotifSummary>>(`/notifications/by-trackings?ids=${encodeURIComponent(ids.join(','))}`);
+    },
   },
 
   // VIP

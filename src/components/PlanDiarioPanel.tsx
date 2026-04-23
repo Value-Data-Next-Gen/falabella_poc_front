@@ -5,8 +5,9 @@ import {
   Clock, MapPin, Star, Truck, User, X,
 } from 'lucide-react';
 import { api } from '../api';
-import { PlanVisit, Priority } from '../types';
+import { PlanVisit, Priority, TrackingNotifSummary } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { NotifiedBadge } from './NotifiedBadge';
 
 export function PlanDiarioPanel() {
   const { isFalabella, isAdmin } = useAuth();
@@ -16,8 +17,22 @@ export function PlanDiarioPanel() {
   const planQ = useQuery({
     queryKey: ['plan-diario', selectedEmpresa],
     queryFn: () => api.planDiario(selectedEmpresa === 'all' ? undefined : selectedEmpresa),
-    refetchInterval: 5_000,  // live refresh cada 5s
+    refetchInterval: 5_000,
   });
+
+  // Notificaciones por tracking_id (bulk)
+  const allTids = useMemo(() => {
+    const ids: string[] = [];
+    planQ.data?.empresas.forEach(e => e.drivers.forEach(d => d.visits.forEach(v => ids.push(v.tracking_id))));
+    return ids;
+  }, [planQ.data]);
+  const notifMapQ = useQuery({
+    queryKey: ['plan-notif-summary', allTids.length],
+    queryFn: () => api.notif.byTrackings(allTids),
+    enabled: allTids.length > 0,
+    refetchInterval: 15_000,
+  });
+  const notifMap: Record<string, TrackingNotifSummary> = notifMapQ.data ?? {};
 
   const totals = useMemo(() => {
     const empresas = planQ.data?.empresas ?? [];
@@ -68,6 +83,7 @@ export function PlanDiarioPanel() {
           key={emp.empresa_id}
           empresa={emp}
           canMarkVip={isAdmin}
+          notifMap={notifMap}
         />
       ))}
 
@@ -93,7 +109,9 @@ function Stat({ label, value, icon: Icon, accent }: {
   );
 }
 
-function EmpresaSection({ empresa, canMarkVip }: { empresa: any; canMarkVip: boolean }) {
+function EmpresaSection({ empresa, canMarkVip, notifMap }: {
+  empresa: any; canMarkVip: boolean; notifMap: Record<string, TrackingNotifSummary>;
+}) {
   const [open, setOpen] = useState(true);
   return (
     <div className="panel">
@@ -119,7 +137,7 @@ function EmpresaSection({ empresa, canMarkVip }: { empresa: any; canMarkVip: boo
       {open && (
         <div className="flex flex-col">
           {empresa.drivers.map((d: any) => (
-            <DriverRow key={d.vehicle_id} driver={d} canMarkVip={canMarkVip} />
+            <DriverRow key={d.vehicle_id} driver={d} canMarkVip={canMarkVip} notifMap={notifMap} />
           ))}
         </div>
       )}
@@ -127,7 +145,9 @@ function EmpresaSection({ empresa, canMarkVip }: { empresa: any; canMarkVip: boo
   );
 }
 
-function DriverRow({ driver, canMarkVip }: { driver: any; canMarkVip: boolean }) {
+function DriverRow({ driver, canMarkVip, notifMap }: {
+  driver: any; canMarkVip: boolean; notifMap: Record<string, TrackingNotifSummary>;
+}) {
   const [open, setOpen] = useState(false);
   const pct = driver.total_visits > 0 ? Math.round((driver.completed / driver.total_visits) * 100) : 0;
   const nextOrder = driver.visits.find((v: PlanVisit) => v.status === 'pending')?.order;
@@ -193,6 +213,7 @@ function DriverRow({ driver, canMarkVip }: { driver: any; canMarkVip: boolean })
                   v={v}
                   canMarkVip={canMarkVip}
                   isNext={v.order === nextOrder}
+                  notif={notifMap[v.tracking_id]}
                 />
               ))}
             </tbody>
@@ -203,7 +224,9 @@ function DriverRow({ driver, canMarkVip }: { driver: any; canMarkVip: boolean })
   );
 }
 
-function VisitRow({ v, canMarkVip, isNext = false }: { v: PlanVisit; canMarkVip: boolean; isNext?: boolean }) {
+function VisitRow({ v, canMarkVip, isNext = false, notif }: {
+  v: PlanVisit; canMarkVip: boolean; isNext?: boolean; notif?: TrackingNotifSummary;
+}) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
 
@@ -247,6 +270,7 @@ function VisitRow({ v, canMarkVip, isNext = false }: { v: PlanVisit; canMarkVip:
         {v.is_vip && <Star size={11} className="text-cmr" />}
         {v.alert_valuedata && <AlertTriangle size={10} className="text-accent-violet" />}
         <span className="font-medium truncate">{v.title}</span>
+        <NotifiedBadge summary={notif} size="xs" />
       </td>
       <td className="px-2 py-1 text-text-muted truncate max-w-[240px]" title={v.address}>{v.address}</td>
       <td className="px-2 py-1 tabular-nums"><Clock size={10} className="inline mr-1" />{v.estimated_time_arrival.slice(0, 5)}</td>

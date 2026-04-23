@@ -335,6 +335,77 @@ export interface NotificationLogRow {
   created_at: string;
 }
 
+// ---- Watchlist (visitas en riesgo) ----
+export interface WatchlistVisit {
+  tracking_id: string;
+  vehicle_id: number;
+  vehicle_name: string;
+  driver_name: string;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
+  title: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  order: number;
+  window_end: string;
+  estimated_time_arrival: string;
+  slack_min: number;
+  alert_slack: string;
+  p_fallo: number;
+  alert_valuedata: boolean;
+  is_vip: boolean;
+  priority: 'low' | 'normal' | 'high' | 'vip';
+  urgency_score: number;
+  severity: 'CRITICO' | 'ALTO' | 'MEDIO';
+  reasons: string[];
+  notif: {
+    count: number;
+    sent_count: number;
+    last_status: string;
+    last_created_at: string;
+  } | null;
+}
+
+export interface WatchlistSummary {
+  total: number;
+  critico: number;
+  alto: number;
+  medio: number;
+  vip_at_risk: number;
+  notified: number;
+  not_notified: number;
+}
+
+export interface WatchlistResponse {
+  summary: WatchlistSummary;
+  visits: WatchlistVisit[];
+}
+
+export interface LiveGenStats {
+  enabled: boolean;
+  interval_sec: number;
+  rows_per_tick: number;
+  total_inserted_session: number;
+  last_insert_at: string | null;
+  last_error: string | null;
+  rows_today_db: number;
+}
+
+export interface TrackingNotifSummary {
+  tracking_id: string;
+  count: number;
+  sent_count: number;
+  last_status: string;
+  last_to: string;
+  last_body: string;
+  last_triggered_by: string;
+  last_created_at: string;
+  last_twilio_sid: string | null;
+  last_content_sid: string | null;
+  last_content_variables: Record<string, string> | null;
+}
+
 export interface NotificationsConfig {
   enabled: boolean;
   dry_run: boolean;

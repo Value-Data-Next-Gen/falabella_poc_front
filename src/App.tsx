@@ -7,8 +7,10 @@ import {
   Bell,
   CalendarClock,
   Database,
+  Flame,
   LineChart,
   Map as MapIcon,
+  Radio,
   Truck,
 } from 'lucide-react';
 import { api } from './api';
@@ -23,12 +25,14 @@ import { ModelPanel } from './components/ModelPanel';
 import { VehiclesPanel } from './components/VehiclesPanel';
 import { EventStream } from './components/EventStream';
 import { MastersPanel } from './components/MastersPanel';
+import { LivePanel } from './components/LivePanel';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { PlanDiarioPanel } from './components/PlanDiarioPanel';
 import { SeguimientoPanel } from './components/SeguimientoPanel';
+import { WatchlistPanel } from './components/WatchlistPanel';
 import { useAuth } from './hooks/useAuth';
 
-type Tab = 'seguimiento' | 'plan' | 'ops' | 'notif' | 'model' | 'fleet' | 'masters';
+type Tab = 'watchlist' | 'seguimiento' | 'plan' | 'live' | 'ops' | 'notif' | 'model' | 'fleet' | 'masters';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -49,7 +53,7 @@ export default function App() {
 }
 
 function AuthenticatedApp() {
-  const [tab, setTab] = useState<Tab>('seguimiento');
+  const [tab, setTab] = useState<Tab>('watchlist');
   const [selectedVehicles, setSelectedVehicles] = useState<number[]>([]);
 
   const stateQ = useQuery({
@@ -65,9 +69,11 @@ function AuthenticatedApp() {
   }, [stateQ.data]);
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
+    { key: 'watchlist', label: 'En riesgo', icon: Flame },
     { key: 'seguimiento', label: 'Seguimiento', icon: LineChart },
     { key: 'plan', label: 'Plan Diario', icon: CalendarClock },
-    { key: 'ops', label: 'Operacional (live)', icon: Activity },
+    { key: 'live', label: 'En vivo', icon: Radio },
+    { key: 'ops', label: 'Mapa ops', icon: Activity },
     { key: 'notif', label: 'Notificaciones', icon: Bell },
     { key: 'model', label: 'Modelo', icon: BarChart3 },
     { key: 'fleet', label: 'Flota', icon: Truck },
@@ -104,8 +110,10 @@ function AuthenticatedApp() {
           </div>
 
           <div className="flex-1 overflow-auto">
+            {tab === 'watchlist' && <WatchlistPanel />}
             {tab === 'seguimiento' && <SeguimientoPanel />}
             {tab === 'plan' && <PlanDiarioPanel />}
+            {tab === 'live' && <LivePanel />}
             {tab === 'ops' && <div className="p-4"><OperationsView selectedVehicles={selectedVehicles} /></div>}
             {tab === 'notif' && <NotificationsPanel />}
             {tab === 'model' && <div className="p-4"><ModelPanel /></div>}

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, AlertTriangle, Target, TrendingUp, DollarSign, Package } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Target, TrendingUp, Package } from 'lucide-react';
 import { api } from '../api';
 
 export function KPIBar({ selectedVehicles }: { selectedVehicles: number[] }) {
@@ -50,13 +50,9 @@ export function KPIBar({ selectedVehicles }: { selectedVehicles: number[] }) {
         sub="con 60% recuperación"
         color="text-accent-green"
       />
-      <Card
-        icon={DollarSign}
-        label="Delta de rescate"
-        value={`$${data.rescue_clp.toLocaleString('es-CL')}`}
-        sub="CLP estimados"
-        color="text-accent-green"
-      />
+      {/* KPI de CLP oculto: el parámetro PRICE_PER_RESCUE_CLP es placeholder
+          del POC sin cifra real de Falabella. Re-habilitar cuando operaciones
+          entregue el costo real de reagendamiento. */}
     </div>
   );
 }
