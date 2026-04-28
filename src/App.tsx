@@ -11,6 +11,8 @@ import {
   LineChart,
   Map as MapIcon,
   Radio,
+  Route,
+  Settings,
   Truck,
 } from 'lucide-react';
 import { api } from './api';
@@ -25,14 +27,16 @@ import { ModelPanel } from './components/ModelPanel';
 import { VehiclesPanel } from './components/VehiclesPanel';
 import { EventStream } from './components/EventStream';
 import { MastersPanel } from './components/MastersPanel';
+import { DayConfigPanel } from './components/DayConfigPanel';
 import { LivePanel } from './components/LivePanel';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { PlanDiarioPanel } from './components/PlanDiarioPanel';
+import { RouteOpsPanel } from './components/RouteOpsPanel';
 import { SeguimientoPanel } from './components/SeguimientoPanel';
 import { WatchlistPanel } from './components/WatchlistPanel';
 import { useAuth } from './hooks/useAuth';
 
-type Tab = 'watchlist' | 'seguimiento' | 'plan' | 'live' | 'ops' | 'notif' | 'model' | 'fleet' | 'masters';
+type Tab = 'config' | 'watchlist' | 'seguimiento' | 'plan' | 'route-ops' | 'live' | 'ops' | 'notif' | 'model' | 'fleet' | 'masters';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -69,9 +73,11 @@ function AuthenticatedApp() {
   }, [stateQ.data]);
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
+    { key: 'config', label: 'Inicio del día', icon: Settings },
     { key: 'watchlist', label: 'En riesgo', icon: Flame },
     { key: 'seguimiento', label: 'Seguimiento', icon: LineChart },
     { key: 'plan', label: 'Plan Diario', icon: CalendarClock },
+    { key: 'route-ops', label: 'Operación de ruta', icon: Route },
     { key: 'live', label: 'En vivo', icon: Radio },
     { key: 'ops', label: 'Mapa ops', icon: Activity },
     { key: 'notif', label: 'Notificaciones', icon: Bell },
@@ -110,9 +116,11 @@ function AuthenticatedApp() {
           </div>
 
           <div className="flex-1 overflow-auto">
+            {tab === 'config' && <DayConfigPanel />}
             {tab === 'watchlist' && <WatchlistPanel />}
             {tab === 'seguimiento' && <SeguimientoPanel />}
             {tab === 'plan' && <PlanDiarioPanel />}
+            {tab === 'route-ops' && <RouteOpsPanel />}
             {tab === 'live' && <LivePanel />}
             {tab === 'ops' && <div className="p-4"><OperationsView selectedVehicles={selectedVehicles} /></div>}
             {tab === 'notif' && <NotificationsPanel />}

@@ -1,4 +1,12 @@
 import {
+  AccessLogRow,
+  AccessSummary,
+  AdminClient,
+  AdminClientsPage,
+  AdminDriver,
+  AdminEmpresa,
+  AdminUser,
+  AdminVehicle,
   AnticipatedAlert,
   AppState,
   AuthUser,
@@ -87,12 +95,46 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) { setToken(null); throw new AuthError(401, 'sesión expirada'); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); if (j?.detail) detail = j.detail; } catch {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: authHeaders() });
+  if (res.status === 401) { setToken(null); throw new AuthError(401, 'sesión expirada'); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const j = await res.json(); if (j?.detail) detail = j.detail; } catch {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
 export const api = {
   // Auth
   login: (email: string, password: string) =>
     post<LoginResponse>('/auth/login', { email, password }),
   authMe: () => get<AuthUser>('/auth/me'),
   empresas: () => get<Empresa[]>('/empresas'),
+  accessLog: (opts?: { limit?: number; event_type?: string }) => {
+    const p: string[] = [];
+    if (opts?.limit != null) p.push(`limit=${opts.limit}`);
+    if (opts?.event_type) p.push(`event_type=${opts.event_type}`);
+    const q = p.length ? '?' + p.join('&') : '';
+    return get<AccessLogRow[]>(`/auth/access-log${q}`);
+  },
+  accessSummary: () => get<AccessSummary>('/auth/access-summary'),
 
   // Datos
   state: () => get<AppState>('/state'),
@@ -119,9 +161,17 @@ export const api = {
   modelImportance: (topK = 15) => get<FeatureImportance[]>(`/model/importance?top_k=${topK}`),
   postIncident: (vehicle_id: number, extra_min: number) =>
     post<{ status: string; incidents: Record<string, number> }>('/control/incident', { vehicle_id, extra_min }),
-  postReset: () => post<{ status: string; day_seed: number; sim_clock: string }>('/control/reset', {}),
+  postReset: (opts?: { start_date?: string; day_seed?: number; sim_minutes_per_tick?: number }) =>
+    post<{ status: string; today: string; day_seed: number; sim_clock: string; sim_minutes_per_tick: number }>(
+      '/control/reset', opts ?? {},
+    ),
   postClock: (body: { sim_clock?: string; offset_minutes?: number; auto_advance?: boolean }) =>
     post<{ status: string; sim_clock: string; auto_advance: boolean }>('/control/clock', body),
+  postFreeze: () =>
+    post<{ status: string; sim_clock: string; auto_advance: boolean }>('/control/freeze', {}),
+  postStartDay: (opts?: { regen_plan?: boolean; day_seed?: number }) =>
+    post<{ status: string; today: string; day_seed: number; sim_clock: string; auto_advance: boolean }>(
+      '/control/start-day', opts ?? {}),
 
   // Maestros
   drivers: () => get<Driver[]>('/drivers'),
@@ -242,6 +292,65 @@ export const api = {
         headers: t ? { Authorization: `Bearer ${t}` } : {},
       }).then(r => r.json());
     },
+  },
+
+  // ---- Mantenedores admin (CRUD) ----
+  admin: {
+    // Empresas
+    listEmpresas: () => get<AdminEmpresa[]>('/admin/empresas'),
+    createEmpresa: (req: { empresa_id: number; nombre: string; activo?: boolean }) =>
+      post<AdminEmpresa>('/admin/empresas', req),
+    updateEmpresa: (id: number, req: { nombre?: string; activo?: boolean }) =>
+      put<AdminEmpresa>(`/admin/empresas/${id}`, req),
+    deleteEmpresa: (id: number) => del<{ deleted: number }>(`/admin/empresas/${id}`),
+
+    // Users
+    listUsers: () => get<AdminUser[]>('/admin/users'),
+    createUser: (req: {
+      email: string; password: string; display_name: string; role: string;
+      empresa_id?: number | null; activo?: boolean; phone_e164?: string;
+      notify_whatsapp?: boolean;
+    }) => post<AdminUser>('/admin/users', req),
+    updateUser: (id: number, req: Partial<{
+      email: string; display_name: string; role: string; empresa_id: number | null;
+      activo: boolean; phone_e164: string; notify_whatsapp: boolean;
+    }>) => put<AdminUser>(`/admin/users/${id}`, req),
+    resetPassword: (id: number, new_password: string) =>
+      post<{ reset: number }>(`/admin/users/${id}/reset-password`, { new_password }),
+    deleteUser: (id: number) => del<{ deleted: number }>(`/admin/users/${id}`),
+
+    // Drivers
+    listDrivers: () => get<AdminDriver[]>('/admin/drivers'),
+    createDriver: (req: AdminDriver) => post<AdminDriver>('/admin/drivers', req),
+    updateDriver: (id: string, req: Partial<AdminDriver>) =>
+      put<AdminDriver>(`/admin/drivers/${id}`, req),
+    deleteDriver: (id: string) => del<{ deleted: string }>(`/admin/drivers/${id}`),
+
+    // Vehicles
+    listVehicles: () => get<AdminVehicle[]>('/admin/vehicles'),
+    createVehicle: (req: AdminVehicle) => post<AdminVehicle>('/admin/vehicles', req),
+    updateVehicle: (id: number, req: Partial<AdminVehicle>) =>
+      put<AdminVehicle>(`/admin/vehicles/${id}`, req),
+    deleteVehicle: (id: number) => del<{ deleted: number }>(`/admin/vehicles/${id}`),
+
+    // Clients
+    listClients: (opts?: {
+      limit?: number; offset?: number; search?: string;
+      only_recurrent?: boolean; only_problem?: boolean;
+    }) => {
+      const p: string[] = [];
+      if (opts?.limit != null) p.push(`limit=${opts.limit}`);
+      if (opts?.offset != null) p.push(`offset=${opts.offset}`);
+      if (opts?.search) p.push(`search=${encodeURIComponent(opts.search)}`);
+      if (opts?.only_recurrent) p.push('only_recurrent=true');
+      if (opts?.only_problem) p.push('only_problem=true');
+      const q = p.length ? '?' + p.join('&') : '';
+      return get<AdminClientsPage>(`/admin/clients${q}`);
+    },
+    createClient: (req: AdminClient) => post<AdminClient>('/admin/clients', req),
+    updateClient: (id: string, req: Partial<AdminClient>) =>
+      put<AdminClient>(`/admin/clients/${id}`, req),
+    deleteClient: (id: string) => del<{ deleted: string }>(`/admin/clients/${id}`),
   },
 
   // Seguimiento (datos reales fpoc)

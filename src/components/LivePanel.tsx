@@ -56,6 +56,20 @@ export function LivePanel() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['live-gen-stats'] }),
   });
 
+  // Reiniciar simulación desde fecha + paso temporal
+  const [resetDate, setResetDate] = useState<string>('');
+  const [simMinPerTick, setSimMinPerTick] = useState<number>(3);
+  const clockResetMut = useMutation({
+    mutationFn: () => api.postReset({
+      start_date: resetDate || undefined,
+      sim_minutes_per_tick: simMinPerTick,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['state-live'] });
+      qc.invalidateQueries({ queryKey: ['kpis-live'] });
+    },
+  });
+
   const [rowsFlash, setRowsFlash] = useState(false);
   const lastRowsRef = useRef<number>(0);
   useEffect(() => {
@@ -314,6 +328,55 @@ export function LivePanel() {
               {simMut.isError && <div className="text-[10px] text-accent-red mt-1">{String(simMut.error)}</div>}
               <div className="text-[10px] text-text-muted mt-1">
                 Estimado: ~{((simDays * simRows) / 1000).toFixed(0)}k filas · {simDays * 1.5}s aprox
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reinicio de simulación desde fecha + paso temporal */}
+        {isAdmin && (
+          <div className="px-3 pb-3 pt-2 border-t border-line">
+            <div className="p-2 bg-bg-700/30 rounded border border-line text-xs">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1">
+                <RefreshCcw size={10} /> Reiniciar simulación
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="flex items-center gap-1">
+                  <span className="text-text-muted">Desde fecha:</span>
+                  <input
+                    type="date"
+                    value={resetDate}
+                    onChange={e => setResetDate(e.target.value)}
+                    className="input"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span className="text-text-muted">Paso:</span>
+                  <input
+                    type="number" min={1} max={120} step={1}
+                    value={simMinPerTick}
+                    onChange={e => setSimMinPerTick(Number(e.target.value))}
+                    className="input w-16 tabular-nums"
+                    title="minutos simulados por tick de 3s real"
+                  />
+                  <span className="text-text-muted">min/tick</span>
+                </label>
+                <button
+                  onClick={() => clockResetMut.mutate()}
+                  disabled={clockResetMut.isPending}
+                  className="btn-primary flex items-center gap-1 ml-auto"
+                >
+                  {clockResetMut.isPending ? <Loader2 size={11} className="animate-spin" /> : <RefreshCcw size={11} />}
+                  Aplicar
+                </button>
+              </div>
+              {clockResetMut.data && (
+                <div className="text-[10px] text-brand mt-1">
+                  ✓ reloj simulado: {clockResetMut.data.today} {clockResetMut.data.sim_clock.slice(11, 16)} · seed {clockResetMut.data.day_seed} · {clockResetMut.data.sim_minutes_per_tick} min/tick
+                </div>
+              )}
+              <div className="text-[10px] text-text-muted mt-1">
+                Con {simMinPerTick} min/tick y tick cada 3s real → 1 día simulado ≈ {(12 * 60 / simMinPerTick * 3 / 60).toFixed(1)} min reales. Menos = más rápido.
               </div>
             </div>
           </div>

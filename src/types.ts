@@ -438,6 +438,29 @@ export interface PriorityOverride {
   set_at: string;
 }
 
+// ---- Access log (auditoría) ----
+export interface AccessLogRow {
+  log_id: number;
+  event_type: 'login_success' | 'login_failed' | 'logout';
+  user_id: number | null;
+  user_email: string | null;
+  user_display_name: string | null;
+  user_role: string | null;
+  email_attempted: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  error_detail: string | null;
+  created_at: string;
+}
+
+export interface AccessSummary {
+  total_24h: number;
+  success_24h: number;
+  failed_24h: number;
+  unique_users_24h: number;
+  unique_ips_24h: number;
+}
+
 // ---- Auth ----
 export type UserRole = 'falabella_admin' | 'falabella_ops' | 'transport_manager';
 
@@ -460,6 +483,73 @@ export interface Empresa {
   empresa_id: number;
   nombre: string;
   activo: boolean;
+}
+
+// ---- Mantenedores admin ----
+export interface AdminEmpresa extends Empresa {
+  created_at: string | null;
+}
+
+export interface AdminUser {
+  user_id: number;
+  email: string;
+  display_name: string;
+  role: UserRole;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
+  activo: boolean;
+  phone_e164: string | null;
+  notify_whatsapp: boolean;
+  created_at: string | null;
+  last_login: string | null;
+}
+
+export interface AdminDriver {
+  driver_id: string;
+  name: string;
+  phone: string | null;
+  license: string | null;
+  vehicle_id: number;
+  vehicle_name: string;
+  rating: number;
+  deliveries_30d: number;
+  fail_rate_30d: number;
+  joined_at: string | null;
+  active: boolean;
+  is_problem_hidden: boolean;
+}
+
+export interface AdminVehicle {
+  vehicle_id: number;
+  name: string;
+  type: string;
+  plate: string;
+  capacity_m3: number;
+  driver_id: string | null;
+  driver_name: string | null;
+  depot_lat: number;
+  depot_lon: number;
+  year: number | null;
+  active: boolean;
+  is_problem_hidden: boolean;
+}
+
+export interface AdminClient {
+  customer_id: string;
+  title: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  is_recurrent: boolean;
+  in_problem_comuna: boolean;
+  notes: string | null;
+}
+
+export interface AdminClientsPage {
+  rows: AdminClient[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface StreamEvent {
