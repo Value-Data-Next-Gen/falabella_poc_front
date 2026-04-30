@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity, AlertOctagon, AlertTriangle, BookOpen, CheckCircle2, Clock, Database,
-  Loader2, Play, Pause, Plus, RefreshCcw, Rewind, Trash2, Truck, XCircle, Zap, Wrench, Radio, Wifi,
+  Loader2, MessageSquare, Play, Pause, Plus, RefreshCcw, Rewind, Trash2, Truck, XCircle, Zap, Wrench, Radio, Wifi,
 } from 'lucide-react';
 import { api } from '../api';
 import { EventType, StreamEvent } from '../types';
@@ -18,11 +18,12 @@ const META: Record<EventType, { icon: any; color: string; bg: string; label: str
   incident_auto:    { icon: AlertOctagon,  color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', label: 'Incidente auto' },
   incident_manual:  { icon: Wrench,        color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', label: 'Incidente manual' },
   day_reset:        { icon: RefreshCcw,    color: 'text-accent-blue',   bg: 'bg-accent-blue/10',   label: 'Reset día' },
+  comment_alert:    { icon: MessageSquare, color: 'text-accent-red',    bg: 'bg-accent-red/10',    label: 'Motivo alertable' },
 };
 
 const EVENT_ORDER: EventType[] = [
   'delivery', 'failed_delivery', 'alert_triggered', 'alert_cleared',
-  'red_simpli', 'incident_auto', 'incident_manual', 'day_reset',
+  'red_simpli', 'incident_auto', 'incident_manual', 'comment_alert', 'day_reset',
 ];
 
 export function LivePanel() {
@@ -385,6 +386,9 @@ export function LivePanel() {
 
       <AlgorithmModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
+      {/* Simulador de motivos alertables */}
+      <CommentSimCard isAdmin={isAdmin} />
+
       {/* Contadores por tipo */}
       <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
         {EVENT_ORDER.map(t => {
@@ -469,7 +473,34 @@ function EventRow({ e, flash }: { e: StreamEvent; flash: boolean }) {
       </td>
       <td className="px-2 py-1.5 truncate max-w-[380px]">
         <span className="font-medium">{e.title ?? '—'}</span>
-        {e.reason && <span className="text-text-muted ml-2 text-[11px]">· {e.reason}</span>}
+        {e.motivo && (
+          <span
+            className={
+              'ml-2 pill border text-[10px] ' +
+              (e.severity === 'critical'
+                ? 'bg-accent-violet/15 text-accent-violet border-accent-violet/40'
+                : e.severity === 'high'
+                  ? 'bg-accent-red/15 text-accent-red border-accent-red/40'
+                  : e.severity === 'medium'
+                    ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40'
+                    : 'bg-bg-700 text-text-secondary border-line')
+            }
+            title={e.comentario}
+          >
+            {e.motivo}
+          </span>
+        )}
+        {e.comentario && (
+          <span className="text-text-muted ml-2 text-[11px] truncate">
+            · "{e.comentario.length > 80 ? e.comentario.slice(0, 80) + '…' : e.comentario}"
+          </span>
+        )}
+        {e.reported_by && (
+          <span className="text-text-muted ml-2 text-[10px]">por {e.reported_by}</span>
+        )}
+        {e.reason && !e.motivo && (
+          <span className="text-text-muted ml-2 text-[11px]">· {e.reason}</span>
+        )}
       </td>
       <td className="px-2 py-1.5 font-mono text-[11px] text-text-secondary">
         {e.vehicle_name ? (
@@ -489,5 +520,170 @@ function EventRow({ e, flash }: { e: StreamEvent; flash: boolean }) {
         {e.extra_min != null && <span className="text-accent-yellow ml-1">+{e.extra_min.toFixed(0)}m</span>}
       </td>
     </tr>
+  );
+}
+
+// ===========================================================================
+// Simulador de motivos alertables — para demos
+// ===========================================================================
+const SIM_PRESETS = [
+  { sec: 5,   label: '5s' },
+  { sec: 10,  label: '10s' },
+  { sec: 15,  label: '15s' },
+  { sec: 30,  label: '30s' },
+  { sec: 60,  label: '1min' },
+  { sec: 300, label: '5min' },
+];
+
+function CommentSimCard({ isAdmin }: { isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const statsQ = useQuery({
+    queryKey: ['comment-sim-stats'],
+    queryFn: api.commentSim.stats,
+    refetchInterval: 2000,
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (enabled: boolean) => api.commentSim.toggle(enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comment-sim-stats'] }),
+  });
+  const configMut = useMutation({
+    mutationFn: (req: { interval_sec?: number; only_alertable?: boolean }) =>
+      api.commentSim.config(req),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comment-sim-stats'] }),
+  });
+  const emitNowMut = useMutation({
+    mutationFn: api.commentSim.emitNow,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['comment-sim-stats'] });
+      qc.invalidateQueries({ queryKey: ['events-live'] });
+    },
+  });
+
+  const s = statsQ.data;
+  const enabled = s?.enabled ?? false;
+  const interval = s?.interval_sec ?? 15;
+  const onlyAlertable = s?.only_alertable ?? true;
+  const last = s?.last_emit_payload;
+  const lastWhen = s?.last_emit_at
+    ? new Date(s.last_emit_at + 'Z').toLocaleTimeString('es-CL', { hour12: false })
+    : '—';
+
+  return (
+    <section className="panel">
+      <div className="panel-title flex items-center gap-2">
+        <Zap size={13} className="text-accent-violet" />
+        Simulador de motivos alertables (demo)
+        <span
+          className={`ml-auto flex items-center gap-1 text-[11px] font-normal normal-case tracking-normal ${
+            enabled ? 'text-accent-violet' : 'text-text-muted'
+          }`}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              enabled ? 'bg-accent-violet animate-pulse' : 'bg-text-muted'
+            }`}
+          />
+          {enabled ? `emitiendo cada ${interval}s` : 'pausado'}
+        </span>
+      </div>
+
+      <div className="p-3 flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex flex-col">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            Emitidos en sesión
+          </div>
+          <div className="text-3xl font-semibold tabular-nums text-accent-violet">
+            {s?.total_emitted_session ?? 0}
+          </div>
+          <div className="text-[10px] text-text-muted">comentarios alertables</div>
+        </div>
+
+        <div className="flex flex-col">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            Último
+          </div>
+          <div className="text-xs tabular-nums">{lastWhen}</div>
+          {last && (
+            <div className="text-[10px] text-text-muted truncate max-w-[260px]">
+              {last.motivo} · {last.vehicle_name}
+            </div>
+          )}
+          {s?.last_error && (
+            <div
+              className="text-[10px] text-accent-red max-w-[260px] truncate"
+              title={s.last_error}
+            >
+              err: {s.last_error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            Periodicidad
+          </div>
+          <div className="flex items-center gap-1">
+            {SIM_PRESETS.map(p => (
+              <button
+                key={p.sec}
+                onClick={() => configMut.mutate({ interval_sec: p.sec })}
+                disabled={!isAdmin || configMut.isPending}
+                className={
+                  interval === p.sec
+                    ? 'btn-primary text-[10px] !px-2 !py-1'
+                    : 'btn text-[10px] !px-2 !py-1'
+                }
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 ml-2">
+          <label className="flex items-center gap-1 text-[11px] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={onlyAlertable}
+              disabled={!isAdmin || configMut.isPending}
+              onChange={e =>
+                configMut.mutate({ only_alertable: e.target.checked })
+              }
+              className="accent-accent-violet"
+            />
+            Solo motivos alertables
+          </label>
+        </div>
+
+        {isAdmin && (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => toggleMut.mutate(!enabled)}
+              className={enabled ? 'btn' : 'btn-primary'}
+              disabled={toggleMut.isPending}
+            >
+              {enabled ? (
+                <>
+                  <Pause size={12} className="inline mr-1" /> Pausar
+                </>
+              ) : (
+                <>
+                  <Play size={12} className="inline mr-1" /> Arrancar
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => emitNowMut.mutate()}
+              className="btn flex items-center gap-1"
+              disabled={emitNowMut.isPending}
+              title="Disparar un comentario alertable ahora"
+            >
+              <Zap size={12} /> Disparar ahora
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

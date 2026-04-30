@@ -1,15 +1,16 @@
 import { ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Building2, KeyRound, Pencil, Plus, ShieldAlert, Star, Trash2, Truck, User, Users,
+  AlertTriangle, Building2, KeyRound, Pencil, Plus, ShieldAlert, Star, Trash2, Truck, User, Users,
 } from 'lucide-react';
 import { api } from '../api';
 import {
   AdminClient, AdminDriver, AdminEmpresa, AdminUser, AdminVehicle,
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { MotivosConfigPanel } from './MotivosConfigPanel';
 
-type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients';
+type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients' | 'motivos';
 
 export function MastersPanel() {
   const { user } = useAuth();
@@ -30,6 +31,7 @@ export function MastersPanel() {
     { key: 'drivers', label: 'Conductores', icon: User },
     { key: 'vehicles', label: 'Vehículos', icon: Truck },
     { key: 'clients', label: 'Clientes', icon: Star },
+    { key: 'motivos', label: 'Motivos / Alertas', icon: AlertTriangle },
   ];
 
   return (
@@ -56,6 +58,7 @@ export function MastersPanel() {
       {sub === 'drivers' && <DriversTab />}
       {sub === 'vehicles' && <VehiclesTab />}
       {sub === 'clients' && <ClientsTab />}
+      {sub === 'motivos' && <MotivosConfigPanel />}
     </div>
   );
 }

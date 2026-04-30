@@ -4,6 +4,7 @@ import {
   AlertOctagon,
   AlertTriangle,
   CheckCircle2,
+  MessageSquare,
   Radio,
   RefreshCcw,
   Truck,
@@ -23,6 +24,7 @@ const ICON_BY_TYPE: Record<EventType, { icon: any; color: string; label: string 
   incident_auto: { icon: AlertOctagon, color: 'text-accent-yellow', label: 'Incidente auto' },
   incident_manual: { icon: Wrench, color: 'text-accent-yellow', label: 'Incidente manual' },
   day_reset: { icon: RefreshCcw, color: 'text-accent-blue', label: 'Reset día' },
+  comment_alert: { icon: MessageSquare, color: 'text-accent-red', label: 'Motivo alertable' },
 };
 
 export function EventStream() {
@@ -91,6 +93,29 @@ function EventRow({ e }: { e: StreamEvent }) {
           <div className="text-xs mt-0.5 text-text-primary truncate">
             {e.title || e.reason || ''}
           </div>
+          {e.motivo && (
+            <div className="text-[10px] mt-0.5 flex items-center gap-2 flex-wrap">
+              <span
+                className={
+                  'pill border ' +
+                  (e.severity === 'critical'
+                    ? 'bg-accent-violet/15 text-accent-violet border-accent-violet/40'
+                    : e.severity === 'high'
+                      ? 'bg-accent-red/15 text-accent-red border-accent-red/40'
+                      : e.severity === 'medium'
+                        ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40'
+                        : 'bg-bg-700 text-text-secondary border-line')
+                }
+              >
+                {e.motivo}
+              </span>
+              {e.comentario && (
+                <span className="text-text-muted truncate">
+                  "{e.comentario.length > 60 ? e.comentario.slice(0, 60) + '…' : e.comentario}"
+                </span>
+              )}
+            </div>
+          )}
           <div className="text-[10px] text-text-muted flex items-center gap-2 mt-0.5 flex-wrap">
             {e.vehicle_name && (
               <span className="flex items-center gap-1">

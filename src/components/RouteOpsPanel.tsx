@@ -17,6 +17,7 @@ import {
   Route as RouteIcon,
   ShieldCheck,
   SkipForward,
+  Sparkles,
   Star,
   Truck,
   User,
@@ -34,9 +35,11 @@ import {
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { NotifiedBadge } from './NotifiedBadge';
+import { ReportMotivoButton } from './ReportMotivoButton';
+import { AsistenteIAPanel } from './AsistenteIAPanel';
 
 type DriverStatus = 'pre' | 'en_ruta' | 'finalizado';
-type RightTab = 'prep' | 'live' | 'problems';
+type RightTab = 'prep' | 'live' | 'problems' | 'asistente';
 
 const INCIDENT_PRESETS: { label: string; mins: number; reason: string }[] = [
   { label: 'Tráfico leve', mins: 10, reason: 'Tráfico leve en ruta' },
@@ -293,6 +296,7 @@ export function RouteOpsPanel() {
                     { key: 'prep', label: 'Preparar ruta', icon: ShieldCheck },
                     { key: 'live', label: 'En ruta', icon: Radio },
                     { key: 'problems', label: 'Problemas activos', icon: AlertTriangle },
+                    { key: 'asistente', label: 'Asistente IA', icon: Sparkles },
                   ] as { key: RightTab; label: string; icon: any }[]
                 ).map(({ key, label, icon: Icon }) => (
                   <button
@@ -329,6 +333,9 @@ export function RouteOpsPanel() {
                     incidentExtra={Number(stateQ.data?.incidents?.[String(selected.vehicle_id)] ?? 0)}
                     onNotify={setNotifyVisit}
                   />
+                )}
+                {rightTab === 'asistente' && (
+                  <AsistenteIAPanel driver={selected} />
                 )}
               </div>
             </>
@@ -530,6 +537,11 @@ function NextStopCard({ v, index, notif, onNotify }: {
         <button onClick={onNotify} className="btn-primary flex items-center gap-1 text-[10px] flex-1 justify-center">
           <Phone size={10} /> Notificar
         </button>
+        <ReportMotivoButton
+          trackingId={v.tracking_id}
+          variant="ghost"
+          className="!text-[10px] !py-0.5 !px-2 flex-1 justify-center"
+        />
       </div>
     </div>
   );
@@ -815,6 +827,11 @@ function VisitRow({ v, notif, canMarkVip, onNotify, mode }: {
               <button onClick={onNotify} className="text-text-muted hover:text-brand" title="Notificar al cliente">
                 <Phone size={11} />
               </button>
+              <ReportMotivoButton
+                trackingId={v.tracking_id}
+                variant="ghost"
+                className="!px-1.5 !py-0.5 text-[10px]"
+              />
             </>
           )}
         </div>

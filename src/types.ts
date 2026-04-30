@@ -157,7 +157,77 @@ export type EventType =
   | 'red_simpli'
   | 'incident_auto'
   | 'incident_manual'
-  | 'day_reset';
+  | 'day_reset'
+  | 'comment_alert';
+
+// ---- Motivos / comentarios del transportista ----
+export type MotivoSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface Motivo {
+  motivo: string;
+  default_alertable: boolean;
+  default_severity: MotivoSeverity;
+}
+
+export interface MotivoAlertConfig {
+  motivo: string;
+  empresa_id: number | null;
+  alertable: boolean;
+  severity: MotivoSeverity;
+  description: string;
+  description_is_custom: boolean;
+  default_description: string;
+  is_default: boolean;
+  updated_at: string | null;
+  updated_by: number | null;
+}
+
+export interface SystemPromptResponse {
+  system_prompt: string;
+  empresa_id: number | null;
+  has_llm_creds: boolean;
+}
+
+export interface CommentSimStats {
+  enabled: boolean;
+  interval_sec: number;
+  only_alertable: boolean;
+  severity_filter: MotivoSeverity | null;
+  total_emitted_session: number;
+  last_emit_at: string | null;
+  last_emit_payload: {
+    tracking_id: string;
+    vehicle_name: string;
+    motivo: string;
+    comentario: string;
+    severity: MotivoSeverity;
+    alertable: boolean;
+  } | null;
+  last_error: string | null;
+}
+
+export interface ClassifyResponse {
+  motivo: string;
+  confianza: 'alta' | 'media' | 'baja';
+  razonamiento: string;
+  fallback: boolean;
+  alertable: boolean;
+  severity: MotivoSeverity;
+}
+
+export interface VisitComment {
+  comment_id: number;
+  tracking_id: string;
+  vehicle_id: number | null;
+  empresa_id: number | null;
+  motivo: string;
+  comentario: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  alertable: boolean;
+  severity: MotivoSeverity | null;
+}
 
 // ---- Seguimiento (fpoc) ----
 export interface AvailableDates {
@@ -570,4 +640,8 @@ export interface StreamEvent {
   extra_min?: number;
   reason?: string;
   new_day_seed?: number;
+  motivo?: string;
+  comentario?: string;
+  severity?: MotivoSeverity;
+  reported_by?: string;
 }

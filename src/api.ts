@@ -10,7 +10,9 @@ import {
   AnticipatedAlert,
   AppState,
   AuthUser,
+  ClassifyResponse,
   ClientMaster,
+  CommentSimStats,
   Driver,
   Empresa,
   EmpresaPerf,
@@ -21,9 +23,14 @@ import {
   LocalidadPerf,
   LoginResponse,
   ModelMetrics,
+  Motivo,
+  MotivoAlertConfig,
   MotivoItem,
+  MotivoSeverity,
+  SystemPromptResponse,
   NotificationLogRow,
   NotificationsConfig,
+  VisitComment,
   TrackingNotifSummary,
   PlanDiarioResponse,
   WatchlistResponse,
@@ -351,6 +358,54 @@ export const api = {
     updateClient: (id: string, req: Partial<AdminClient>) =>
       put<AdminClient>(`/admin/clients/${id}`, req),
     deleteClient: (id: string) => del<{ deleted: string }>(`/admin/clients/${id}`),
+  },
+
+  // Motivos + comentarios del transportista
+  motivos: {
+    list: () => get<Motivo[]>('/motivos'),
+    alertConfig: (empresaId?: number) =>
+      get<MotivoAlertConfig[]>(
+        `/motivos/alert-config${empresaId != null ? `?empresa_id=${empresaId}` : ''}`,
+      ),
+    setAlertConfig: (
+      motivo: string,
+      req: {
+        alertable: boolean;
+        severity: MotivoSeverity;
+        empresa_id?: number | null;
+        description?: string | null;
+        reset_description?: boolean;
+      },
+    ) => put<MotivoAlertConfig>(`/motivos/alert-config/${encodeURIComponent(motivo)}`, req),
+    classify: (comentario: string) =>
+      post<ClassifyResponse>('/motivos/classify', { comentario }),
+    systemPrompt: () => get<SystemPromptResponse>('/motivos/system-prompt'),
+  },
+
+  commentSim: {
+    stats: () => get<CommentSimStats>('/comment-sim/stats'),
+    toggle: (enabled: boolean) =>
+      post<CommentSimStats>('/comment-sim/toggle', { enabled }),
+    config: (req: {
+      interval_sec?: number;
+      only_alertable?: boolean;
+      severity_filter?: MotivoSeverity | null;
+    }) => post<CommentSimStats>('/comment-sim/config', req),
+    emitNow: () => post<CommentSimStats>('/comment-sim/emit-now', {}),
+  },
+
+  comments: {
+    add: (tracking_id: string, req: { motivo: string; comentario: string }) =>
+      post<VisitComment>(`/visits/${tracking_id}/comment`, req),
+    listForVisit: (tracking_id: string) =>
+      get<VisitComment[]>(`/visits/${tracking_id}/comments`),
+    recent: (opts?: { limit?: number; only_alertable?: boolean }) => {
+      const p: string[] = [];
+      if (opts?.limit != null) p.push(`limit=${opts.limit}`);
+      if (opts?.only_alertable) p.push('only_alertable=true');
+      const q = p.length ? '?' + p.join('&') : '';
+      return get<VisitComment[]>(`/comments/recent${q}`);
+    },
   },
 
   // Seguimiento (datos reales fpoc)
