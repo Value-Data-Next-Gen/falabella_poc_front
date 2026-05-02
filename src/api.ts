@@ -60,6 +60,7 @@ import {
   DriverScorecardRow,
   DriverWhatsAppOut,
   DriverWhatsAppUpdate,
+  SearchResults,
 } from './types';
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
@@ -546,6 +547,12 @@ export const api = {
   planificacion: {
     importMock: () =>
       post<{ ok: boolean; count: number; fecha: string }>('/planificacion/import-mock', {}),
+  },
+
+  // Sprint 7 — buscador global del topbar
+  search: {
+    global: (q: string) =>
+      get<SearchResults>(`/search?q=${encodeURIComponent(q)}`),
   },
 
   // Seguimiento (datos reales fpoc)

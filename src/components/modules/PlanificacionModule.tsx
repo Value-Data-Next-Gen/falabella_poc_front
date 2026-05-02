@@ -18,7 +18,7 @@ export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSu
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto p-4">
         {active === 'carga' && <CargaEntregasPanel />}
-        {active === 'plan' && <PlanDiarioPanel />}
+        {active === 'plan' && <PlanDiarioPanel mode="planning" />}
         {active === 'dia' && <DayConfigPanel />}
       </div>
     </div>

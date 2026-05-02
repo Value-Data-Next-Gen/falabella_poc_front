@@ -1,11 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Search, X } from 'lucide-react';
+import {
+  Bell, Building2, Crown, MessageSquare, Package,
+  Search, Star, Truck, User, X,
+} from 'lucide-react';
 import { api } from '../../api';
 import { ModuleKey, MODULES } from './Sidebar';
-import { StreamEvent } from '../../types';
+import { SearchHit, SearchKind, SearchResults, StreamEvent } from '../../types';
 
 const NOTIF_SEEN_KEY = 'fpoc.notif.lastSeenId';
+
+// =============================================================================
+// Sprint 7: buscador global multi-entidad
+// =============================================================================
+interface SectionDef {
+  kind: SearchKind;
+  label: string;
+  icon: typeof Building2;
+  iconClass?: string;
+  pickHits: (r: SearchResults) => SearchHit[];
+}
+
+const SECTIONS: SectionDef[] = [
+  { kind: 'empresa',  label: 'Empresas',  icon: Building2,      pickHits: r => r.empresas },
+  { kind: 'contacto', label: 'Contactos', icon: User,           pickHits: r => r.contactos },
+  { kind: 'driver',   label: 'Drivers',   icon: Truck,          pickHits: r => r.drivers },
+  { kind: 'visita',   label: 'Visitas',   icon: Package,        pickHits: r => r.visitas },
+  { kind: 'vip',      label: 'VIPs',      icon: Crown,          iconClass: 'text-cmr', pickHits: r => r.vips },
+  { kind: 'motivo',   label: 'Motivos',   icon: MessageSquare,  pickHits: r => r.motivos },
+];
+
+/** Aplana los hits de los SECTIONS en orden, manteniendo el indice global para
+ * poder navegarlos con teclado (↑↓). */
+function flattenHits(r: SearchResults | undefined): SearchHit[] {
+  if (!r) return [];
+  return SECTIONS.flatMap(s => s.pickHits(r));
+}
 
 export function Topbar({
   moduleKey,
@@ -18,23 +48,102 @@ export function Topbar({
 }) {
   const moduleDef = MODULES.find(m => m.key === moduleKey);
 
-  // Search
+  // ---------- Search (global, multi-entidad) ----------
   const [searchInput, setSearchInput] = useState('');
   const [searchDeb, setSearchDeb] = useState('');
+  const [activeIdx, setActiveIdx] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setSearchDeb(searchInput.trim()), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [searchInput]);
 
-  const vipQ = useQuery({
-    queryKey: ['topbar-search-vip', searchDeb],
-    queryFn: () => api.vip.list({ q: searchDeb }),
+  // Reset índice activo cuando cambian los resultados
+  useEffect(() => { setActiveIdx(0); }, [searchDeb]);
+
+  const searchQ = useQuery({
+    queryKey: ['topbar-search-global', searchDeb],
+    queryFn: () => api.search.global(searchDeb),
     enabled: searchDeb.length >= 2,
+    staleTime: 5_000,
   });
 
-  // Notifications bell
+  const flatHits = useMemo(() => flattenHits(searchQ.data), [searchQ.data]);
+  const showResults = searchDeb.length >= 2;
+
+  const closeAndClear = () => {
+    setSearchInput('');
+    setSearchDeb('');
+  };
+
+  /** Navega al módulo apropiado según el tipo de hit. */
+  const handleHitClick = (hit: SearchHit) => {
+    switch (hit.kind) {
+      case 'empresa':
+      case 'contacto':
+        onNavigate('maestros', 'empresas');
+        break;
+      case 'driver':
+        onNavigate('maestros', 'drivers');
+        break;
+      case 'vip':
+        onNavigate('maestros', 'vips');
+        break;
+      case 'motivo':
+        onNavigate('maestros', 'motivos');
+        break;
+      case 'visita':
+        onNavigate('operacion', 'plan');
+        break;
+    }
+    // Persistimos el término clickeado en localStorage para que la página
+    // destino pueda destacar el hit (resaltar fila / abrir drawer / filtrar).
+    try {
+      const payload = JSON.stringify({
+        kind: hit.kind, id: hit.id, label: hit.label,
+        empresa_id: hit.empresa_id, tracking_id: hit.tracking_id,
+        ts: Date.now(),
+      });
+      localStorage.setItem('fpoc.search.lastHit', payload);
+    } catch {}
+    closeAndClear();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!showResults || flatHits.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx(i => Math.min(i + 1, flatHits.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = flatHits[activeIdx] ?? flatHits[0];
+      if (target) handleHitClick(target);
+    } else if (e.key === 'Escape') {
+      closeAndClear();
+    }
+  };
+
+  // Cerrar al click fuera
+  useEffect(() => {
+    if (!showResults) return;
+    const onClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // No cerramos si el click es dentro: deja que el botón haga su trabajo
+        setSearchDeb('');
+        setSearchInput('');
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [showResults]);
+
+  // ---------- Notifications bell ----------
   const eventsQ = useQuery({
     queryKey: ['topbar-events'],
     queryFn: () => api.events(20),
@@ -56,8 +165,6 @@ export function Topbar({
     try { localStorage.setItem(NOTIF_SEEN_KEY, events[0].event_id); } catch {}
   };
 
-  const showResults = searchDeb.length >= 2;
-
   return (
     <header className="h-14 border-b border-line bg-bg-800 px-4 flex items-center gap-4">
       {/* Breadcrumb */}
@@ -72,18 +179,19 @@ export function Topbar({
       </div>
 
       {/* Search (centered) */}
-      <div className="flex-1 max-w-[480px] relative">
+      <div ref={containerRef} className="flex-1 max-w-[480px] relative">
         <div className="flex items-center gap-2 input py-1.5">
           <Search size={13} className="text-text-muted shrink-0" />
           <input
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            placeholder="Buscar VIP, empresa, driver, tracking…"
+            onKeyDown={onKeyDown}
+            placeholder="Buscar empresa, contacto, driver, visita, VIP, motivo…"
             className="bg-transparent flex-1 outline-none text-[12px]"
           />
           {searchInput && (
             <button
-              onClick={() => setSearchInput('')}
+              onClick={closeAndClear}
               className="text-text-muted hover:text-text-primary"
             >
               <X size={12} />
@@ -91,26 +199,15 @@ export function Topbar({
           )}
         </div>
         {showResults && (
-          <div className="absolute top-full left-0 right-0 mt-1 panel max-h-[300px] overflow-auto z-30 shadow-xl">
-            <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-text-muted border-b border-line/60">
-              {vipQ.data?.length ?? 0} VIPs encontrados
-            </div>
-            {(vipQ.data ?? []).slice(0, 8).map(v => (
-              <button
-                key={v.vip_id}
-                onClick={() => {
-                  onNavigate('maestros', 'vips');
-                  setSearchInput('');
-                }}
-                className="w-full text-left px-3 py-2 hover:bg-bg-700/40 border-b border-line/30"
-              >
-                <div className="text-[12px] font-medium truncate">{v.match_value}</div>
-                <div className="text-[10px] text-text-muted">{v.match_type} · {v.tier}</div>
-              </button>
-            ))}
-            {(vipQ.data?.length ?? 0) === 0 && !vipQ.isLoading && (
-              <div className="px-3 py-3 text-[12px] text-text-muted text-center">Sin coincidencias.</div>
-            )}
+          <div className="absolute top-full left-0 right-0 mt-1 panel max-h-[420px] overflow-auto z-30 shadow-xl">
+            <SearchDropdown
+              q={searchDeb}
+              data={searchQ.data}
+              loading={searchQ.isLoading}
+              activeIdx={activeIdx}
+              onHitClick={handleHitClick}
+              onHitHover={setActiveIdx}
+            />
           </div>
         )}
       </div>
@@ -154,6 +251,86 @@ export function Topbar({
   );
 }
 
+// =============================================================================
+// Search dropdown
+// =============================================================================
+function SearchDropdown({
+  q, data, loading, activeIdx, onHitClick, onHitHover,
+}: {
+  q: string;
+  data: SearchResults | undefined;
+  loading: boolean;
+  activeIdx: number;
+  onHitClick: (h: SearchHit) => void;
+  onHitHover: (idx: number) => void;
+}) {
+  const total = data
+    ? data.empresas.length + data.contactos.length + data.drivers.length
+      + data.visitas.length + data.vips.length + data.motivos.length
+    : 0;
+
+  if (loading) {
+    return <div className="px-3 py-3 text-[12px] text-text-muted text-center">Buscando…</div>;
+  }
+  if (!data) return null;
+  if (total === 0) {
+    return (
+      <div className="px-3 py-3 text-[12px] text-text-muted text-center">
+        Sin resultados para «{q}».
+      </div>
+    );
+  }
+
+  // Recalculamos índices globales por sección para resaltar el activo.
+  let globalIdx = 0;
+
+  return (
+    <div>
+      {SECTIONS.map(section => {
+        const hits = section.pickHits(data);
+        if (hits.length === 0) return null;
+        const Icon = section.icon;
+        const sectionStart = globalIdx;
+        globalIdx += hits.length;
+        return (
+          <div key={section.kind}>
+            <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-text-muted border-b border-line/60 bg-bg-700/20 flex items-center gap-1.5">
+              <Icon size={11} className={section.iconClass} />
+              <span>{section.label}</span>
+              <span className="ml-auto tabular-nums">{hits.length}</span>
+            </div>
+            {hits.map((hit, i) => {
+              const idx = sectionStart + i;
+              const active = idx === activeIdx;
+              return (
+                <button
+                  key={`${hit.kind}-${hit.id}`}
+                  onClick={() => onHitClick(hit)}
+                  onMouseEnter={() => onHitHover(idx)}
+                  className={`w-full text-left px-3 py-2 border-b border-line/30 ${
+                    active ? 'bg-bg-700/60' : 'hover:bg-bg-700/40'
+                  }`}
+                >
+                  <div className="text-[12px] font-medium truncate flex items-center gap-1.5">
+                    {section.kind === 'vip' && <Star size={10} className="text-cmr shrink-0" />}
+                    <span className="truncate">{hit.label}</span>
+                  </div>
+                  {hit.sublabel && (
+                    <div className="text-[10px] text-text-muted truncate">{hit.sublabel}</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// =============================================================================
+// Bell row (sin cambios respecto a versión anterior)
+// =============================================================================
 function BellEventRow({ e }: { e: StreamEvent }) {
   const hour = e.sim_ts.slice(11, 16);
   const label = labelForType(e.type);

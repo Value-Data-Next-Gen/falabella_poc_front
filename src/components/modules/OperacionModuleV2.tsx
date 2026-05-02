@@ -130,7 +130,7 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
 
       <div className="flex-1 overflow-auto">
-        {active === 'plan' && <PlanDiarioPanel filters={filterProps} />}
+        {active === 'plan' && <PlanDiarioPanel filters={filterProps} mode="live" />}
         {active === 'watchlist' && <WatchlistPanel filters={filterProps} />}
         {active === 'mapa' && <MapaTab />}
         {active === 'alertas' && <div className="h-full"><EventStream /></div>}

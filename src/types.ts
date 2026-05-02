@@ -644,6 +644,27 @@ export interface VipParseNotesResponse {
 
 export type EventTypeExtended = EventType | 'vip_deadline_warning';
 
+// ---- Sprint 7: buscador global ----
+export type SearchKind = 'vip' | 'empresa' | 'contacto' | 'driver' | 'visita' | 'motivo';
+
+export interface SearchHit {
+  kind: SearchKind;
+  id: string;
+  label: string;
+  sublabel: string | null;
+  empresa_id: number | null;
+  tracking_id: string | null;
+}
+
+export interface SearchResults {
+  vips: SearchHit[];
+  empresas: SearchHit[];
+  contactos: SearchHit[];
+  drivers: SearchHit[];
+  visitas: SearchHit[];
+  motivos: SearchHit[];
+}
+
 export type Priority = 'low' | 'normal' | 'high' | 'vip';
 
 export interface PriorityOverride {

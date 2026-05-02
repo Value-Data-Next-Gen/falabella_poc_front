@@ -26,7 +26,10 @@ function isEtaLate(v: PlanVisit, simClock?: string): boolean {
 
 // =============================================================================
 // PlanDiarioPanel: jerarquía Empresa → Ruta → Visitas (Sprint 2)
+// Sprint 7: prop `mode` distingue Planificación (preview) vs Operación (live).
 // =============================================================================
+export type PlanDiarioMode = 'planning' | 'live';
+
 export interface PlanDiarioFilterOverrides {
   region?: RegionFilter;
   onlyVip?: boolean;
@@ -35,8 +38,15 @@ export interface PlanDiarioFilterOverrides {
   hideLocalFilters?: boolean;
 }
 
-export function PlanDiarioPanel({ filters }: { filters?: PlanDiarioFilterOverrides } = {}) {
+export function PlanDiarioPanel({
+  filters,
+  mode = 'live',
+}: {
+  filters?: PlanDiarioFilterOverrides;
+  mode?: PlanDiarioMode;
+} = {}) {
   const { isFalabella, isAdmin } = useAuth();
+  const isPlanning = mode === 'planning';
   const empresasQ = useQuery({ queryKey: ['empresas'], queryFn: api.empresas, enabled: isFalabella });
   const [selectedEmpresaLocal, setSelectedEmpresaLocal] = useState<number | 'all'>('all');
   const [regionLocal, setRegionLocal] = useState<RegionFilter>('all');
@@ -73,14 +83,20 @@ export function PlanDiarioPanel({ filters }: { filters?: PlanDiarioFilterOverrid
 
   const totals = useMemo(() => {
     const empresas = planQ.data?.empresas ?? [];
+    const visits = empresas.reduce((s, e) => s + e.total_visitas, 0);
+    const rutas = empresas.reduce((s, e) => s + e.rutas.length, 0);
+    // Estimado horas-camión: 0.5h por visita (entrega + traslado entre stops).
+    // Aproximación razonable para el resumen de planificación.
+    const horasCamion = Math.round(visits * 0.5);
     return {
       empresas: empresas.length,
-      rutas: empresas.reduce((s, e) => s + e.rutas.length, 0),
-      visits: empresas.reduce((s, e) => s + e.total_visitas, 0),
+      rutas,
+      visits,
       completadas: empresas.reduce((s, e) => s + e.completadas, 0),
       red: empresas.reduce((s, e) => s + e.red_visitas, 0),
       vip: empresas.reduce((s, e) => s + e.vip_visitas, 0),
       enRiesgo: empresas.reduce((s, e) => s + e.en_riesgo, 0),
+      horasCamion,
     };
   }, [planQ.data]);
 
@@ -89,7 +105,7 @@ export function PlanDiarioPanel({ filters }: { filters?: PlanDiarioFilterOverrid
       {/* Header */}
       <div className="panel">
         <div className="panel-title flex items-center gap-2 flex-wrap">
-          <span>Plan del día · {planQ.data?.planned_date ?? '—'}</span>
+          <span>{isPlanning ? 'Plan del día (preparación)' : 'Plan del día'} · {planQ.data?.planned_date ?? '—'}</span>
 
           {!hideLocalFilters && (
             <>
@@ -135,15 +151,25 @@ export function PlanDiarioPanel({ filters }: { filters?: PlanDiarioFilterOverrid
             </>
           )}
         </div>
-        <div className="p-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-          <Stat label="Empresas" value={totals.empresas} icon={Building2} />
-          <Stat label="Rutas" value={totals.rutas} icon={Truck} />
-          <Stat label="Visitas" value={totals.visits} icon={MapPin} />
-          <Stat label="Completadas" value={totals.completadas} icon={CheckCircle2} accent="text-brand" />
-          <Stat label="En riesgo" value={totals.enRiesgo} icon={AlertTriangle} accent="text-accent-yellow" />
-          <Stat label="RED pendientes" value={totals.red} icon={AlertTriangle} accent="text-accent-red" />
-          <Stat label="VIP" value={totals.vip} icon={Star} accent="text-cmr" />
-        </div>
+        {isPlanning ? (
+          <div className="p-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+            <Stat label="Total visitas" value={totals.visits} icon={MapPin} />
+            <Stat label="Empresas" value={totals.empresas} icon={Building2} />
+            <Stat label="Rutas planeadas" value={totals.rutas} icon={Truck} />
+            <Stat label="VIPs incluidos" value={totals.vip} icon={Star} accent="text-cmr" />
+            <Stat label="Hrs-camión est." value={totals.horasCamion} icon={Clock} />
+          </div>
+        ) : (
+          <div className="p-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
+            <Stat label="Empresas" value={totals.empresas} icon={Building2} />
+            <Stat label="Rutas" value={totals.rutas} icon={Truck} />
+            <Stat label="Visitas" value={totals.visits} icon={MapPin} />
+            <Stat label="Completadas" value={totals.completadas} icon={CheckCircle2} accent="text-brand" />
+            <Stat label="En riesgo" value={totals.enRiesgo} icon={AlertTriangle} accent="text-accent-yellow" />
+            <Stat label="RED pendientes" value={totals.red} icon={AlertTriangle} accent="text-accent-red" />
+            <Stat label="VIP" value={totals.vip} icon={Star} accent="text-cmr" />
+          </div>
+        )}
       </div>
 
       {/* Empresas → Rutas */}
@@ -154,6 +180,7 @@ export function PlanDiarioPanel({ filters }: { filters?: PlanDiarioFilterOverrid
           canMarkVip={isAdmin}
           notifMap={notifMap}
           simClock={planQ.data?.sim_clock}
+          mode={mode}
         />
       ))}
 
@@ -179,9 +206,9 @@ function Stat({ label, value, icon: Icon, accent }: {
   );
 }
 
-function EmpresaSection({ empresa, canMarkVip, notifMap, simClock }: {
+function EmpresaSection({ empresa, canMarkVip, notifMap, simClock, mode }: {
   empresa: any; canMarkVip: boolean; notifMap: Record<string, TrackingNotifSummary>;
-  simClock?: string;
+  simClock?: string; mode: PlanDiarioMode;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -220,6 +247,7 @@ function EmpresaSection({ empresa, canMarkVip, notifMap, simClock }: {
               canMarkVip={canMarkVip}
               notifMap={notifMap}
               simClock={simClock}
+              mode={mode}
             />
           ))}
         </div>
@@ -228,14 +256,15 @@ function EmpresaSection({ empresa, canMarkVip, notifMap, simClock }: {
   );
 }
 
-function RutaRow({ ruta, canMarkVip, notifMap, simClock }: {
+function RutaRow({ ruta, canMarkVip, notifMap, simClock, mode }: {
   ruta: PlanRuta; canMarkVip: boolean; notifMap: Record<string, TrackingNotifSummary>;
-  simClock?: string;
+  simClock?: string; mode: PlanDiarioMode;
 }) {
   const [open, setOpen] = useState(false);
   const pct = ruta.progreso_pct;
   const nextOrder = ruta.next_stop_order ?? ruta.orden_actual;
   const isActive = ruta.pendientes > 0 && ruta.completadas > 0;
+  const isPlanning = mode === 'planning';
 
   // Sprint 6: ETA del próximo stop pendiente para mostrar en el header
   const nextEta = useMemo(() => {
@@ -279,33 +308,44 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock }: {
             )}
           </div>
 
-          {/* Barra de progreso + KPIs */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 flex-1 min-w-[140px] max-w-[320px]">
-              <div className="flex-1 h-1.5 bg-bg-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ${
-                    pct === 100 ? 'bg-brand'
-                    : pct >= 50 ? 'bg-brand'
-                    : pct > 0 ? 'bg-accent-yellow'
-                    : 'bg-bg-600'
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="text-text-muted tabular-nums text-[11px] shrink-0">{pct.toFixed(0)}%</span>
-            </div>
-            <span className="text-text-muted text-[11px]">{ruta.completadas}/{ruta.total_visitas}</span>
-            {nextOrder != null && (
-              <span className="text-brand text-[11px] tabular-nums">
-                Próximo stop: #{nextOrder}{nextEta && <span className="text-text-muted ml-1">({nextEta})</span>}
+          {/* Barra de progreso + KPIs (live) | Chip "Planeada" + counts (planning) */}
+          {isPlanning ? (
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-accent-blue/15 text-accent-blue border border-accent-blue/40 rounded uppercase tracking-wider font-semibold">
+                Planeada
               </span>
-            )}
-            {ruta.red_visitas > 0 && <span className="text-accent-red text-[11px]">{ruta.red_visitas} RED</span>}
-            {ruta.en_riesgo > 0 && <span className="text-accent-yellow text-[11px]">⚠ {ruta.en_riesgo}</span>}
-            {ruta.vip_visitas > 0 && <span className="text-cmr text-[11px]">★ {ruta.vip_visitas}</span>}
-            {ruta.high_priority > 0 && <span className="text-accent-yellow text-[11px]">▲ {ruta.high_priority}</span>}
-          </div>
+              <span className="text-text-muted text-[11px]">{ruta.total_visitas} visitas</span>
+              {ruta.vip_visitas > 0 && <span className="text-cmr text-[11px]">★ {ruta.vip_visitas}</span>}
+              {ruta.high_priority > 0 && <span className="text-accent-yellow text-[11px]">▲ {ruta.high_priority}</span>}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-[140px] max-w-[320px]">
+                <div className="flex-1 h-1.5 bg-bg-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      pct === 100 ? 'bg-brand'
+                      : pct >= 50 ? 'bg-brand'
+                      : pct > 0 ? 'bg-accent-yellow'
+                      : 'bg-bg-600'
+                    }`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="text-text-muted tabular-nums text-[11px] shrink-0">{pct.toFixed(0)}%</span>
+              </div>
+              <span className="text-text-muted text-[11px]">{ruta.completadas}/{ruta.total_visitas}</span>
+              {nextOrder != null && (
+                <span className="text-brand text-[11px] tabular-nums">
+                  Próximo stop: #{nextOrder}{nextEta && <span className="text-text-muted ml-1">({nextEta})</span>}
+                </span>
+              )}
+              {ruta.red_visitas > 0 && <span className="text-accent-red text-[11px]">{ruta.red_visitas} RED</span>}
+              {ruta.en_riesgo > 0 && <span className="text-accent-yellow text-[11px]">⚠ {ruta.en_riesgo}</span>}
+              {ruta.vip_visitas > 0 && <span className="text-cmr text-[11px]">★ {ruta.vip_visitas}</span>}
+              {ruta.high_priority > 0 && <span className="text-accent-yellow text-[11px]">▲ {ruta.high_priority}</span>}
+            </div>
+          )}
         </div>
       </button>
 
@@ -317,8 +357,8 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock }: {
                 <th className="px-2 py-1 text-left w-10">#</th>
                 <th className="px-2 py-1 text-left w-14">ETA</th>
                 <th className="px-2 py-1 text-left">Cliente · Comuna</th>
-                <th className="px-2 py-1 text-center w-16">Status</th>
-                <th className="px-2 py-1 text-right w-16">P(fallo)</th>
+                {!isPlanning && <th className="px-2 py-1 text-center w-16">Status</th>}
+                {!isPlanning && <th className="px-2 py-1 text-right w-16">P(fallo)</th>}
                 <th className="px-2 py-1 text-center w-8"></th>
               </tr>
             </thead>
@@ -328,9 +368,10 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock }: {
                   key={v.tracking_id}
                   v={v}
                   canMarkVip={canMarkVip}
-                  isNext={v.order === nextOrder}
+                  isNext={!isPlanning && v.order === nextOrder}
                   notif={notifMap[v.tracking_id]}
                   simClock={simClock}
+                  mode={mode}
                 />
               ))}
             </tbody>
@@ -341,10 +382,11 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock }: {
   );
 }
 
-function VisitRow({ v, canMarkVip, isNext = false, notif, simClock }: {
+function VisitRow({ v, canMarkVip, isNext = false, notif, simClock, mode }: {
   v: PlanVisit; canMarkVip: boolean; isNext?: boolean; notif?: TrackingNotifSummary;
-  simClock?: string;
+  simClock?: string; mode: PlanDiarioMode;
 }) {
+  const isPlanning = mode === 'planning';
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -428,16 +470,20 @@ function VisitRow({ v, canMarkVip, isNext = false, notif, simClock }: {
             )}
           </div>
         </td>
-        <td className="px-2 py-1.5 text-center">
-          <span className={`pill ${v.status === 'completed' ? 'pill-green' : v.alert_slack === 'RED' ? 'pill-red' : v.alert_slack === 'YELLOW' ? 'pill-yellow' : 'pill-blue'}`}>
-            {v.status === 'completed' ? 'OK' : v.alert_slack}
-          </span>
-        </td>
-        <td className="px-2 py-1.5 text-right tabular-nums">
-          <span className={v.p_fallo >= 0.5 ? 'text-accent-red' : v.p_fallo >= 0.2 ? 'text-accent-yellow' : 'text-text-secondary'}>
-            {(v.p_fallo * 100).toFixed(0)}%
-          </span>
-        </td>
+        {!isPlanning && (
+          <td className="px-2 py-1.5 text-center">
+            <span className={`pill ${v.status === 'completed' ? 'pill-green' : v.alert_slack === 'RED' ? 'pill-red' : v.alert_slack === 'YELLOW' ? 'pill-yellow' : 'pill-blue'}`}>
+              {v.status === 'completed' ? 'OK' : v.alert_slack}
+            </span>
+          </td>
+        )}
+        {!isPlanning && (
+          <td className="px-2 py-1.5 text-right tabular-nums">
+            <span className={v.p_fallo >= 0.5 ? 'text-accent-red' : v.p_fallo >= 0.2 ? 'text-accent-yellow' : 'text-text-secondary'}>
+              {(v.p_fallo * 100).toFixed(0)}%
+            </span>
+          </td>
+        )}
         <td className="px-2 py-1.5 text-center text-text-muted">
           {expanded ? <ChevronDown size={12} className="inline" /> : <ChevronRight size={12} className="inline" />}
         </td>
@@ -445,7 +491,7 @@ function VisitRow({ v, canMarkVip, isNext = false, notif, simClock }: {
       {expanded && (
         <tr className={`bg-bg-800/40 ${rowClass}`}>
           <td></td>
-          <td colSpan={5} className="px-3 py-2 text-[11px] text-text-secondary">
+          <td colSpan={isPlanning ? 3 : 5} className="px-3 py-2 text-[11px] text-text-secondary">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1">
               <div>
                 <div className="text-[9px] uppercase tracking-wider text-text-muted">Dirección</div>
