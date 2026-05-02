@@ -1,4 +1,11 @@
 import {
+  AvailableDates,
+  BulkCSVResult,
+  Contacto,
+  ContactoCreate,
+  ContactoUpdate,
+  EmpresaSummary,
+  TestBroadcastResult,
   AccessLogRow,
   AccessSummary,
   AdminClient,
@@ -44,9 +51,15 @@ import {
   VehicleExtended,
   VehicleSummary,
   VipClient,
+  VipParseNotesResponse,
   Visit,
   VisitExplanation,
   WhatsAppResponse,
+  MotivoCorrection,
+  CorrectionStatus,
+  DriverScorecardRow,
+  DriverWhatsAppOut,
+  DriverWhatsAppUpdate,
 } from './types';
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
@@ -151,13 +164,18 @@ export const api = {
       : '';
     return get<KPIs>(`/kpis${q}`);
   },
-  visits: (params?: { vehicle_ids?: number[]; status?: string; only_alerts?: boolean }) => {
+  visits: (params?: {
+    vehicle_ids?: number[]; status?: string; only_alerts?: boolean;
+    region?: string; only_vip?: boolean;
+  }) => {
     const parts: string[] = [];
     if (params?.vehicle_ids?.length) {
       params.vehicle_ids.forEach(v => parts.push(`vehicle_id=${v}`));
     }
     if (params?.status) parts.push(`status=${params.status}`);
     if (params?.only_alerts) parts.push('only_alerts=true');
+    if (params?.region && params.region !== 'all') parts.push(`region=${params.region}`);
+    if (params?.only_vip) parts.push('only_vip=true');
     const q = parts.length ? '?' + parts.join('&') : '';
     return get<Visit[]>(`/visits${q}`);
   },
@@ -202,12 +220,30 @@ export const api = {
   },
 
   // Plan diario
-  planDiario: (empresaId?: number) =>
-    get<PlanDiarioResponse>(`/plan-diario${empresaId != null ? `?empresa_id=${empresaId}` : ''}`),
+  planDiario: (params?: {
+    empresa_id?: number; region?: string;
+    only_vip?: boolean; legacy?: boolean;
+  }) => {
+    const p: string[] = [];
+    if (params?.empresa_id != null) p.push(`empresa_id=${params.empresa_id}`);
+    if (params?.region && params.region !== 'all') p.push(`region=${params.region}`);
+    if (params?.only_vip) p.push('only_vip=true');
+    if (params?.legacy) p.push('legacy=true');
+    const q = p.length ? '?' + p.join('&') : '';
+    return get<PlanDiarioResponse>(`/plan-diario${q}`);
+  },
 
   // Watchlist
-  watchlist: (empresaId?: number) =>
-    get<WatchlistResponse>(`/watchlist${empresaId != null ? `?empresa_id=${empresaId}` : ''}`),
+  watchlist: (params?: {
+    empresa_id?: number; region?: string; only_vip?: boolean;
+  }) => {
+    const p: string[] = [];
+    if (params?.empresa_id != null) p.push(`empresa_id=${params.empresa_id}`);
+    if (params?.region && params.region !== 'all') p.push(`region=${params.region}`);
+    if (params?.only_vip) p.push('only_vip=true');
+    const q = p.length ? '?' + p.join('&') : '';
+    return get<WatchlistResponse>(`/watchlist${q}`);
+  },
 
   // Live generator
   liveGen: {
@@ -253,7 +289,13 @@ export const api = {
       subject?: string;
       triggered_by?: string;
     }) => post<WhatsAppResponse>('/notifications/whatsapp', req),
-    log: (limit = 50) => get<NotificationLogRow[]>(`/notifications/log?limit=${limit}`),
+    log: (opts?: { limit?: number; triggered_by?: string; status?: string }) => {
+      const limit = opts?.limit ?? 50;
+      const parts = [`limit=${limit}`];
+      if (opts?.triggered_by) parts.push(`triggered_by=${encodeURIComponent(opts.triggered_by)}`);
+      if (opts?.status) parts.push(`status=${encodeURIComponent(opts.status)}`);
+      return get<NotificationLogRow[]>(`/notifications/log?${parts.join('&')}`);
+    },
     byTrackings: (ids: string[]) => {
       if (!ids.length) return Promise.resolve({} as Record<string, TrackingNotifSummary>);
       return get<Record<string, TrackingNotifSummary>>(`/notifications/by-trackings?ids=${encodeURIComponent(ids.join(','))}`);
@@ -262,19 +304,24 @@ export const api = {
 
   // VIP
   vip: {
-    list: () => get<VipClient[]>('/vip-clients'),
-    create: (req: { match_type: string; match_value: string; empresa_id?: number | null; tier?: string; notes?: string }) =>
-      post<VipClient>('/vip-clients', req),
-    remove: (vip_id: number) => {
-      const t = getToken();
-      return fetch(`${BASE}/vip-clients/${vip_id}`, {
-        method: 'DELETE',
-        headers: t ? { Authorization: `Bearer ${t}` } : {},
-      }).then(r => {
-        if (!r.ok) throw new Error(`DELETE -> ${r.status}`);
-        return r.json();
-      });
+    list: (opts?: { q?: string }) => {
+      const q = opts?.q ? `?q=${encodeURIComponent(opts.q)}` : '';
+      return get<VipClient[]>(`/vip-clients${q}`);
     },
+    create: (req: {
+      match_type: string; match_value: string; empresa_id?: number | null;
+      tier?: string; notes?: string;
+      deadline_time?: string | null; alert_minutes_before?: number | null;
+      parse_notes?: boolean;
+    }) => post<VipClient>('/vip-clients', req),
+    update: (vip_id: number, req: {
+      tier?: string; notes?: string | null;
+      deadline_time?: string | null; alert_minutes_before?: number | null;
+      active?: boolean; parse_notes?: boolean;
+    }) => put<VipClient>(`/vip-clients/${vip_id}`, req),
+    remove: (vip_id: number) => del<{ deleted: number }>(`/vip-clients/${vip_id}`),
+    parseNotes: (notes: string) =>
+      post<VipParseNotesResponse>('/vip-clients/parse-notes', { notes }),
   },
 
   // Priorities
@@ -406,6 +453,99 @@ export const api = {
       const q = p.length ? '?' + p.join('&') : '';
       return get<VisitComment[]>(`/comments/recent${q}`);
     },
+  },
+
+  // Empresa contactos (destinatarios WhatsApp)
+  empresaContactos: {
+    listEmpresas: () => get<EmpresaSummary[]>('/empresa-contactos/empresas'),
+    listContactos: (empresaId: number) =>
+      get<Contacto[]>(`/empresa-contactos/empresas/${empresaId}/contactos`),
+    create: (empresaId: number, req: ContactoCreate) =>
+      post<Contacto>(`/empresa-contactos/empresas/${empresaId}/contactos`, req),
+    update: (empresaId: number, contactId: number, req: ContactoUpdate) =>
+      put<Contacto>(`/empresa-contactos/empresas/${empresaId}/contactos/${contactId}`, req),
+    remove: (empresaId: number, contactId: number) =>
+      del<{ deleted: number }>(`/empresa-contactos/empresas/${empresaId}/contactos/${contactId}`),
+    optIn: (empresaId: number, contactId: number) =>
+      post<Contacto>(`/empresa-contactos/empresas/${empresaId}/contactos/${contactId}/opt-in`, {}),
+    csvTemplateUrl: (empresaId: number) =>
+      `${BASE}/empresa-contactos/empresas/${empresaId}/contactos/csv-template`,
+    downloadCsvTemplate: async (empresaId: number) => {
+      const t = getToken();
+      const res = await fetch(
+        `${BASE}/empresa-contactos/empresas/${empresaId}/contactos/csv-template`,
+        { headers: t ? { Authorization: `Bearer ${t}` } : {} },
+      );
+      if (!res.ok) throw new Error(`csv template -> ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contactos_empresa_${empresaId}_template.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    bulkUploadCSV: async (empresaId: number, file: File): Promise<BulkCSVResult> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const t = getToken();
+      const res = await fetch(
+        `${BASE}/empresa-contactos/empresas/${empresaId}/contactos/bulk-csv`,
+        {
+          method: 'POST',
+          headers: t ? { Authorization: `Bearer ${t}` } : {},
+          body: fd,
+        },
+      );
+      if (res.status === 401) { setToken(null); throw new AuthError(401, 'sesión expirada'); }
+      if (!res.ok) {
+        let detail = res.statusText;
+        try { const j = await res.json(); if (j?.detail) detail = j.detail; } catch {}
+        throw new Error(detail);
+      }
+      return res.json();
+    },
+    testBroadcast: (empresaId: number) =>
+      post<TestBroadcastResult>(`/empresa-contactos/empresas/${empresaId}/test-broadcast`, {}),
+  },
+
+  // Motivo corrections (Sprint 4.A2)
+  motivoCorrections: {
+    list: (opts?: { status?: CorrectionStatus | 'all'; limit?: number }) => {
+      const p: string[] = [];
+      if (opts?.status) p.push(`status=${opts.status}`);
+      if (opts?.limit != null) p.push(`limit=${opts.limit}`);
+      const q = p.length ? '?' + p.join('&') : '';
+      return get<MotivoCorrection[]>(`/motivo-corrections${q}`);
+    },
+    accept: (id: number) =>
+      post<MotivoCorrection>(`/motivo-corrections/${id}/accept`, {}),
+    reject: (id: number) =>
+      post<MotivoCorrection>(`/motivo-corrections/${id}/reject`, {}),
+    noAction: (id: number) =>
+      post<MotivoCorrection>(`/motivo-corrections/${id}/no-action`, {}),
+    renotifyDriver: (id: number) =>
+      post<MotivoCorrection>(`/motivo-corrections/${id}/renotify-driver`, {}),
+  },
+
+  // Driver scorecard + WhatsApp opt-in (Sprint 4.A1, A3)
+  driversExt: {
+    scorecard: (opts?: { period_days?: number; empresa_id?: number }) => {
+      const p: string[] = [];
+      if (opts?.period_days != null) p.push(`period_days=${opts.period_days}`);
+      if (opts?.empresa_id != null) p.push(`empresa_id=${opts.empresa_id}`);
+      const q = p.length ? '?' + p.join('&') : '';
+      return get<DriverScorecardRow[]>(`/drivers/scorecard${q}`);
+    },
+    updateWhatsApp: (driver_id: string, req: DriverWhatsAppUpdate) =>
+      put<DriverWhatsAppOut>(`/mantenedores/drivers/${driver_id}`, req),
+  },
+
+  planificacion: {
+    importMock: () =>
+      post<{ ok: boolean; count: number; fecha: string }>('/planificacion/import-mock', {}),
   },
 
   // Seguimiento (datos reales fpoc)

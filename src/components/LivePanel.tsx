@@ -19,11 +19,14 @@ const META: Record<EventType, { icon: any; color: string; bg: string; label: str
   incident_manual:  { icon: Wrench,        color: 'text-accent-yellow', bg: 'bg-accent-yellow/10', label: 'Incidente manual' },
   day_reset:        { icon: RefreshCcw,    color: 'text-accent-blue',   bg: 'bg-accent-blue/10',   label: 'Reset día' },
   comment_alert:    { icon: MessageSquare, color: 'text-accent-red',    bg: 'bg-accent-red/10',    label: 'Motivo alertable' },
+  vip_deadline_warning: { icon: AlertTriangle, color: 'text-cmr',        bg: 'bg-cmr/10',           label: 'Deadline VIP próximo' },
+  motivo_correction_suggested: { icon: MessageSquare, color: 'text-brand', bg: 'bg-brand/10', label: 'Revisión IA' },
+  motivo_correction_decided:   { icon: CheckCircle2,  color: 'text-text-secondary', bg: 'bg-bg-700', label: 'Decisión IA' },
 };
 
 const EVENT_ORDER: EventType[] = [
   'delivery', 'failed_delivery', 'alert_triggered', 'alert_cleared',
-  'red_simpli', 'incident_auto', 'incident_manual', 'comment_alert', 'day_reset',
+  'red_simpli', 'incident_auto', 'incident_manual', 'comment_alert', 'vip_deadline_warning', 'day_reset',
 ];
 
 export function LivePanel() {

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import {
-  PlanDiarioResponse,
+  PlanDiarioResponseLegacy,
   PlanDriver,
   PlanVisit,
   Priority,
@@ -75,9 +75,14 @@ export function RouteOpsPanel() {
   const [rightTab, setRightTab] = useState<RightTab>('prep');
   const [notifyVisit, setNotifyVisit] = useState<PlanVisit | null>(null);
 
-  const planQ = useQuery<PlanDiarioResponse>({
-    queryKey: ['plan-diario', empresaFilter],
-    queryFn: () => api.planDiario(empresaFilter === 'all' ? undefined : empresaFilter),
+  // RouteOpsPanel usa la estructura LEGACY (Empresa->Drivers) del Sprint 1.
+  // El Plan Diario "nuevo" (Empresa->Rutas) se renderiza desde PlanDiarioPanel.
+  const planQ = useQuery<PlanDiarioResponseLegacy>({
+    queryKey: ['plan-diario-legacy', empresaFilter],
+    queryFn: () => api.planDiario({
+      empresa_id: empresaFilter === 'all' ? undefined : empresaFilter,
+      legacy: true,
+    }) as any,
     refetchInterval: 5_000,
   });
 
@@ -654,7 +659,7 @@ function ProblemRow({ v, notif, onNotify }: { v: PlanVisit; notif?: TrackingNoti
         <div className="text-[10px] text-text-muted truncate max-w-[280px]" title={v.address}>{v.address}</div>
       </td>
       <td className="px-2 py-1 tabular-nums">
-        {v.estimated_time_arrival.slice(0, 5)} / <span className="text-text-muted">{v.window_end.slice(0, 5)}</span>
+        {v.estimated_time_arrival.slice(0, 5)} / <span className="text-text-muted">{(v.window_end ?? '').slice(0, 5)}</span>
       </td>
       <td className={`px-2 py-1 text-right tabular-nums ${slackClass}`}>{v.slack_min.toFixed(0)}</td>
       <td className="px-2 py-1 text-right tabular-nums">
@@ -944,7 +949,7 @@ function NotifyVisitModal({ visit, driver, onClose }: {
     `[Falabella ValueData] Actualización de entrega\n` +
     `Cliente: ${visit.title}\n` +
     `Vehículo: ${driver.vehicle_name} (${driver.driver_name})\n` +
-    `ETA: ${visit.estimated_time_arrival.slice(0, 5)} · Window: ${visit.window_end.slice(0, 5)} · Slack: ${visit.slack_min.toFixed(0)}m\n` +
+    `ETA: ${visit.estimated_time_arrival.slice(0, 5)} · Window: ${(visit.window_end ?? '').slice(0, 5)} · Slack: ${visit.slack_min.toFixed(0)}m\n` +
     `Riesgo de fallo: ${(visit.p_fallo * 100).toFixed(0)}%`;
   const [body, setBody] = useState(defaultBody);
 
