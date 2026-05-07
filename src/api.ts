@@ -548,8 +548,26 @@ export const api = {
   },
 
   planificacion: {
-    importMock: () =>
-      post<{ ok: boolean; count: number; fecha: string }>('/planificacion/import-mock', {}),
+    importMock: (fecha?: string, force?: boolean) => {
+      const params: string[] = [];
+      if (fecha) params.push(`fecha=${fecha}`);
+      if (force) params.push('force=true');
+      const q = params.length ? `?${params.join('&')}` : '';
+      return post<{
+        ok: boolean;
+        count: number;
+        fecha: string;
+        already_imported: boolean;
+        message: string;
+      }>(`/planificacion/import-mock${q}`, {});
+    },
+    listImports: () =>
+      get<Array<{
+        fecha: string;
+        count: number;
+        imported_at: string;
+        imported_by_user_id: number | null;
+      }>>('/planificacion/imports'),
   },
 
   // Sprint 7 — buscador global del topbar

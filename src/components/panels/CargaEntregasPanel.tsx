@@ -1,17 +1,42 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { CalendarDays, Download, Inbox, Loader2, UploadCloud } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarDays, CheckCircle2, Download, Inbox, Loader2, RefreshCw, UploadCloud } from 'lucide-react';
 import { api } from '../../api';
 
 export function CargaEntregasPanel() {
   const today = new Date().toISOString().slice(0, 10);
   const [fecha, setFecha] = useState<string>(today);
-  const [lastResult, setLastResult] = useState<{ count: number; fecha: string } | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  // Histórico de cargas — persistente en backend (sobrevive a navegación + refresh).
+  const importsQ = useQuery({
+    queryKey: ['planificacion', 'imports'],
+    queryFn: api.planificacion.listImports,
+    staleTime: 30_000,
+  });
 
   const importMut = useMutation({
-    mutationFn: api.planificacion.importMock,
-    onSuccess: r => setLastResult({ count: r.count, fecha: r.fecha }),
+    mutationFn: (vars: { fecha: string; force?: boolean }) =>
+      api.planificacion.importMock(vars.fecha, vars.force),
+    onSuccess: r => {
+      if (r.already_imported) {
+        setFlash(`ℹ️ ${r.message}`);
+      } else {
+        setFlash(`✅ ${r.message}`);
+      }
+      qc.invalidateQueries({ queryKey: ['planificacion', 'imports'] });
+      // Auto-clear flash después de 6s
+      setTimeout(() => setFlash(null), 6_000);
+    },
+    onError: (e: Error) => {
+      setFlash(`❌ ${e.message}`);
+      setTimeout(() => setFlash(null), 6_000);
+    },
   });
+
+  const imports = importsQ.data ?? [];
+  const alreadyForFecha = imports.find(i => i.fecha === fecha);
 
   return (
     <div className="space-y-4">
@@ -22,6 +47,15 @@ export function CargaEntregasPanel() {
             Importa el plan de visitas desde SimpliRoute para una fecha específica.
           </p>
         </div>
+        <button
+          onClick={() => importsQ.refetch()}
+          disabled={importsQ.isFetching}
+          className="btn flex items-center gap-1 text-[11px] !py-1 !px-2"
+          title="Refrescar log"
+        >
+          <RefreshCw size={12} className={importsQ.isFetching ? 'animate-spin' : ''} />
+          Actualizar
+        </button>
       </header>
 
       <div className="panel">
@@ -41,7 +75,7 @@ export function CargaEntregasPanel() {
           </div>
 
           <button
-            onClick={() => importMut.mutate()}
+            onClick={() => importMut.mutate({ fecha, force: false })}
             disabled={importMut.isPending}
             className="btn-primary flex items-center gap-2 px-4 py-2 text-[13px] rounded-md"
           >
@@ -49,39 +83,76 @@ export function CargaEntregasPanel() {
             Importar desde SimpliRoute
           </button>
 
-          {lastResult && (
-            <div className="text-[12px] text-accent-green flex items-center gap-2">
-              <Inbox size={13} /> {lastResult.count} visitas para {lastResult.fecha}
+          {alreadyForFecha && !importMut.isPending && (
+            <button
+              onClick={() => {
+                if (confirm(`Re-importar ${fecha}? Se agregarán visitas nuevas a las ${alreadyForFecha.count} ya cargadas.`)) {
+                  importMut.mutate({ fecha, force: true });
+                }
+              }}
+              className="btn flex items-center gap-1 text-[11px] !py-1.5 !px-3"
+              title="Forzar re-importación"
+            >
+              <RefreshCw size={11} />
+              Re-importar (force)
+            </button>
+          )}
+
+          {flash && (
+            <div className={`text-[12px] flex items-center gap-2 ${
+              flash.startsWith('✅') ? 'text-accent-green' :
+              flash.startsWith('ℹ️') ? 'text-accent-amber' :
+              'text-accent-red'
+            }`}>
+              <Inbox size={13} /> {flash}
             </div>
           )}
         </div>
+
+        {alreadyForFecha && (
+          <div className="px-4 pb-3 text-[11px] text-text-muted flex items-center gap-1">
+            <CheckCircle2 size={12} className="text-accent-green" />
+            Ya cargaste {fecha}: {alreadyForFecha.count} visitas el {alreadyForFecha.imported_at}
+          </div>
+        )}
       </div>
 
       <div className="panel">
-        <div className="panel-title">Última carga</div>
-        {lastResult ? (
+        <div className="panel-title flex items-center justify-between pr-3">
+          <span>Histórico de cargas</span>
+          <span className="text-[10px] text-text-muted normal-case tracking-normal font-normal">
+            {imports.length > 0 ? `${imports.length} carga${imports.length === 1 ? '' : 's'} registrada${imports.length === 1 ? '' : 's'}` : 'sin cargas'}
+          </span>
+        </div>
+        {importsQ.isLoading ? (
+          <div className="p-8 text-center text-text-muted text-[12px]">Cargando histórico…</div>
+        ) : imports.length > 0 ? (
           <div className="p-4 text-[13px]">
             <table className="w-full text-[12px]">
               <thead className="bg-slate-50/5 border-b border-line/40">
                 <tr className="text-left text-text-muted uppercase tracking-wider text-[10px]">
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2">Visitas importadas</th>
+                  <th className="px-3 py-2">Cargado el</th>
                   <th className="px-3 py-2">Origen</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="hover:bg-bg-700/20 border-b border-line/30">
-                  <td className="px-3 py-2 tabular-nums">{lastResult.fecha}</td>
-                  <td className="px-3 py-2 tabular-nums">{lastResult.count}</td>
-                  <td className="px-3 py-2 text-text-muted">SimpliRoute (mock)</td>
-                </tr>
+                {imports.map(row => (
+                  <tr key={row.fecha} className="hover:bg-bg-700/20 border-b border-line/30">
+                    <td className="px-3 py-2 tabular-nums font-medium">{row.fecha}</td>
+                    <td className="px-3 py-2 tabular-nums">{row.count}</td>
+                    <td className="px-3 py-2 text-text-muted text-[11px]">{row.imported_at}</td>
+                    <td className="px-3 py-2 text-text-muted">SimpliRoute (mock)</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="p-8 text-center text-text-muted text-[12px] flex flex-col items-center gap-2">
             <Download size={32} className="text-text-muted/40" />
-            <div>Aún no hay cargas registradas en esta sesión.</div>
+            <div>Aún no hay cargas registradas.</div>
             <div className="text-[11px]">Selecciona una fecha y presiona “Importar desde SimpliRoute”.</div>
           </div>
         )}
