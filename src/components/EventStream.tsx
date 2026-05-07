@@ -8,6 +8,7 @@ import {
   Radio,
   RefreshCcw,
   Truck,
+  UserPlus,
   XCircle,
   Zap,
   Wrench,
@@ -28,6 +29,7 @@ const ICON_BY_TYPE: Record<EventType, { icon: any; color: string; label: string 
   vip_deadline_warning: { icon: AlertTriangle, color: 'text-cmr', label: 'Deadline VIP próximo' },
   motivo_correction_suggested: { icon: MessageSquare, color: 'text-brand', label: 'Revisión IA' },
   motivo_correction_decided:   { icon: CheckCircle2,  color: 'text-text-secondary', label: 'Decisión IA' },
+  wa_user_onboarded: { icon: UserPlus, color: 'text-accent-green', label: 'Nuevo en WhatsApp' },
 };
 
 export function EventStream() {
@@ -94,7 +96,15 @@ function EventRow({ e }: { e: StreamEvent }) {
             <span className="text-[10px] text-text-muted tabular-nums">{sim}</span>
           </div>
           <div className="text-xs mt-0.5 text-text-primary truncate">
-            {e.title || e.reason || ''}
+            {e.type === 'wa_user_onboarded' ? (
+              <>
+                <span className="font-medium">{e.name || e.phone}</span>
+                {e.kind && <span className="text-text-muted"> · {e.kind}</span>}
+                {e.empresa_nombre && <span className="text-text-muted"> · {e.empresa_nombre}</span>}
+                {e.source === 'inbound' && <span className="text-text-muted"> · 📥 vía WhatsApp</span>}
+                {e.source === 'manual_admin' && <span className="text-text-muted"> · 👤 alta admin</span>}
+              </>
+            ) : (e.title || e.reason || '')}
           </div>
           {e.motivo && (
             <div className="text-[10px] mt-0.5 flex items-center gap-2 flex-wrap">

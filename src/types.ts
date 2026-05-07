@@ -161,7 +161,8 @@ export type EventType =
   | 'comment_alert'
   | 'vip_deadline_warning'
   | 'motivo_correction_suggested'
-  | 'motivo_correction_decided';
+  | 'motivo_correction_decided'
+  | 'wa_user_onboarded';
 
 // ---- Motivo corrections (Sprint 4.A2) ----
 export type CorrectionStatus = 'pending' | 'accepted' | 'rejected' | 'no_action';
@@ -872,6 +873,12 @@ export interface AdminClientsPage {
 export interface StreamEvent {
   event_id: string;
   type: EventType;
+  phone?: string | null;
+  name?: string | null;
+  kind?: string | null;
+  source?: string | null;
+  contact_id?: number | null;
+  empresa_nombre?: string | null;
   sim_ts: string;
   wall_ts: string;
   tracking_id?: string;
