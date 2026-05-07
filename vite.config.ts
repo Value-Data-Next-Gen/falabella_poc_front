@@ -10,7 +10,7 @@ export default defineConfig({
     allowedHosts: true,        // aceptar cualquier Host header (ngrok, etc.)
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8090',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },
