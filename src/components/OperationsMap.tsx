@@ -198,7 +198,9 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     const latSpan = Math.max(0.01, maxLat - minLat);
     const lonSpan = Math.max(0.01, maxLon - minLon);
     const span = Math.max(latSpan, lonSpan * Math.cos((minLat + maxLat) * Math.PI / 360));
-    const zoom = Math.max(10, Math.min(14, Math.log2(360 / span) - 1.2));
+    // min 3 (cabe el país si las visitas están dispersas en regiones), max 14
+    // (no zoomear más allá de barrio).
+    const zoom = Math.max(3, Math.min(14, Math.log2(360 / span) - 1.2));
     setViewState({
       longitude: (minLon + maxLon) / 2,
       latitude: (minLat + maxLat) / 2,
