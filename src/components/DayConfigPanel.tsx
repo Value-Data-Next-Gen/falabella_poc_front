@@ -38,12 +38,27 @@ export function DayConfigPanel() {
     qc.invalidateQueries({ queryKey: ['state'] });
   };
 
-  const freezeMut = useMutation({ mutationFn: api.postFreeze, onSuccess: refreshAll });
+  const [flash, setFlash] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+  const showFlash = (kind: 'ok' | 'err', msg: string) => {
+    setFlash({ kind, msg });
+    setTimeout(() => setFlash(null), 4000);
+  };
+
+  const freezeMut = useMutation({
+    mutationFn: api.postFreeze,
+    onSuccess: () => { showFlash('ok', 'Día congelado a las 09:00'); refreshAll(); },
+    onError: (e: Error) => showFlash('err', e.message),
+  });
   const startDayMut = useMutation({
     mutationFn: (regen: boolean) => api.postStartDay({ regen_plan: regen }),
-    onSuccess: refreshAll,
+    onSuccess: () => { showFlash('ok', 'Día iniciado, reloj corriendo'); refreshAll(); },
+    onError: (e: Error) => showFlash('err', e.message),
   });
-  const resetMut = useMutation({ mutationFn: api.postReset, onSuccess: refreshAll });
+  const resetMut = useMutation({
+    mutationFn: api.postReset,
+    onSuccess: r => { showFlash('ok', `Plan regenerado (seed ${r?.day_seed ?? '?'})`); refreshAll(); },
+    onError: (e: Error) => showFlash('err', e.message),
+  });
 
   const isAdmin = user?.role === 'falabella_admin';
   const planned = planQ.data;
@@ -105,36 +120,51 @@ export function DayConfigPanel() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => resetMut.mutate({})}
+              onClick={() => {
+                if (!isPaused) {
+                  if (!confirm('El día está corriendo. ¿Querés regenerar el plan ahora? Se perderán los incidentes manuales.')) return;
+                }
+                resetMut.mutate({});
+              }}
               className="btn flex items-center gap-2"
               disabled={resetMut.isPending}
-              title="Genera un nuevo plan con el siguiente día"
+              title="Genera otro plan para el mismo día (nuevo seed). Reloj vuelve a 09:00."
             >
               <RefreshCcw size={14} /> Nuevo plan
             </button>
             <button
               onClick={() => freezeMut.mutate()}
-              className={`flex items-center gap-2 ${isPaused ? 'btn' : 'btn-danger'}`}
+              className={`flex items-center gap-2 ${isPaused ? 'btn-primary opacity-60' : 'btn-danger'}`}
               disabled={freezeMut.isPending || isPaused}
-              title="Congela el día a las 09:00 y pausa el reloj"
+              title={isPaused ? 'Ya está congelado' : 'Congela el día a las 09:00 y pausa el reloj'}
             >
-              <Pause size={14} /> Congelar 09:00
+              <Pause size={14} /> {isPaused ? 'Congelado ✓' : 'Congelar 09:00'}
             </button>
             <button
               onClick={() => startDayMut.mutate(false)}
-              className={`btn-primary flex items-center gap-2`}
+              className={`flex items-center gap-2 ${!isPaused ? 'btn opacity-60' : 'btn-primary'}`}
               disabled={startDayMut.isPending || !isPaused}
-              title="Arranca el reloj con el plan y prioridades configuradas"
+              title={!isPaused ? 'El día ya está corriendo' : 'Arranca el reloj con el plan y prioridades configuradas'}
             >
-              <Play size={14} /> Iniciar día
+              <Play size={14} /> {!isPaused ? 'Corriendo ✓' : 'Iniciar día'}
             </button>
           </div>
         </div>
 
-        {!isPaused && (
+        {flash && (
+          <div className={`mt-3 px-3 py-2 rounded text-xs flex items-center gap-2 ${
+            flash.kind === 'ok'
+              ? 'bg-accent-green/10 border border-accent-green/30 text-accent-green'
+              : 'bg-accent-red/10 border border-accent-red/30 text-accent-red'
+          }`}>
+            {flash.kind === 'ok' ? '✅' : '❌'} {flash.msg}
+          </div>
+        )}
+
+        {!isPaused && !flash && (
           <div className="mt-3 px-3 py-2 bg-accent-yellow/10 border border-accent-yellow/30 rounded text-xs text-accent-yellow flex items-center gap-2">
             <AlertCircle size={14} />
-            El día está corriendo. Para configurar prioridades sin que avance el reloj, presiona <span className="font-semibold">Congelar 09:00</span>.
+            El día está corriendo. Para configurar prioridades sin que avance el reloj, presioná <span className="font-semibold">Congelar 09:00</span>.
           </div>
         )}
       </div>
