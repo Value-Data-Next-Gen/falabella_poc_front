@@ -211,14 +211,20 @@ export function PriorityBadge({ p }: { p: Priority }) {
 
 // ------------------- Log -------------------
 function LogSection() {
-  const logQ = useQuery({ queryKey: ['notif-log'], queryFn: () => api.notif.log({ limit: 50 }), refetchInterval: 10_000 });
+  const [tab, setTab] = useState<'all' | 'inbound' | 'outbound'>('all');
+  const logQ = useQuery({
+    queryKey: ['notif-log', tab],
+    queryFn: () => api.notif.log({ limit: 100, direction: tab === 'all' ? undefined : tab }),
+    refetchInterval: 5_000,
+  });
 
   const stats = useMemo(() => {
     const rows = logQ.data ?? [];
     return {
       total: rows.length,
+      inbound: rows.filter(r => r.direction === 'inbound').length,
+      outbound: rows.filter(r => r.direction !== 'inbound').length,
       sent: rows.filter(r => r.status === 'sent').length,
-      dry: rows.filter(r => r.status === 'dry_run').length,
       err: rows.filter(r => r.status === 'error').length,
     };
   }, [logQ.data]);
@@ -226,26 +232,40 @@ function LogSection() {
   return (
     <div className="panel">
       <div className="panel-title flex items-center gap-1">
-        <MessageSquare size={12} className="text-brand" /> Log de notificaciones
+        <MessageSquare size={12} className="text-brand" /> Log de WhatsApp (recibidos + enviados)
         <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-text-muted">
-          {stats.total} total · {stats.sent} enviadas · {stats.dry} dry-run · {stats.err} errores
+          {stats.total} · {stats.inbound} 📥 · {stats.outbound} 📤 · {stats.err > 0 ? <span className="text-accent-red">{stats.err} errores</span> : null}
         </span>
       </div>
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="px-2 pt-2 flex gap-1 border-b border-line">
+        {(['all', 'inbound', 'outbound'] as const).map(t => (
+          <button key={t}
+            onClick={() => setTab(t)}
+            className={`text-[11px] px-3 py-1 rounded-t border-b-2 ${
+              tab === t
+                ? 'border-brand text-brand'
+                : 'border-transparent text-text-muted hover:text-text-primary'
+            }`}
+          >
+            {t === 'all' ? 'Todos' : t === 'inbound' ? '📥 Recibidos' : '📤 Enviados'}
+          </button>
+        ))}
+      </div>
+      <div className="max-h-[420px] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="text-text-muted uppercase tracking-wider text-[10px] border-b border-line sticky top-0 bg-bg-800">
             <tr>
               <th className="text-left px-2 py-1">Cuándo</th>
-              <th className="text-left px-2 py-1">Destino</th>
+              <th className="text-left px-2 py-1">Dir</th>
+              <th className="text-left px-2 py-1">Tel / Persona</th>
               <th className="text-left px-2 py-1">Trigger</th>
-              <th className="text-left px-2 py-1">Status</th>
-              <th className="text-left px-2 py-1">Body</th>
+              <th className="text-left px-2 py-1">Mensaje</th>
             </tr>
           </thead>
           <tbody>
             {logQ.data?.map(r => <LogRow key={r.notification_id} r={r} />)}
             {!logQ.data?.length && (
-              <tr><td colSpan={5} className="text-center text-text-muted italic p-6">Sin envíos registrados</td></tr>
+              <tr><td colSpan={5} className="text-center text-text-muted italic p-6">Sin mensajes en este filtro.</td></tr>
             )}
           </tbody>
         </table>
@@ -255,23 +275,35 @@ function LogSection() {
 }
 
 function LogRow({ r }: { r: NotificationLogRow }) {
-  const StatusIcon = r.status === 'sent' ? CheckCircle2 : r.status === 'error' ? XCircle : Bell;
-  const statusClass =
-    r.status === 'sent' ? 'text-brand'
+  const isIn = r.direction === 'inbound';
+  const dt = new Date(r.created_at);
+  const StatusIcon = !isIn && r.status === 'sent' ? CheckCircle2 : !isIn && r.status === 'error' ? XCircle : MessageSquare;
+  const statusClass = isIn
+    ? 'text-accent-blue'
+    : r.status === 'sent' ? 'text-brand'
     : r.status === 'error' ? 'text-accent-red'
     : 'text-accent-yellow';
-  const dt = new Date(r.created_at);
   return (
-    <tr className="border-t border-line/50 hover:bg-bg-700/40">
+    <tr className={`border-t border-line/50 hover:bg-bg-700/40 ${isIn ? 'bg-accent-blue/[0.04]' : ''}`}>
       <td className="px-2 py-1 text-text-muted text-[10px] tabular-nums whitespace-nowrap">
         {dt.toLocaleString('es-CL', { hour12: false })}
       </td>
-      <td className="px-2 py-1 font-mono text-[11px]">{r.to_number}</td>
-      <td className="px-2 py-1"><span className="pill pill-blue">{r.triggered_by}</span></td>
       <td className="px-2 py-1">
-        <span className={`flex items-center gap-1 ${statusClass}`}>
-          <StatusIcon size={11} /> {r.status}
+        <span className={`pill ${isIn ? 'pill-blue' : 'pill-green'}`}>
+          {isIn ? '📥 IN' : '📤 OUT'}
         </span>
+      </td>
+      <td className="px-2 py-1 text-[11px]">
+        <div className="font-mono">{r.to_number}</div>
+        {r.profile_name && <div className="text-[10px] text-text-muted">{r.profile_name}</div>}
+      </td>
+      <td className="px-2 py-1">
+        <span className={`flex items-center gap-1 text-[10px] ${statusClass}`}>
+          <StatusIcon size={11} /> {isIn ? 'recibido' : r.status}
+        </span>
+        {r.triggered_by && r.triggered_by !== 'inbound' && (
+          <div className="text-[9px] text-text-muted">{r.triggered_by}</div>
+        )}
       </td>
       <td className="px-2 py-1 text-[11px] max-w-[400px] truncate" title={r.body}>{r.body}</td>
     </tr>

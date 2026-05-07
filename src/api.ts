@@ -293,11 +293,12 @@ export const api = {
       subject?: string;
       triggered_by?: string;
     }) => post<WhatsAppResponse>('/notifications/whatsapp', req),
-    log: (opts?: { limit?: number; triggered_by?: string; status?: string }) => {
+    log: (opts?: { limit?: number; triggered_by?: string; status?: string; direction?: 'inbound' | 'outbound' }) => {
       const limit = opts?.limit ?? 50;
       const parts = [`limit=${limit}`];
       if (opts?.triggered_by) parts.push(`triggered_by=${encodeURIComponent(opts.triggered_by)}`);
       if (opts?.status) parts.push(`status=${encodeURIComponent(opts.status)}`);
+      if (opts?.direction) parts.push(`direction=${opts.direction}`);
       return get<NotificationLogRow[]>(`/notifications/log?${parts.join('&')}`);
     },
     byTrackings: (ids: string[]) => {

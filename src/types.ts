@@ -534,6 +534,8 @@ export interface NotificationLogRow {
   error_msg: string | null;
   triggered_by: string;
   created_at: string;
+  direction?: 'inbound' | 'outbound' | null;
+  profile_name?: string | null;
 }
 
 // ---- Watchlist (visitas en riesgo) ----
