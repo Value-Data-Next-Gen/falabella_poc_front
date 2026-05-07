@@ -16,4 +16,6 @@ if [ ! -d dist ]; then
   npm run build
 fi
 
-exec node server.cjs
+# Servir el build con pm2 + SPA fallback. pm2 ya está preinstalado en
+# Azure App Service Linux Node.
+exec pm2 serve dist --no-daemon --spa
