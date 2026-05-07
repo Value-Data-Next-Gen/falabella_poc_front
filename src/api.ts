@@ -76,7 +76,10 @@ export function setToken(t: string | null): void {
 
 function authHeaders(): HeadersInit {
   const t = getToken();
-  return t ? { Authorization: `Bearer ${t}` } : {};
+  // 'ngrok-skip-browser-warning' bypassea la página interstitial de ngrok-free
+  // cuando el backend está expuesto via ngrok. No afecta dominios sin ngrok.
+  const base: HeadersInit = { 'ngrok-skip-browser-warning': '1' };
+  return t ? { ...base, Authorization: `Bearer ${t}` } : base;
 }
 
 export class AuthError extends Error {
