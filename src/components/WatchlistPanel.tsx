@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, Building2, Clock, Flame, Loader2, MessageSquare, Phone, Search,
+  AlertTriangle, Building2, Clock, Crown, Flame, Loader2, Map as MapIcon, MessageSquare, Phone, Search,
   Star, Truck, User, X, Zap,
 } from 'lucide-react';
 import { api } from '../api';
-import { Priority, TrackingNotifSummary, WatchlistVisit } from '../types';
+import { Priority, RegionFilter, TrackingNotifSummary, WatchlistVisit } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
 const SEV_META = {
@@ -16,18 +16,36 @@ const SEV_META = {
 
 type Severity = keyof typeof SEV_META;
 
-export function WatchlistPanel() {
+export interface WatchlistFilterOverrides {
+  region?: RegionFilter;
+  onlyVip?: boolean;
+  empresaId?: number | 'all';
+  hideLocalFilters?: boolean;
+}
+
+export function WatchlistPanel({ filters }: { filters?: WatchlistFilterOverrides } = {}) {
   const { isFalabella, isAdmin } = useAuth();
   const empresasQ = useQuery({ queryKey: ['empresas'], queryFn: api.empresas, enabled: isFalabella });
-  const [empresaFilter, setEmpresaFilter] = useState<number | 'all'>('all');
+  const [empresaFilterLocal, setEmpresaFilterLocal] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [notifiedFilter, setNotifiedFilter] = useState<'' | 'yes' | 'no'>('');
   const [sevFilter, setSevFilter] = useState<Severity | ''>('');
+  const [regionLocal, setRegionLocal] = useState<RegionFilter>('all');
+  const [onlyVipLocal, setOnlyVipLocal] = useState(false);
   const [notifyFor, setNotifyFor] = useState<WatchlistVisit | null>(null);
 
+  const region = filters?.region ?? regionLocal;
+  const onlyVip = filters?.onlyVip ?? onlyVipLocal;
+  const empresaFilter = filters?.empresaId ?? empresaFilterLocal;
+  const hideLocalFilters = !!filters?.hideLocalFilters;
+
   const watchQ = useQuery({
-    queryKey: ['watchlist', empresaFilter],
-    queryFn: () => api.watchlist(empresaFilter === 'all' ? undefined : empresaFilter),
+    queryKey: ['watchlist', empresaFilter, region, onlyVip],
+    queryFn: () => api.watchlist({
+      empresa_id: empresaFilter === 'all' ? undefined : empresaFilter,
+      region,
+      only_vip: onlyVip,
+    }),
     refetchInterval: 5000,
   });
 
@@ -69,11 +87,42 @@ export function WatchlistPanel() {
               className="input flex-1"
             />
           </div>
-          {isFalabella && (
-            <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="input">
-              <option value="all">Todas las empresas</option>
-              {empresasQ.data?.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nombre}</option>)}
-            </select>
+
+          {!hideLocalFilters && (
+            <>
+              {/* Tabs región */}
+              <div className="flex items-center gap-0 border border-line rounded overflow-hidden text-[11px]">
+                {(['all', 'RM', 'regiones'] as RegionFilter[]).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setRegionLocal(r)}
+                    className={`px-2 py-1 ${region === r ? 'bg-brand text-white' : 'text-text-secondary hover:bg-bg-700/50'}`}
+                  >
+                    <MapIcon size={11} className="inline mr-1" />
+                    {r === 'all' ? 'Todos' : r === 'RM' ? 'RM' : 'Regiones'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Toggle Solo VIP */}
+              <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyVip}
+                  onChange={e => setOnlyVipLocal(e.target.checked)}
+                  className="accent-cmr"
+                />
+                <Star size={11} className="text-cmr" />
+                Solo VIP
+              </label>
+
+              {isFalabella && (
+                <select value={empresaFilter} onChange={e => setEmpresaFilterLocal(e.target.value === 'all' ? 'all' : Number(e.target.value))} className="input">
+                  <option value="all">Todas las empresas</option>
+                  {empresasQ.data?.map(e => <option key={e.empresa_id} value={e.empresa_id}>{e.nombre}</option>)}
+                </select>
+              )}
+            </>
           )}
           <select value={notifiedFilter} onChange={e => setNotifiedFilter(e.target.value as any)} className="input">
             <option value="">Notificación: todas</option>
@@ -135,24 +184,50 @@ function VisitCard({ v, onNotify, isAdmin }: { v: WatchlistVisit; onNotify: () =
     onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
   });
 
+  // Densidad reducida: solo CRITICO mantiene borde rojo prominente; alto/medio
+  // pasan a borde sutil. Severity como chip pequeño en esquina, sin header completo.
+  const isCritical = v.severity === 'CRITICO';
+  const cardBorder = isCritical ? sev.border + ' border-2' : 'border border-line';
+
   return (
-    <div className={`panel ${sev.border} border-2 flex flex-col overflow-hidden`}>
-      {/* Header severidad */}
-      <div className={`${sev.bg} px-3 py-1.5 flex items-center justify-between text-xs`}>
-        <span className={`font-semibold ${sev.color} flex items-center gap-1`}>
-          <Flame size={12} /> {sev.label} · score {v.urgency_score.toFixed(0)}
-        </span>
-        <span className="text-[10px] text-text-muted">{v.severity === 'CRITICO' ? 'ACT!' : ''}</span>
+    <div className={`panel ${cardBorder} flex flex-col overflow-hidden relative`}>
+      {/* Sprint 6: ETA destacado esquina superior izquierda */}
+      <div className="absolute top-2 left-2 bg-bg-700 text-text-primary text-[11px] px-1.5 py-0.5 rounded font-mono font-semibold flex items-center gap-1 z-10 border border-line">
+        <Clock size={10} className="text-accent-blue" />
+        ETA {v.estimated_time_arrival ? v.estimated_time_arrival.slice(0, 5) : '—'}
+      </div>
+
+      {/* Severity chip esquina superior derecha */}
+      <div className={`absolute top-2 right-2 ${sev.bg} ${sev.color} text-[10px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 z-10`}>
+        <Flame size={9} /> {sev.label} · {v.urgency_score.toFixed(0)}
       </div>
 
       {/* Cliente */}
-      <div className="p-3 pb-2">
+      <div className="p-3 pb-2 pt-8 pr-20">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              {v.is_vip && <Star size={12} className="text-cmr shrink-0" />}
+            <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+              {v.is_vip && <Crown size={12} className="text-cmr shrink-0" />}
               {v.alert_valuedata && <Zap size={11} className="text-accent-violet shrink-0" />}
               <span className="font-semibold text-sm truncate">{v.title}</span>
+              {/* Sprint 6: chip de folio VIP destacado */}
+              {v.is_vip && (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 bg-cmr/15 text-cmr border border-cmr/40 rounded font-mono font-semibold inline-flex items-center gap-0.5"
+                  title={`Tracking VIP ${v.tracking_id}`}
+                >
+                  <Crown size={9} /> #{v.tracking_id.slice(-8)}
+                </span>
+              )}
+              {v.is_vip && v.vip_deadline_time && (
+                <span
+                  className="text-[9px] px-1 py-0.5 bg-accent-red/20 text-accent-red border border-accent-red/40 rounded font-mono inline-flex items-center gap-0.5"
+                  title={`Deadline VIP: llegar antes de ${v.vip_deadline_time}`}
+                >
+                  <Clock size={9} />
+                  {v.vip_deadline_time}
+                </span>
+              )}
             </div>
             <div className="text-[11px] text-text-muted truncate" title={v.address}>{v.address}</div>
           </div>
@@ -181,13 +256,21 @@ function VisitCard({ v, onNotify, isAdmin }: { v: WatchlistVisit; onNotify: () =
         <div className={`tabular-nums font-semibold ${slackClass}`}>{v.slack_min.toFixed(0)} min</div>
       </div>
 
-      {/* Razones */}
+      {/* Razones (max 2 visibles + +N más) */}
       <div className="px-3 pb-2 flex flex-wrap gap-1">
-        {v.reasons.slice(0, 5).map((r, i) => (
-          <span key={i} className="inline-block text-[10px] px-1.5 py-0.5 bg-bg-700 border border-line rounded text-text-secondary">
+        {v.reasons.slice(0, 2).map((r, i) => (
+          <span key={i} className="inline-block text-[10px] px-1.5 py-0.5 bg-bg-700 border border-line/60 rounded text-text-secondary">
             {r}
           </span>
         ))}
+        {v.reasons.length > 2 && (
+          <span
+            className="inline-block text-[10px] px-1.5 py-0.5 bg-bg-700/60 border border-line/40 rounded text-text-muted"
+            title={v.reasons.slice(2).join(' · ')}
+          >
+            +{v.reasons.length - 2} más
+          </span>
+        )}
       </div>
 
       {/* Notif status */}

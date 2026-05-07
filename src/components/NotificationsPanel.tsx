@@ -25,7 +25,7 @@ export function NotificationsPanel() {
 function VipSection() {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
-  const vipsQ = useQuery({ queryKey: ['vip-list'], queryFn: api.vip.list });
+  const vipsQ = useQuery({ queryKey: ['vip-list'], queryFn: () => api.vip.list() });
   const [matchType, setMatchType] = useState<MatchType>('title');
   const [matchValue, setMatchValue] = useState('');
   const [notes, setNotes] = useState('');
@@ -211,7 +211,7 @@ export function PriorityBadge({ p }: { p: Priority }) {
 
 // ------------------- Log -------------------
 function LogSection() {
-  const logQ = useQuery({ queryKey: ['notif-log'], queryFn: () => api.notif.log(50), refetchInterval: 10_000 });
+  const logQ = useQuery({ queryKey: ['notif-log'], queryFn: () => api.notif.log({ limit: 50 }), refetchInterval: 10_000 });
 
   const stats = useMemo(() => {
     const rows = logQ.data ?? [];

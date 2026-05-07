@@ -5,7 +5,7 @@ import {
   Pause, Play, RefreshCcw, Star, Truck,
 } from 'lucide-react';
 import { api } from '../api';
-import { PlanEmpresa, PlanVisit, Priority } from '../types';
+import { PlanEmpresaLegacy, PlanVisit, Priority } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
 const PRIO_COLORS: Record<Priority, string> = {
@@ -23,7 +23,11 @@ export function DayConfigPanel() {
   const qc = useQueryClient();
 
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5000 });
-  const planQ = useQuery({ queryKey: ['plan-diario-cfg'], queryFn: () => api.planDiario(), refetchInterval: 10000 });
+  const planQ = useQuery<{ planned_date: string; sim_clock: string; empresas: PlanEmpresaLegacy[] }>({
+    queryKey: ['plan-diario-cfg'],
+    queryFn: () => api.planDiario({ legacy: true }) as any,
+    refetchInterval: 10000,
+  });
   const prioritiesQ = useQuery({ queryKey: ['priorities-cfg'], queryFn: () => api.priorities.list() });
   const vipQ = useQuery({ queryKey: ['vip-cfg'], queryFn: () => api.vip.list() });
 
@@ -228,7 +232,7 @@ function VipBulkSection({ vipCount, onChanged }: { vipCount: number; onChanged: 
 // Empresa block (collapsible)
 // =============================================================================
 function EmpresaBlock({ empresa, prioMap, onChanged }: {
-  empresa: PlanEmpresa;
+  empresa: PlanEmpresaLegacy;
   prioMap: Record<string, Priority>;
   onChanged: () => void;
 }) {
@@ -318,7 +322,7 @@ function VisitRow({ visit, currentPrio, onChanged }: {
         {visit.is_vip && <span className="text-[9px] text-accent-violet">★ Cliente VIP</span>}
       </td>
       <td className="px-2 py-1 font-mono text-[11px]">
-        {visit.window_start.slice(0, 5)} – {visit.window_end.slice(0, 5)}
+        {(visit.window_start ?? '').slice(0, 5)} – {(visit.window_end ?? '').slice(0, 5)}
       </td>
       <td className={`px-2 py-1 text-right tabular-nums ${
         visit.p_fallo >= 0.5 ? 'text-accent-red' : visit.p_fallo >= 0.3 ? 'text-accent-yellow' : 'text-text-secondary'

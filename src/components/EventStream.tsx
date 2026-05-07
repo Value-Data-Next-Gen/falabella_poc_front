@@ -25,6 +25,9 @@ const ICON_BY_TYPE: Record<EventType, { icon: any; color: string; label: string 
   incident_manual: { icon: Wrench, color: 'text-accent-yellow', label: 'Incidente manual' },
   day_reset: { icon: RefreshCcw, color: 'text-accent-blue', label: 'Reset día' },
   comment_alert: { icon: MessageSquare, color: 'text-accent-red', label: 'Motivo alertable' },
+  vip_deadline_warning: { icon: AlertTriangle, color: 'text-cmr', label: 'Deadline VIP próximo' },
+  motivo_correction_suggested: { icon: MessageSquare, color: 'text-brand', label: 'Revisión IA' },
+  motivo_correction_decided:   { icon: CheckCircle2,  color: 'text-text-secondary', label: 'Decisión IA' },
 };
 
 export function EventStream() {

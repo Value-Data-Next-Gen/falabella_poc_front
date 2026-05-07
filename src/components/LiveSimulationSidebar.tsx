@@ -12,7 +12,7 @@ import {
 import { api } from '../api';
 import { AppState } from '../types';
 
-export function Sidebar({
+export function LiveSimulationSidebar({
   state,
   selectedVehicles,
   onChangeVehicles,
@@ -141,7 +141,7 @@ export function Sidebar({
       {/* Reset */}
       <section className="p-3 border-b border-line">
         <button
-          onClick={() => resetMut.mutate()}
+          onClick={() => resetMut.mutate(undefined)}
           className="btn w-full flex items-center justify-center gap-2"
           disabled={resetMut.isPending}
         >

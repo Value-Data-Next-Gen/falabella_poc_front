@@ -158,7 +158,73 @@ export type EventType =
   | 'incident_auto'
   | 'incident_manual'
   | 'day_reset'
-  | 'comment_alert';
+  | 'comment_alert'
+  | 'vip_deadline_warning'
+  | 'motivo_correction_suggested'
+  | 'motivo_correction_decided';
+
+// ---- Motivo corrections (Sprint 4.A2) ----
+export type CorrectionStatus = 'pending' | 'accepted' | 'rejected' | 'no_action';
+
+export interface MotivoCorrection {
+  correction_id: number;
+  comment_id: number;
+  tracking_id: string;
+  motivo_reportado: string;
+  motivo_sugerido: string;
+  confianza: 'alta' | 'media' | 'baja' | string;
+  razonamiento: string;
+  driver_id: string | null;
+  driver_name: string | null;
+  status: CorrectionStatus;
+  decided_by_user_id: number | null;
+  decided_at: string | null;
+  notified_driver_at: string | null;
+  created_at: string;
+  vehicle_name: string | null;
+  empresa_nombre: string | null;
+  comentario: string | null;
+}
+
+// ---- Driver scorecard (Sprint 4.A3) ----
+export interface DriverScorecardRow {
+  driver_id: string;
+  driver_name: string;
+  vehicle_id: number | null;
+  vehicle_name: string | null;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
+  deliveries_30d: number;
+  fail_rate_30d: number;
+  comments_total: number;
+  corrections_pending: number;
+  corrections_accepted: number;
+  corrections_rejected: number;
+  corrections_acceptance_rate: number;
+  rating: number;
+  alerts_critical_30d: number;
+  alerts_medium_30d: number;
+  rank_fail_rate: number;
+  rank_acceptance: number;
+}
+
+// ---- Driver WhatsApp opt-in (Sprint 4.A1) ----
+export interface DriverWhatsAppOut {
+  driver_id: string;
+  name: string;
+  phone: string | null;
+  phone_e164: string | null;
+  notify_whatsapp: boolean;
+  opted_in_at: string | null;
+}
+
+export interface DriverWhatsAppUpdate {
+  phone_e164?: string | null;
+  notify_whatsapp?: boolean;
+  opted_in_at?: string | null;
+  set_opted_in_now?: boolean;
+  clear_opted_in?: boolean;
+}
 
 // ---- Motivos / comentarios del transportista ----
 export type MotivoSeverity = 'low' | 'medium' | 'high' | 'critical';
@@ -313,18 +379,25 @@ export interface FpocVisitsPage {
   offset: number;
 }
 
-// ---- Plan Diario ----
+// ---- Plan Diario (Sprint 6: ruta_id string + folio + region/comuna ampliada) ----
 export interface PlanVisit {
   tracking_id: string;
   order: number;
   title: string;
+  cliente_nombre: string;
   address: string;
-  latitude: number;
-  longitude: number;
-  window_start: string;
-  window_end: string;
-  planned_arrival_time: string;
-  estimated_time_arrival: string;
+  comuna: string | null;
+  // Sprint 6: region puede ser 'RM' o nombre de región concreta (Valparaíso, Biobío...)
+  region: string;
+  latitude?: number;
+  longitude?: number;
+  lat?: number;
+  lon?: number;
+  window_start?: string;
+  window_end?: string;
+  planned_arrival_time?: string;
+  estimated_time_arrival: string;     // 'HH:MM'
+  current_eta_cl?: string;            // ISO timestamp (Sprint 6)
   slack_min: number;
   alert_slack: string;
   p_fallo: number;
@@ -332,9 +405,62 @@ export interface PlanVisit {
   priority: 'low' | 'normal' | 'high' | 'vip';
   priority_reason: string | null;
   is_vip: boolean;
+  vip_tier: string | null;
+  vip_deadline_time: string | null;
   alert_valuedata: boolean;
+  folio: string | null;               // Sprint 6: e.g. '#14246780'
+  motivo_reportado: string | null;
+  severity: MotivoSeverity | null;
 }
 
+export interface PlanRuta {
+  ruta_id: string;                    // Sprint 6: 'R-YYYYMMDD-NNN'
+  vehicle_id: number;
+  vehicle_name: string;
+  plate: string | null;
+  patente: string | null;             // Sprint 6: alias visible
+  driver_name: string;
+  region: string;                     // Sprint 6
+  ct: string | null;                  // Sprint 6: 'CD NORTE' | 'CD SUR' | ...
+  next_stop_order: number | null;     // Sprint 6: alias semántico
+  orden_actual: number | null;        // compat
+  total_visitas: number;
+  completadas: number;
+  pendientes: number;
+  fallidas: number;
+  en_riesgo: number;
+  progreso_pct: number;
+  red_visitas: number;
+  vip_visitas: number;
+  high_priority: number;
+  visitas: PlanVisit[];
+}
+
+export interface PlanEmpresa {
+  empresa_id: number;
+  empresa_nombre: string;
+  total_visitas: number;
+  completadas: number;
+  pendientes: number;
+  fallidas: number;
+  en_riesgo: number;
+  red_visitas: number;
+  vip_visitas: number;
+  high_priority: number;
+  rutas: PlanRuta[];
+}
+
+export interface PlanDiarioResponse {
+  planned_date: string;
+  sim_clock: string;
+  region: string;
+  only_vip: boolean;
+  source?: 'real' | 'synthetic';      // Sprint 6
+  empresas: PlanEmpresa[];
+}
+
+// Compat (Sprint 1): forma legacy que devuelve /api/plan-diario?legacy=true.
+// Usado por RouteOpsPanel, DayConfigPanel y AsistenteIAPanel.
 export interface PlanDriver {
   vehicle_id: number;
   vehicle_name: string;
@@ -348,7 +474,10 @@ export interface PlanDriver {
   visits: PlanVisit[];
 }
 
-export interface PlanEmpresa {
+// Forma legacy de PlanEmpresa (Sprint 1) — backend devuelve esta cuando se usa
+// ?legacy=true. La forma nueva PlanEmpresa (Sprint 2) anida `rutas` en lugar de
+// `drivers`.
+export interface PlanEmpresaLegacy {
   empresa_id: number;
   nombre: string;
   total_visits: number;
@@ -360,11 +489,13 @@ export interface PlanEmpresa {
   drivers: PlanDriver[];
 }
 
-export interface PlanDiarioResponse {
+export interface PlanDiarioResponseLegacy {
   planned_date: string;
   sim_clock: string;
-  empresas: PlanEmpresa[];
+  empresas: PlanEmpresaLegacy[];
 }
+
+export type RegionFilter = 'all' | 'RM' | 'regiones' | string;
 
 // ---- Notifications / Preferences / VIP / Priority ----
 export interface UserPreferences {
@@ -425,10 +556,13 @@ export interface WatchlistVisit {
   p_fallo: number;
   alert_valuedata: boolean;
   is_vip: boolean;
+  vip_tier: string | null;
+  vip_deadline_time: string | null;
   priority: 'low' | 'normal' | 'high' | 'vip';
   urgency_score: number;
   severity: 'CRITICO' | 'ALTO' | 'MEDIO';
   reasons: string[];
+  region: 'RM' | 'regiones';
   notif: {
     count: number;
     sent_count: number;
@@ -481,6 +615,7 @@ export interface NotificationsConfig {
   dry_run: boolean;
   from_number: string;
   has_creds: boolean;
+  default_content_sid?: string | null;
 }
 
 export type MatchType = 'customer_id' | 'title' | 'reference';
@@ -492,9 +627,42 @@ export interface VipClient {
   empresa_id: number | null;
   tier: string;
   notes: string | null;
+  deadline_time: string | null;        // HH:MM
+  alert_minutes_before: number;
+  last_alert_sent_at: string | null;
   active: boolean;
   created_by: number | null;
   created_at: string;
+}
+
+export interface VipParseNotesResponse {
+  deadline_time: string | null;
+  alert_minutes_before: number;
+  razonamiento: string;
+  fallback: boolean;
+}
+
+export type EventTypeExtended = EventType | 'vip_deadline_warning';
+
+// ---- Sprint 7: buscador global ----
+export type SearchKind = 'vip' | 'empresa' | 'contacto' | 'driver' | 'visita' | 'motivo';
+
+export interface SearchHit {
+  kind: SearchKind;
+  id: string;
+  label: string;
+  sublabel: string | null;
+  empresa_id: number | null;
+  tracking_id: string | null;
+}
+
+export interface SearchResults {
+  vips: SearchHit[];
+  empresas: SearchHit[];
+  contactos: SearchHit[];
+  drivers: SearchHit[];
+  visitas: SearchHit[];
+  motivos: SearchHit[];
 }
 
 export type Priority = 'low' | 'normal' | 'high' | 'vip';
@@ -553,6 +721,83 @@ export interface Empresa {
   empresa_id: number;
   nombre: string;
   activo: boolean;
+}
+
+// ---- Empresa contactos (destinatarios WhatsApp por empresa transportista) ----
+export type ContactoRol = 'jefe' | 'coordinador' | 'dispatcher' | 'driver' | 'otro';
+export type ContactoRegion = 'RM' | 'regiones' | 'all';
+
+export interface EmpresaSummary {
+  empresa_id: number;
+  nombre: string;
+  activo: boolean;
+  contactos_count: number;
+  opted_in_count: number;
+  last_alert_at: string | null;
+}
+
+export interface Contacto {
+  contact_id: number;
+  empresa_id: number;
+  nombre: string;
+  rol: ContactoRol;
+  phone_e164: string;
+  email: string | null;
+  severities_in: MotivoSeverity[] | null;  // null = todas
+  motivos_in: string[] | null;              // null = todos
+  region_filter: ContactoRegion;
+  opted_in_at: string | null;
+  active: boolean;
+  notes: string | null;
+  created_by_user_id: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ContactoCreate {
+  nombre: string;
+  rol: ContactoRol;
+  phone_e164: string;
+  email?: string | null;
+  severities_in?: MotivoSeverity[] | null;
+  motivos_in?: string[] | null;
+  region_filter?: ContactoRegion;
+  notes?: string | null;
+}
+
+export interface ContactoUpdate {
+  nombre?: string;
+  rol?: ContactoRol;
+  phone_e164?: string;
+  email?: string | null;
+  severities_in?: MotivoSeverity[] | null;
+  motivos_in?: string[] | null;
+  region_filter?: ContactoRegion;
+  notes?: string | null;
+  active?: boolean;
+}
+
+export interface BulkCSVResult {
+  added: number;
+  skipped: { row: number; reason: string }[];
+  errors: { row: number; reason: string }[];
+}
+
+export interface TestBroadcastRow {
+  contact_id: number;
+  nombre: string;
+  phone: string;
+  status: 'sent' | 'dry_run' | 'error' | 'disabled';
+  twilio_sid: string | null;
+  error: string | null;
+}
+
+export interface TestBroadcastResult {
+  empresa_id: number;
+  body: string;
+  sent: number;
+  failed: number;
+  results: TestBroadcastRow[];
 }
 
 // ---- Mantenedores admin ----
@@ -644,4 +889,14 @@ export interface StreamEvent {
   comentario?: string;
   severity?: MotivoSeverity;
   reported_by?: string;
+  // motivo_correction_suggested / motivo_correction_decided
+  correction_id?: number;
+  comment_id?: number;
+  motivo_reportado?: string;
+  motivo_sugerido?: string;
+  motivo_aplicado?: string;
+  confianza?: string;
+  razonamiento?: string;
+  decision?: string;
+  decided_by?: string;
 }

@@ -1,16 +1,30 @@
 import { ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, Building2, KeyRound, Pencil, Plus, ShieldAlert, Star, Trash2, Truck, User, Users,
+  AlertTriangle, Building2, Clock, KeyRound, Loader2, Pencil, Plus, ShieldAlert, Sparkles,
+  Star, Trash2, Truck, User, Users,
 } from 'lucide-react';
 import { api } from '../api';
 import {
-  AdminClient, AdminDriver, AdminEmpresa, AdminUser, AdminVehicle,
+  AdminClient, AdminDriver, AdminEmpresa, AdminUser, AdminVehicle, MatchType, VipClient,
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { MotivosConfigPanel } from './MotivosConfigPanel';
 
-type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients' | 'motivos';
+type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients' | 'vip' | 'motivos';
+
+export function AdminGuard({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'falabella_admin') {
+    return (
+      <div className="panel p-6 text-center text-text-muted">
+        <ShieldAlert size={32} className="mx-auto mb-2 text-accent-yellow" />
+        <div>Esta sección requiere rol <span className="text-accent-yellow">falabella_admin</span>.</div>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
 
 export function MastersPanel() {
   const { user } = useAuth();
@@ -31,6 +45,7 @@ export function MastersPanel() {
     { key: 'drivers', label: 'Conductores', icon: User },
     { key: 'vehicles', label: 'Vehículos', icon: Truck },
     { key: 'clients', label: 'Clientes', icon: Star },
+    { key: 'vip', label: 'Clientes VIP', icon: Star },
     { key: 'motivos', label: 'Motivos / Alertas', icon: AlertTriangle },
   ];
 
@@ -58,8 +73,253 @@ export function MastersPanel() {
       {sub === 'drivers' && <DriversTab />}
       {sub === 'vehicles' && <VehiclesTab />}
       {sub === 'clients' && <ClientsTab />}
+      {sub === 'vip' && <VipTab />}
       {sub === 'motivos' && <MotivosConfigPanel />}
     </div>
+  );
+}
+
+// =============================================================================
+// VIP Tab — CRUD con deadline + parse-notes via LLM
+// =============================================================================
+export function VipTab({ highlightVipId, searchQ }: { highlightVipId?: number | null; searchQ?: string } = {}) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<VipClient[]>({
+    queryKey: ['admin-vip', searchQ ?? ''],
+    queryFn: () => api.vip.list(searchQ ? { q: searchQ } : undefined),
+  });
+  const empresasQ = useQuery({ queryKey: ['admin-empresas'], queryFn: api.admin.listEmpresas });
+  const [editing, setEditing] = useState<VipClient | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vip'] });
+  const delMut = useMutation({ mutationFn: api.vip.remove, onSuccess: refresh });
+
+  return (
+    <div className="panel">
+      <div className="panel-title flex items-center justify-between">
+        <span>{data?.length ?? 0} clientes VIP</span>
+        <button onClick={() => setCreating(true)} className="btn-primary text-xs flex items-center gap-1">
+          <Plus size={12} /> Nuevo VIP
+        </button>
+      </div>
+      {isLoading || !data ? (
+        <div className="p-4 text-text-muted text-xs">Cargando...</div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead className="border-b border-line">
+            <tr className="text-text-muted uppercase tracking-wider text-[10px]">
+              <th className="px-3 py-2 text-left">ID</th>
+              <th className="px-3 py-2 text-left">Match</th>
+              <th className="px-3 py-2 text-left">Tier</th>
+              <th className="px-3 py-2 text-left">Empresa</th>
+              <th className="px-3 py-2 text-left">Deadline</th>
+              <th className="px-3 py-2 text-right">Antelación</th>
+              <th className="px-3 py-2 text-left">Estado</th>
+              <th className="px-3 py-2 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(v => (
+              <tr key={v.vip_id} className={`border-b border-line/50 hover:bg-bg-700/30 ${highlightVipId === v.vip_id ? 'bg-cmr/10 ring-1 ring-cmr/40' : ''}`}>
+                <td className="px-3 py-2 text-text-muted">#{v.vip_id}</td>
+                <td className="px-3 py-2">
+                  <div className="font-semibold truncate max-w-[260px]" title={v.match_value}>{v.match_value}</div>
+                  <div className="text-[10px] text-text-muted">{v.match_type}</div>
+                </td>
+                <td className="px-3 py-2">
+                  <span className="pill bg-cmr/15 text-cmr border-cmr/40 border">{v.tier}</span>
+                </td>
+                <td className="px-3 py-2 text-text-secondary">
+                  {v.empresa_id != null
+                    ? empresasQ.data?.find(em => em.empresa_id === v.empresa_id)?.nombre ?? `#${v.empresa_id}`
+                    : <span className="text-text-muted">global</span>}
+                </td>
+                <td className="px-3 py-2 font-mono">
+                  {v.deadline_time
+                    ? <span className="text-accent-red flex items-center gap-1"><Clock size={10} />{v.deadline_time}</span>
+                    : <span className="text-text-muted">—</span>}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-text-secondary">{v.alert_minutes_before} min</td>
+                <td className="px-3 py-2">
+                  <span className={`pill ${v.active ? 'pill-green' : 'pill-red'}`}>{v.active ? 'Activo' : 'Inactivo'}</span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex items-center gap-3 justify-end">
+                    <button onClick={() => setEditing(v)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
+                      <Pencil size={12} /> Editar
+                    </button>
+                    <ConfirmDelete what={v.match_value} onConfirm={() => delMut.mutate(v.vip_id)} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {creating && (
+        <Modal title="Nuevo cliente VIP" onClose={() => setCreating(false)}>
+          <VipForm
+            empresas={empresasQ.data ?? []}
+            onSubmit={async data => {
+              await api.vip.create(data);
+              refresh();
+              setCreating(false);
+            }}
+          />
+        </Modal>
+      )}
+      {editing && (
+        <Modal title={`Editar VIP #${editing.vip_id}`} onClose={() => setEditing(null)}>
+          <VipForm
+            empresas={empresasQ.data ?? []}
+            initial={editing}
+            isEdit
+            onSubmit={async data => {
+              await api.vip.update(editing.vip_id, {
+                tier: data.tier,
+                notes: data.notes,
+                deadline_time: data.deadline_time,
+                alert_minutes_before: data.alert_minutes_before,
+                active: data.active,
+              });
+              refresh();
+              setEditing(null);
+            }}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function VipForm({ initial, isEdit, empresas, onSubmit }: {
+  initial?: VipClient;
+  isEdit?: boolean;
+  empresas: AdminEmpresa[];
+  onSubmit: (data: any) => Promise<void>;
+}) {
+  const [matchType, setMatchType] = useState<MatchType>(initial?.match_type ?? 'title');
+  const [matchValue, setMatchValue] = useState(initial?.match_value ?? '');
+  const [empresaId, setEmpresaId] = useState<number | null>(initial?.empresa_id ?? null);
+  const [tier, setTier] = useState(initial?.tier ?? 'VIP');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [deadlineTime, setDeadlineTime] = useState(initial?.deadline_time ?? '');
+  const [alertMin, setAlertMin] = useState<number>(initial?.alert_minutes_before ?? 60);
+  const [active, setActive] = useState(initial?.active ?? true);
+  const [submitting, setSubmitting] = useState(false);
+  const [parseLoading, setParseLoading] = useState(false);
+  const [parseRazon, setParseRazon] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const onParse = async () => {
+    if (!notes.trim()) return;
+    setParseLoading(true);
+    setParseRazon(null);
+    setErr(null);
+    try {
+      const r = await api.vip.parseNotes(notes);
+      if (r.deadline_time) setDeadlineTime(r.deadline_time);
+      if (r.alert_minutes_before) setAlertMin(r.alert_minutes_before);
+      setParseRazon(r.razonamiento + (r.fallback ? ' (fallback regex)' : ''));
+    } catch (ex: any) {
+      setErr(ex.message);
+    } finally {
+      setParseLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={async e => {
+      e.preventDefault();
+      setSubmitting(true); setErr(null);
+      if (alertMin < 5 || alertMin > 720) {
+        setErr('alert_minutes_before debe estar entre 5 y 720');
+        setSubmitting(false);
+        return;
+      }
+      try {
+        await onSubmit({
+          match_type: matchType,
+          match_value: matchValue,
+          empresa_id: empresaId,
+          tier,
+          notes: notes || null,
+          deadline_time: deadlineTime || null,
+          alert_minutes_before: alertMin,
+          active,
+        });
+      } catch (ex: any) { setErr(ex.message); setSubmitting(false); }
+    }}>
+      <div className="grid grid-cols-2 gap-2">
+        <FormRow label="Tipo de match">
+          <select className="input w-full" value={matchType}
+                  disabled={isEdit}
+                  onChange={e => setMatchType(e.target.value as MatchType)}>
+            <option value="title">Razón social</option>
+            <option value="customer_id">Customer ID</option>
+            <option value="reference">Referencia</option>
+          </select>
+        </FormRow>
+        <FormRow label="Tier">
+          <input className="input w-full" value={tier} onChange={e => setTier(e.target.value)} />
+        </FormRow>
+      </div>
+      <FormRow label="Valor del match (exacto)">
+        <input className="input w-full" value={matchValue}
+               disabled={isEdit}
+               onChange={e => setMatchValue(e.target.value)} required />
+      </FormRow>
+      <FormRow label="Empresa (opcional, vacío = global)">
+        <select className="input w-full" value={empresaId ?? ''}
+                onChange={e => setEmpresaId(e.target.value === '' ? null : Number(e.target.value))}>
+          <option value="">— Global (todas las empresas) —</option>
+          {empresas.map(em => (
+            <option key={em.empresa_id} value={em.empresa_id}>
+              #{em.empresa_id} — {em.nombre}
+            </option>
+          ))}
+        </select>
+      </FormRow>
+      <FormRow label="Notas (puede contener instrucciones de horario)">
+        <textarea className="input w-full" rows={3} value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Ej: Cliente VIP, entregar antes de las 4 PM con 1 hora de aviso." />
+        <button
+          type="button"
+          onClick={onParse}
+          disabled={!notes.trim() || parseLoading}
+          className="btn mt-1 text-[11px] flex items-center gap-1"
+        >
+          {parseLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} className="text-accent-violet" />}
+          Sugerir desde notas
+        </button>
+        {parseRazon && (
+          <div className="mt-1 text-[11px] text-text-secondary border-l-2 border-accent-violet/40 pl-2">
+            <span className="text-text-muted">IA:</span> {parseRazon}
+          </div>
+        )}
+      </FormRow>
+      <div className="grid grid-cols-2 gap-2">
+        <FormRow label="Hora límite (HH:MM)">
+          <input type="time" className="input w-full font-mono" value={deadlineTime}
+                 onChange={e => setDeadlineTime(e.target.value)} />
+        </FormRow>
+        <FormRow label="Alertar minutos antes (5 - 720)">
+          <input type="number" min={5} max={720} className="input w-full" value={alertMin}
+                 onChange={e => setAlertMin(Number(e.target.value))} />
+        </FormRow>
+      </div>
+      <label className="flex items-center gap-2 mb-3 text-xs">
+        <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+        Activo
+      </label>
+      {err && <div className="text-accent-red text-xs mb-2">{err}</div>}
+      <button type="submit" className="btn-primary w-full" disabled={submitting}>
+        {submitting ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear VIP'}
+      </button>
+    </form>
   );
 }
 
@@ -111,7 +371,7 @@ function ConfirmDelete({ what, onConfirm }: { what: string; onConfirm: () => voi
 // =============================================================================
 // Empresas
 // =============================================================================
-function EmpresasTab() {
+export function EmpresasTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-empresas'],
@@ -247,7 +507,7 @@ function EmpresaForm({ initial, isEdit, onSubmit }: {
 // =============================================================================
 // Usuarios
 // =============================================================================
-function UsersTab() {
+export function UsersTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users'],
@@ -483,7 +743,7 @@ function PasswordResetForm({ onSubmit }: { onSubmit: (pwd: string) => Promise<vo
 // =============================================================================
 // Drivers
 // =============================================================================
-function DriversTab() {
+export function DriversTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-drivers'],
@@ -491,6 +751,7 @@ function DriversTab() {
   });
   const [editing, setEditing] = useState<AdminDriver | null>(null);
   const [creating, setCreating] = useState(false);
+  const [waEditing, setWaEditing] = useState<AdminDriver | null>(null);
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-drivers'] }); qc.invalidateQueries({ queryKey: ['drivers'] }); };
   const delMut = useMutation({ mutationFn: api.admin.deleteDriver, onSuccess: refresh });
@@ -517,6 +778,7 @@ function DriversTab() {
                 <th className="px-3 py-2 text-right">Rating</th>
                 <th className="px-3 py-2 text-right">Entregas 30d</th>
                 <th className="px-3 py-2 text-right">% fallo 30d</th>
+                <th className="px-3 py-2 text-left">WhatsApp</th>
                 <th className="px-3 py-2 text-left">Estado</th>
                 <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
@@ -533,6 +795,15 @@ function DriversTab() {
                   <td className={`px-3 py-2 text-right tabular-nums ${
                     d.fail_rate_30d > 0.18 ? 'text-accent-red' : d.fail_rate_30d > 0.12 ? 'text-accent-yellow' : 'text-accent-green'
                   }`}>{(d.fail_rate_30d * 100).toFixed(1)}%</td>
+                  <td className="px-3 py-2">
+                    <button
+                      onClick={() => setWaEditing(d)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ring-1 bg-slate-500/15 text-slate-400 ring-slate-500/30 hover:bg-slate-500/25"
+                      title="Configurar opt-in WhatsApp"
+                    >
+                      Configurar
+                    </button>
+                  </td>
                   <td className="px-3 py-2">
                     <span className={`pill ${d.active ? 'pill-green' : 'pill-red'}`}>
                       {d.active ? 'Activo' : 'Inactivo'}
@@ -577,7 +848,72 @@ function DriversTab() {
           />
         </Modal>
       )}
+      {waEditing && (
+        <Modal title={`WhatsApp · ${waEditing.driver_id}`} onClose={() => setWaEditing(null)}>
+          <DriverWhatsAppForm driver={waEditing} onClose={() => { setWaEditing(null); refresh(); }} />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function DriverWhatsAppForm({ driver, onClose }: { driver: AdminDriver; onClose: () => void }) {
+  const [phoneE164, setPhoneE164] = useState<string>('');
+  const [notify, setNotify] = useState<boolean>(false);
+  const [optedIn, setOptedIn] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  return (
+    <form
+      onSubmit={async e => {
+        e.preventDefault();
+        setSubmitting(true); setErr(null);
+        try {
+          await api.driversExt.updateWhatsApp(driver.driver_id, {
+            phone_e164: phoneE164 || null,
+            notify_whatsapp: notify,
+            set_opted_in_now: optedIn,
+            clear_opted_in: !optedIn,
+          });
+          onClose();
+        } catch (ex: any) {
+          setErr(ex.message || 'error');
+          setSubmitting(false);
+        }
+      }}
+    >
+      <div className="text-[12px] text-text-muted mb-3">
+        Driver: <span className="text-text-primary font-medium">{driver.name}</span> ·{' '}
+        Teléfono libre actual: <span className="font-mono">{driver.phone || '—'}</span>
+      </div>
+
+      <FormRow label="Phone E.164 (ej: +56912345678)">
+        <input
+          type="text"
+          className="input w-full"
+          placeholder="+56912345678"
+          value={phoneE164}
+          onChange={e => setPhoneE164(e.target.value)}
+        />
+      </FormRow>
+      <label className="flex items-center gap-2 mb-2 text-[12px]">
+        <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} />
+        Notificar por WhatsApp (notify_whatsapp = 1)
+      </label>
+      <label className="flex items-center gap-2 mb-3 text-[12px]">
+        <input type="checkbox" checked={optedIn} onChange={e => setOptedIn(e.target.checked)} />
+        Set opted_in_at = NOW (compliance ToS)
+      </label>
+      <div className="text-[10px] text-text-muted mb-3 leading-relaxed">
+        Recordatorio: incluso seteando notify=1 y opted_in, los envíos siguen restringidos al sandbox Twilio
+        a menos que ENABLE_AUTO_NOTIFY=true en .env.
+      </div>
+      {err && <div className="text-accent-red text-[11px] mb-2">{err}</div>}
+      <button type="submit" className="btn-primary w-full" disabled={submitting}>
+        {submitting ? 'Guardando...' : 'Guardar'}
+      </button>
+    </form>
   );
 }
 
@@ -663,7 +999,7 @@ function DriverForm({ initial, isEdit, onSubmit }: {
 // =============================================================================
 // Vehicles
 // =============================================================================
-function VehiclesTab() {
+export function VehiclesTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-vehicles'],
@@ -848,7 +1184,7 @@ function VehicleForm({ initial, isEdit, onSubmit }: {
 // =============================================================================
 // Clients
 // =============================================================================
-function ClientsTab() {
+export function ClientsTab() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [onlyRecurrent, setOnlyRecurrent] = useState(false);

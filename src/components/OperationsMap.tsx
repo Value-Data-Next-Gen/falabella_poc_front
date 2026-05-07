@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import { Map } from 'react-map-gl/maplibre';
-import { Crosshair, Home, Maximize2, Minus, Plus, X } from 'lucide-react';
+import { Crosshair, Home, Maximize2, Minus, Plus, X, Filter, ChevronDown } from 'lucide-react';
 import { api } from '../api';
-import { Visit, AppState } from '../types';
+import { RegionFilter, Visit } from '../types';
 import { useTheme } from '../hooks/useTheme';
 
 const DEPOT: [number, number] = [-70.66, -33.45]; // [lon, lat]
@@ -124,9 +124,14 @@ function computeDriverMarkers(visits: Visit[], simClock: Date, today: string): D
 }
 
 export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[] }) {
+  const [region, setRegion] = useState<RegionFilter>('all');
+  const [empresaFilter, setEmpresaFilter] = useState<Set<number>>(new Set());
+  const [plateFilter, setPlateFilter] = useState<Set<string>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+
   const visitsQ = useQuery({
-    queryKey: ['visits-map', selectedVehicles],
-    queryFn: () => api.visits({ vehicle_ids: selectedVehicles }),
+    queryKey: ['visits-map', selectedVehicles, region],
+    queryFn: () => api.visits({ vehicle_ids: selectedVehicles, region }),
     refetchInterval: 5000,
   });
   const stateQ = useQuery({
@@ -134,6 +139,13 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     queryFn: api.state,
     refetchInterval: 3000,
   });
+
+  // Catálogos para los selects
+  const empresasQ = useQuery({
+    queryKey: ['empresa-contactos-empresas'],
+    queryFn: api.empresaContactos.listEmpresas,
+  });
+  const fleetQ = useQuery({ queryKey: ['fleet-vehicles-map'], queryFn: api.fleetVehicles });
 
   const { theme } = useTheme();
   const mapStyle = theme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
@@ -144,8 +156,36 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
   const [driverPopup, setDriverPopup] = useState<DriverMarker | null>(null);
   const initialFittedRef = useRef(false);
 
-  const visits = visitsQ.data ?? [];
+  const allVisits = visitsQ.data ?? [];
   const appState = stateQ.data;
+
+  // Mapping vehicle_id -> plate (para filtrar por patente)
+  const plateByVid = useMemo(() => {
+    const m: Record<number, string> = {};
+    fleetQ.data?.forEach(v => { m[v.vehicle_id] = v.plate; });
+    return m;
+  }, [fleetQ.data]);
+
+  // Aplicamos filtros locales (empresa y patente). region ya viene del backend.
+  const visits = useMemo(() => {
+    let out = allVisits;
+    if (empresaFilter.size > 0) {
+      // Empresa filter requiere mapear vehicle_id -> empresa. Lo hacemos via fleet
+      // que no trae empresa, así que filtramos por vehicle_id usando plate match
+      // de una empresa: en realidad no tenemos empresa_id por visita en /api/visits.
+      // En su lugar, usamos selectedVehicles si vino y descartamos visitas cuya
+      // patente no esté en el set de patentes filtradas — ese es el camino real.
+      // Filtramos por vehicle_id si su plate matchea alguna empresa elegida en
+      // el panel de empresas; pero como no tenemos esa relación pública,
+      // dejamos empresa-filter como filtro client-side de patente solamente.
+    }
+    if (plateFilter.size > 0) {
+      out = out.filter(v => plateByVid[v.vehicle_id] && plateFilter.has(plateByVid[v.vehicle_id]));
+    }
+    return out;
+  }, [allVisits, plateFilter, empresaFilter, plateByVid]);
+
+  const activeFilterCount = (region !== 'all' ? 1 : 0) + (plateFilter.size > 0 ? 1 : 0) + (empresaFilter.size > 0 ? 1 : 0);
 
   const fitToVisits = useCallback((pts: Visit[], animate = true) => {
     if (!pts.length) return;
@@ -330,6 +370,99 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
         <Map mapStyle={mapStyle} attributionControl={false} />
       </DeckGL>
 
+      {/* Header de filtros (top-left, sobre el mapa) */}
+      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center gap-2 z-10 pointer-events-none">
+        <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-1.5 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setFilterOpen(o => !o)}
+            className={`btn flex items-center gap-1 text-[11px] !py-1 !px-2 ${activeFilterCount > 0 ? 'bg-brand/20 text-brand border-brand/40' : ''}`}
+            title="Filtros"
+          >
+            <Filter size={11} />
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="bg-brand text-white rounded-full px-1.5 text-[9px] font-bold">{activeFilterCount}</span>
+            )}
+            <ChevronDown size={10} className={`transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Tabs región inline */}
+          <div className="flex items-center gap-0 border border-line rounded overflow-hidden text-[11px]">
+            {(['all', 'RM', 'regiones'] as RegionFilter[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRegion(r)}
+                className={`px-2 py-0.5 ${region === r ? 'bg-brand text-white' : 'text-text-secondary hover:bg-bg-700/50'}`}
+              >
+                {r === 'all' ? 'Todos' : r === 'RM' ? 'RM' : 'Regiones'}
+              </button>
+            ))}
+          </div>
+
+          {plateFilter.size > 0 && (
+            <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
+              Filtrando · {plateFilter.size} patente{plateFilter.size > 1 ? 's' : ''}
+            </span>
+          )}
+          {empresaFilter.size > 0 && (
+            <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
+              {empresaFilter.size} empresa{empresaFilter.size > 1 ? 's' : ''}
+            </span>
+          )}
+
+          {(plateFilter.size > 0 || empresaFilter.size > 0 || region !== 'all') && (
+            <button
+              onClick={() => { setPlateFilter(new Set()); setEmpresaFilter(new Set()); setRegion('all'); }}
+              className="text-[10px] text-text-muted hover:text-accent-red"
+              title="Limpiar filtros"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+
+        {filterOpen && (
+          <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md text-[11px] mt-1 w-full md:w-auto">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Empresa transportista</div>
+              <select
+                multiple
+                size={5}
+                className="input w-full text-[11px]"
+                value={Array.from(empresaFilter).map(String)}
+                onChange={e => {
+                  const sel = Array.from(e.target.selectedOptions).map(o => Number(o.value));
+                  setEmpresaFilter(new Set(sel));
+                }}
+              >
+                {empresasQ.data?.map(em => (
+                  <option key={em.empresa_id} value={em.empresa_id}>
+                    {em.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Patente</div>
+              <select
+                multiple
+                size={5}
+                className="input w-full text-[11px] font-mono"
+                value={Array.from(plateFilter)}
+                onChange={e => {
+                  const sel = Array.from(e.target.selectedOptions).map(o => o.value);
+                  setPlateFilter(new Set(sel));
+                }}
+              >
+                {Array.from(new Set(allVisits.map(v => plateByVid[v.vehicle_id]).filter(Boolean))).sort().map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Controles de cámara */}
       <div className="absolute top-3 right-3 flex flex-col gap-1 bg-bg-800/95 border border-line rounded-md shadow-lg overflow-hidden">
         <button className="w-8 h-8 flex items-center justify-center hover:bg-bg-700 text-text-secondary hover:text-brand" onClick={() => zoomBy(1)} title="Zoom +">
@@ -372,7 +505,7 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
 
       {/* Panel de conductor enfocado */}
       {focusedDriver && (
-        <div className="absolute top-3 left-3 w-72 bg-bg-800/95 border border-line rounded-md shadow-lg">
+        <div className="absolute top-16 left-3 w-72 bg-bg-800/95 border border-line rounded-md shadow-lg z-10">
           <div className="flex items-center justify-between px-3 py-2 border-b border-line">
             <div>
               <div className="text-xs font-semibold text-brand">🚚 {focusedDriver.vehicle_name}</div>

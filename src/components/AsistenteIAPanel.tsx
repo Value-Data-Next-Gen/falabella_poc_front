@@ -38,6 +38,14 @@ const EJEMPLOS: { label: string; texto: string }[] = [
     texto: 'Llegué al cliente y revisando el camión me doy cuenta de que el producto quedó en bodega, no fue cargado en origen.',
   },
   {
+    label: 'Sospecha de fraude',
+    texto: 'cliente sospechoso, datos no coinciden con RUT, intentó usar tarjeta clonada, no entregamos.',
+  },
+  {
+    label: 'Detención urgente Falabella',
+    texto: 'centro de distribución me llamó: detener entrega de inmediato, devolver al CD.',
+  },
+  {
     label: 'Comentario ambiguo',
     texto: 'no se pudo entregar',
   },
