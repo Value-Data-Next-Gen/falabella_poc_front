@@ -7,6 +7,7 @@ import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
 import { AnaliticaModule } from '../modules/AnaliticaModule';
 import { ConfiguracionSystemModule } from '../modules/ConfiguracionSystemModule';
+import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
 
 interface NavState {
   module: ModuleKey;
@@ -30,6 +31,15 @@ function writeHash(s: NavState): void {
 
 export function AppShell() {
   const [nav, setNav] = useState<NavState>(() => readHash());
+  const [tourOpen, setTourOpen] = useState(false);
+
+  // Mostrar tour la primera vez (post-login)
+  useEffect(() => {
+    if (shouldShowTour()) {
+      const t = setTimeout(() => setTourOpen(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, []);
 
   // Sync hash → state on hashchange
   useEffect(() => {
@@ -61,7 +71,12 @@ export function AppShell() {
       <Sidebar current={nav.module} onChange={k => navigate(k)} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar moduleKey={nav.module} subTab={subLabel} onNavigate={navigate} />
+        <Topbar
+          moduleKey={nav.module}
+          subTab={subLabel}
+          onNavigate={navigate}
+          onOpenTour={() => setTourOpen(true)}
+        />
         <main className="flex-1 overflow-hidden">
           {nav.module === 'maestros' && <MaestrosModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} />}
@@ -71,6 +86,11 @@ export function AppShell() {
           {nav.module === 'configuracion' && <ConfiguracionSystemModule sub={nav.sub} setSub={setSub} />}
         </main>
       </div>
+      <OnboardingTour
+        open={tourOpen}
+        onClose={() => setTourOpen(false)}
+        onNavigate={(module, sub) => navigate(module as ModuleKey, sub)}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bell, Building2, Crown, MessageSquare, Package,
-  Search, Star, Truck, User, X,
+  Search, Sparkles, Star, Truck, User, X,
 } from 'lucide-react';
 import { api } from '../../api';
 import { ModuleKey, MODULES } from './Sidebar';
@@ -41,10 +41,12 @@ export function Topbar({
   moduleKey,
   subTab,
   onNavigate,
+  onOpenTour,
 }: {
   moduleKey: ModuleKey;
   subTab: string | null;
   onNavigate: (m: ModuleKey, sub?: string) => void;
+  onOpenTour?: () => void;
 }) {
   const moduleDef = MODULES.find(m => m.key === moduleKey);
 
@@ -213,6 +215,17 @@ export function Topbar({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        {/* Tour */}
+        {onOpenTour && (
+          <button
+            onClick={onOpenTour}
+            className="hidden md:flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-700/50 text-text-secondary text-[11px]"
+            title="Ver tour guiado de la plataforma"
+          >
+            <Sparkles size={13} className="text-brand" />
+            Tour
+          </button>
+        )}
         {/* Bell */}
         <div className="relative">
           <button

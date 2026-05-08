@@ -22,6 +22,7 @@ const META: Record<EventType, { icon: any; color: string; bg: string; label: str
   vip_deadline_warning: { icon: AlertTriangle, color: 'text-cmr',        bg: 'bg-cmr/10',           label: 'Deadline VIP próximo' },
   motivo_correction_suggested: { icon: MessageSquare, color: 'text-brand', bg: 'bg-brand/10', label: 'Revisión IA' },
   motivo_correction_decided:   { icon: CheckCircle2,  color: 'text-text-secondary', bg: 'bg-bg-700', label: 'Decisión IA' },
+  wa_user_onboarded:           { icon: CheckCircle2,  color: 'text-accent-green',   bg: 'bg-accent-green/10', label: 'Nuevo en WhatsApp' },
 };
 
 const EVENT_ORDER: EventType[] = [
