@@ -104,7 +104,9 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) {
+  // /auth/login returns 401 for bad credentials — surface the server's
+  // detail ("Credenciales inválidas") instead of the generic session-expired path.
+  if (res.status === 401 && path !== '/auth/login') {
     setToken(null);
     throw new AuthError(401, 'sesión expirada');
   }
