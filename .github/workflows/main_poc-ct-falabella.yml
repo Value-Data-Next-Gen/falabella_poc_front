@@ -25,11 +25,11 @@ jobs:
 
       - name: npm install, build, and test
         env:
-          # URL pública del backend (ngrok hoy, App Service mañana).
+          # URL pública del backend en Azure App Service.
           # Vite embebe esto al hacer 'npm run build' (build-time).
           # Override en repo settings: Settings → Secrets and variables →
           #   Actions → Variables → VITE_API_BASE.
-          VITE_API_BASE: ${{ vars.VITE_API_BASE || 'https://flogging-purposely-antonym.ngrok-free.dev/api' }}
+          VITE_API_BASE: ${{ vars.VITE_API_BASE || 'https://poc-fal-back-hrgccdc4hub8fuea.brazilsouth-01.azurewebsites.net/api' }}
         run: |
           npm install
           npm run build --if-present
