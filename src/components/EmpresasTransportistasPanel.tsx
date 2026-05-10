@@ -224,18 +224,27 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
 // =============================================================================
 function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
+  const [onlyActive, setOnlyActive] = useState(true);
   const driversQ = useQuery({
     queryKey: ['admin-drivers'],
     queryFn: api.admin.listDrivers,
   });
-  const drivers = (driversQ.data ?? []).filter(d => d.empresa_id === empresaId);
+  const drivers = (driversQ.data ?? [])
+    .filter(d => d.empresa_id === empresaId)
+    .filter(d => !onlyActive || d.active);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-drivers'] });
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-text-muted">{drivers.length} drivers</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-text-muted">{drivers.length} drivers</div>
+          <label className="flex items-center gap-1 text-[11px] cursor-pointer">
+            <input type="checkbox" checked={onlyActive} onChange={e => setOnlyActive(e.target.checked)} />
+            Solo activos
+          </label>
+        </div>
         <BulkXlsxButtons
           downloadPath={`/admin/drivers/template?empresa_id=${empresaId}`}
           filename={`drivers_${empresaId}.xlsx`}
@@ -285,18 +294,27 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
 // =============================================================================
 function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
+  const [onlyActive, setOnlyActive] = useState(true);
   const vehiclesQ = useQuery({
     queryKey: ['admin-vehicles'],
     queryFn: api.admin.listVehicles,
   });
-  const vehicles = (vehiclesQ.data ?? []).filter(v => v.empresa_id === empresaId);
+  const vehicles = (vehiclesQ.data ?? [])
+    .filter(v => v.empresa_id === empresaId)
+    .filter(v => !onlyActive || v.active);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vehicles'] });
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-text-muted">{vehicles.length} vehículos</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-text-muted">{vehicles.length} vehículos</div>
+          <label className="flex items-center gap-1 text-[11px] cursor-pointer">
+            <input type="checkbox" checked={onlyActive} onChange={e => setOnlyActive(e.target.checked)} />
+            Solo activos
+          </label>
+        </div>
         <BulkXlsxButtons
           downloadPath={`/admin/vehicles/template?empresa_id=${empresaId}`}
           filename={`vehicles_${empresaId}.xlsx`}

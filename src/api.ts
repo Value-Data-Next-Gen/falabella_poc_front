@@ -4,6 +4,7 @@ import {
   Contacto,
   ContactoCreate,
   ContactoUpdate,
+  DotacionConflict,
   DotacionDiariaRow,
   DotacionEstado,
   EmpresaSummary,
@@ -591,6 +592,7 @@ export const api = {
         fecha: string;
         already_imported: boolean;
         message: string;
+        conflicts: DotacionConflict[];
       }>(`/planificacion/import-mock${q}`, {});
     },
     listImports: () =>
@@ -600,6 +602,8 @@ export const api = {
         imported_at: string;
         imported_by_user_id: number | null;
       }>>('/planificacion/imports'),
+    dotacionCheck: (fecha: string) =>
+      get<DotacionConflict[]>(`/planificacion/dotacion-check?fecha=${fecha}`),
   },
 
   // Sprint 7 — buscador global del topbar

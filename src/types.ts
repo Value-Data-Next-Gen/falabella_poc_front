@@ -861,6 +861,19 @@ export interface AdminVehicle {
 
 export type DotacionEstado = 'disponible' | 'ausente' | 'licencia' | 'mantencion' | 'baja' | 'reemplazo';
 
+export interface DotacionConflict {
+  empresa_id: number;
+  empresa_nombre: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
+  vehicle_id: number | null;
+  plate: string | null;
+  estado: string;
+  motivo: string | null;
+  visitas_afectadas: number;
+  ruta_id: string | null;
+}
+
 export interface DotacionDiariaRow {
   fecha: string;
   empresa_id: number;
