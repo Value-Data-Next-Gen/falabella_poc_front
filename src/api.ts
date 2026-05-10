@@ -7,6 +7,7 @@ import {
   DotacionConflict,
   DotacionDiariaRow,
   DotacionEstado,
+  DriverDocument,
   EmpresaSummary,
   TestBroadcastResult,
   AccessLogRow,
@@ -408,6 +409,15 @@ export const api = {
     updateVehicle: (id: number, req: Partial<AdminVehicle>) =>
       put<AdminVehicle>(`/admin/vehicles/${id}`, req),
     deleteVehicle: (id: number) => del<{ deleted: number }>(`/admin/vehicles/${id}`),
+
+    // Driver documents
+    listDriverDocs: (driver_id: string) =>
+      get<DriverDocument[]>(`/admin/drivers/${encodeURIComponent(driver_id)}/documents`),
+    deleteDriverDoc: (driver_id: string, doc_id: number) =>
+      del<{ deleted: number }>(`/admin/drivers/${encodeURIComponent(driver_id)}/documents/${doc_id}`),
+    // upload + download usan paths absolutos: el componente arma el FormData y
+    // hace fetch directo (mismo patrón que BulkXlsxButtons) para tener control
+    // sobre Content-Type y multipart.
 
     // Dotación diaria — pool fijo + override por día (estado/motivo)
     listDotacion: (opts: { fecha: string; empresa_id?: number }) => {

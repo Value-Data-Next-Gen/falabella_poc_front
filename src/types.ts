@@ -861,6 +861,21 @@ export interface AdminVehicle {
 
 export type DotacionEstado = 'disponible' | 'ausente' | 'licencia' | 'mantencion' | 'baja' | 'reemplazo';
 
+export type DriverDocTipo = 'licencia' | 'antecedentes' | 'contrato' | 'poliza' | 'certificacion' | 'otro';
+
+export interface DriverDocument {
+  doc_id: number;
+  driver_id: string;
+  tipo: DriverDocTipo;
+  filename: string;
+  file_size: number;
+  content_type: string | null;
+  uploaded_at: string;
+  uploaded_by_user_id: number | null;
+  expires_at: string | null;
+  notes: string | null;
+}
+
 export interface DotacionConflict {
   empresa_id: number;
   empresa_nombre: string | null;
