@@ -1,5 +1,6 @@
 import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
 import {
   Building2, CheckCircle2, Clock, Download, FileWarning, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
@@ -159,7 +160,7 @@ export function EmpresasTransportistasPanel() {
 // =============================================================================
 // Drawer lateral
 // =============================================================================
-type DrawerTab = 'contactos' | 'csv' | 'broadcast';
+type DrawerTab = 'contactos' | 'drivers' | 'vehiculos' | 'csv' | 'broadcast';
 
 function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose: () => void }) {
   const [tab, setTab] = useState<DrawerTab>('contactos');
@@ -169,7 +170,7 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
       <div className="absolute inset-0 bg-black/60" />
       <aside
         onClick={e => e.stopPropagation()}
-        className="relative bg-bg-800 border-l border-line w-[480px] max-w-full h-full overflow-auto flex flex-col"
+        className="relative bg-bg-800 border-l border-line w-[640px] max-w-full h-full overflow-auto flex flex-col"
       >
         <header className="px-4 py-3 border-b border-line flex items-center justify-between sticky top-0 bg-bg-800 z-10">
           <div>
@@ -186,13 +187,15 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
         <div className="flex border-b border-line">
           {[
             { key: 'contactos' as const, label: 'Contactos' },
-            { key: 'csv' as const,       label: 'Importar CSV' },
-            { key: 'broadcast' as const, label: 'Test broadcast' },
+            { key: 'drivers' as const,   label: 'Drivers' },
+            { key: 'vehiculos' as const, label: 'Vehículos' },
+            { key: 'csv' as const,       label: 'CSV' },
+            { key: 'broadcast' as const, label: 'Broadcast' },
           ].map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 px-3 py-2 text-[11px] uppercase tracking-wider border-b-2 ${
+              className={`flex-1 px-2 py-2 text-[11px] uppercase tracking-wider border-b-2 ${
                 tab === t.key
                   ? 'border-accent-blue text-accent-blue'
                   : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -205,10 +208,136 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
 
         <div className="flex-1 p-4 overflow-auto">
           {tab === 'contactos' && <ContactosTab empresaId={empresa.empresa_id} />}
+          {tab === 'drivers' && <DriversForEmpresaTab empresaId={empresa.empresa_id} />}
+          {tab === 'vehiculos' && <VehiclesForEmpresaTab empresaId={empresa.empresa_id} />}
           {tab === 'csv' && <CSVTab empresaId={empresa.empresa_id} />}
           {tab === 'broadcast' && <BroadcastTab empresa={empresa} />}
         </div>
       </aside>
+    </div>
+  );
+}
+
+
+// =============================================================================
+// Tab: Drivers de la empresa (con bulk Excel)
+// =============================================================================
+function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
+  const qc = useQueryClient();
+  const driversQ = useQuery({
+    queryKey: ['admin-drivers'],
+    queryFn: api.admin.listDrivers,
+  });
+  const drivers = (driversQ.data ?? []).filter(d => d.empresa_id === empresaId);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin-drivers'] });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-text-muted">{drivers.length} drivers</div>
+        <BulkXlsxButtons
+          downloadPath={`/admin/drivers/template?empresa_id=${empresaId}`}
+          filename={`drivers_${empresaId}.xlsx`}
+          uploadPath={`/admin/drivers/upload?empresa_id=${empresaId}`}
+          onUploaded={refresh}
+        />
+      </div>
+      {driversQ.isLoading ? (
+        <div className="text-text-muted text-xs">Cargando…</div>
+      ) : drivers.length === 0 ? (
+        <div className="text-text-muted text-xs italic py-6 text-center">
+          Sin drivers en esta empresa. Subí un XLSX desde el botón de arriba para crearlos en bulk.
+        </div>
+      ) : (
+        <table className="w-full text-[11px]">
+          <thead className="border-b border-line text-text-muted uppercase tracking-wider text-[10px]">
+            <tr>
+              <th className="px-2 py-1.5 text-left">ID</th>
+              <th className="px-2 py-1.5 text-left">Nombre</th>
+              <th className="px-2 py-1.5 text-left">Vehículo</th>
+              <th className="px-2 py-1.5 text-right">Activo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drivers.map(d => (
+              <tr key={d.driver_id} className="border-b border-line/50">
+                <td className="px-2 py-1.5 font-mono text-[10px] text-text-muted">{d.driver_id}</td>
+                <td className="px-2 py-1.5">{d.name}</td>
+                <td className="px-2 py-1.5">{d.vehicle_name} <span className="text-text-muted">#{d.vehicle_id}</span></td>
+                <td className="px-2 py-1.5 text-right">
+                  <span className={`pill ${d.active ? 'pill-green' : 'pill-red'}`}>
+                    {d.active ? 'Sí' : 'No'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+
+// =============================================================================
+// Tab: Vehículos de la empresa (con bulk Excel)
+// =============================================================================
+function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
+  const qc = useQueryClient();
+  const vehiclesQ = useQuery({
+    queryKey: ['admin-vehicles'],
+    queryFn: api.admin.listVehicles,
+  });
+  const vehicles = (vehiclesQ.data ?? []).filter(v => v.empresa_id === empresaId);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vehicles'] });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-text-muted">{vehicles.length} vehículos</div>
+        <BulkXlsxButtons
+          downloadPath={`/admin/vehicles/template?empresa_id=${empresaId}`}
+          filename={`vehicles_${empresaId}.xlsx`}
+          uploadPath={`/admin/vehicles/upload?empresa_id=${empresaId}`}
+          onUploaded={refresh}
+        />
+      </div>
+      {vehiclesQ.isLoading ? (
+        <div className="text-text-muted text-xs">Cargando…</div>
+      ) : vehicles.length === 0 ? (
+        <div className="text-text-muted text-xs italic py-6 text-center">
+          Sin vehículos en esta empresa. Subí un XLSX para crearlos en bulk.
+        </div>
+      ) : (
+        <table className="w-full text-[11px]">
+          <thead className="border-b border-line text-text-muted uppercase tracking-wider text-[10px]">
+            <tr>
+              <th className="px-2 py-1.5 text-left">ID</th>
+              <th className="px-2 py-1.5 text-left">Nombre</th>
+              <th className="px-2 py-1.5 text-left">Patente</th>
+              <th className="px-2 py-1.5 text-left">Tipo</th>
+              <th className="px-2 py-1.5 text-right">Activo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vehicles.map(v => (
+              <tr key={v.vehicle_id} className="border-b border-line/50">
+                <td className="px-2 py-1.5 font-mono text-[10px] text-text-muted">#{v.vehicle_id}</td>
+                <td className="px-2 py-1.5">{v.name}</td>
+                <td className="px-2 py-1.5 font-mono">{v.plate}</td>
+                <td className="px-2 py-1.5">{v.type}</td>
+                <td className="px-2 py-1.5 text-right">
+                  <span className={`pill ${v.active ? 'pill-green' : 'pill-red'}`}>
+                    {v.active ? 'Sí' : 'No'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

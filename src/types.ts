@@ -421,6 +421,9 @@ export interface PlanRuta {
   plate: string | null;
   patente: string | null;             // Sprint 6: alias visible
   driver_name: string;
+  dotacion_estado: string | null;
+  dotacion_motivo: string | null;
+  operable: boolean;
   region: string;                     // Sprint 6
   ct: string | null;                  // Sprint 6: 'CD NORTE' | 'CD SUR' | ...
   next_stop_order: number | null;     // Sprint 6: alias semántico
@@ -827,6 +830,8 @@ export interface AdminDriver {
   name: string;
   phone: string | null;
   license: string | null;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
   vehicle_id: number;
   vehicle_name: string;
   rating: number;
@@ -839,6 +844,8 @@ export interface AdminDriver {
 
 export interface AdminVehicle {
   vehicle_id: number;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
   name: string;
   type: string;
   plate: string;
@@ -850,6 +857,25 @@ export interface AdminVehicle {
   year: number | null;
   active: boolean;
   is_problem_hidden: boolean;
+}
+
+export type DotacionEstado = 'disponible' | 'ausente' | 'licencia' | 'mantencion' | 'baja' | 'reemplazo';
+
+export interface DotacionDiariaRow {
+  fecha: string;
+  empresa_id: number;
+  empresa_nombre: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
+  driver_active: boolean;
+  default_vehicle_id: number | null;
+  vehicle_id: number | null;
+  vehicle_name: string | null;
+  plate: string | null;
+  vehicle_active: boolean;
+  estado: DotacionEstado;
+  motivo: string | null;
+  updated_at: string | null;
 }
 
 export interface AdminClient {

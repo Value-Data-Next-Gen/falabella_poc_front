@@ -4,6 +4,8 @@ import {
   Contacto,
   ContactoCreate,
   ContactoUpdate,
+  DotacionDiariaRow,
+  DotacionEstado,
   EmpresaSummary,
   TestBroadcastResult,
   AccessLogRow,
@@ -405,6 +407,21 @@ export const api = {
     updateVehicle: (id: number, req: Partial<AdminVehicle>) =>
       put<AdminVehicle>(`/admin/vehicles/${id}`, req),
     deleteVehicle: (id: number) => del<{ deleted: number }>(`/admin/vehicles/${id}`),
+
+    // Dotación diaria — pool fijo + override por día (estado/motivo)
+    listDotacion: (opts: { fecha: string; empresa_id?: number }) => {
+      const p = [`fecha=${encodeURIComponent(opts.fecha)}`];
+      if (opts.empresa_id != null) p.push(`empresa_id=${opts.empresa_id}`);
+      return get<DotacionDiariaRow[]>(`/admin/dotacion-diaria?${p.join('&')}`);
+    },
+    upsertDotacion: (req: {
+      fecha: string;
+      empresa_id: number;
+      driver_id?: string | null;
+      vehicle_id?: number | null;
+      estado: DotacionEstado;
+      motivo?: string | null;
+    }) => put<{ status: string; dotacion_id: number }>('/admin/dotacion-diaria', req),
 
     // Clients
     listClients: (opts?: {

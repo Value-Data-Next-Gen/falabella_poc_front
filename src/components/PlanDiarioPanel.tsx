@@ -306,6 +306,14 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock, mode }: {
                 {ruta.region}
               </span>
             )}
+            {ruta.operable === false && (
+              <span
+                className="text-[10px] px-1.5 bg-accent-red/20 text-accent-red border border-accent-red/50 rounded font-semibold uppercase tracking-wider"
+                title={ruta.dotacion_motivo ?? 'Driver no disponible'}
+              >
+                {ruta.dotacion_estado ?? 'no operable'}
+              </span>
+            )}
           </div>
 
           {/* Barra de progreso + KPIs (live) | Chip "Planeada" + counts (planning) */}
