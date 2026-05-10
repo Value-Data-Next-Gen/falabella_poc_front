@@ -5,7 +5,11 @@ import {
   Loader2, Trash2, Truck, Upload, User,
 } from 'lucide-react';
 import { api, getToken } from '../../api';
-import { DriverDocTipo, DriverDocument } from '../../types';
+import {
+  CapacitacionModulo, DriverCapacitacion, DriverDocTipo, DriverDocument,
+} from '../../types';
+import { Modal } from '../shared/Modal';
+import { Plus } from 'lucide-react';
 
 type TabKey = 'datos' | 'documentos' | 'capacitaciones';
 
@@ -82,7 +86,7 @@ export function DriverPage({ empresaId, driverId, onBack }: DriverPageProps) {
       <div className="flex-1 min-h-0 overflow-auto">
         {tab === 'datos' && <DatosTab driverId={driverId} />}
         {tab === 'documentos' && <DocumentosTab driverId={driverId} />}
-        {tab === 'capacitaciones' && <CapacitacionesTabPlaceholder />}
+        {tab === 'capacitaciones' && <CapacitacionesTab driverId={driverId} />}
       </div>
     </div>
   );
@@ -347,14 +351,223 @@ function UploadDocBox({ driverId, onUploaded }: { driverId: string; onUploaded: 
   );
 }
 
-function CapacitacionesTabPlaceholder() {
+type CapStatus = 'ok' | 'expira-pronto' | 'vencida' | 'pendiente';
+
+function _capStatus(c?: DriverCapacitacion): CapStatus {
+  if (!c) return 'pendiente';
+  if (!c.vence_at) return 'ok';
+  const exp = new Date(c.vence_at);
+  const now = new Date();
+  if (exp < now) return 'vencida';
+  if (exp <= new Date(now.getTime() + 30 * 86400_000)) return 'expira-pronto';
+  return 'ok';
+}
+
+const STATUS_PILL: Record<CapStatus, { cls: string; label: string }> = {
+  ok:             { cls: 'pill-green',   label: 'Vigente' },
+  'expira-pronto':{ cls: 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40 border', label: 'Por vencer' },
+  vencida:        { cls: 'pill-red',     label: 'Vencida' },
+  pendiente:      { cls: 'bg-bg-700 text-text-muted border-line border', label: 'Pendiente' },
+};
+
+function CapacitacionesTab({ driverId }: { driverId: string }) {
+  const qc = useQueryClient();
+  const modulosQ = useQuery({
+    queryKey: ['cap-modulos', true],
+    queryFn: () => api.admin.listCapacitacionModulos(true),
+  });
+  const capsQ = useQuery({
+    queryKey: ['driver-caps', driverId],
+    queryFn: () => api.admin.listDriverCapacitaciones(driverId),
+  });
+  const refresh = () => qc.invalidateQueries({ queryKey: ['driver-caps', driverId] });
+
+  const [registering, setRegistering] = useState<CapacitacionModulo | null>(null);
+
+  const delMut = useMutation({
+    mutationFn: (cap_id: number) => api.admin.deleteDriverCapacitacion(driverId, cap_id),
+    onSuccess: refresh,
+  });
+
+  // Última capacitación por módulo
+  const latestByModulo = new Map<number, DriverCapacitacion>();
+  for (const c of capsQ.data ?? []) {
+    const prev = latestByModulo.get(c.modulo_id);
+    if (!prev || new Date(c.fecha_completado) > new Date(prev.fecha_completado)) {
+      latestByModulo.set(c.modulo_id, c);
+    }
+  }
+
+  if (modulosQ.isLoading || capsQ.isLoading) {
+    return <div className="panel p-4 text-text-muted text-xs">Cargando…</div>;
+  }
+
   return (
-    <div className="panel p-8 text-center text-text-muted text-xs">
-      <GraduationCap size={32} className="mx-auto mb-2 text-text-muted/40" />
-      <div>Capacitaciones del driver — Sprint 3</div>
-      <div className="text-[10px] mt-1">
-        Próximamente: catálogo de módulos (manejo defensivo, carga peligrosa…) con fecha completada y vencimiento.
+    <div className="flex flex-col gap-3">
+      <div className="panel">
+        <div className="panel-title">Estado por módulo</div>
+        <table className="w-full text-[12px]">
+          <thead className="border-b border-line text-text-muted uppercase tracking-wider text-[10px]">
+            <tr>
+              <th className="px-3 py-2 text-left">Módulo</th>
+              <th className="px-3 py-2 text-left">Estado</th>
+              <th className="px-3 py-2 text-left">Última fecha</th>
+              <th className="px-3 py-2 text-left">Vence</th>
+              <th className="px-3 py-2 text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(modulosQ.data ?? []).map(m => {
+              const last = latestByModulo.get(m.modulo_id);
+              const st = _capStatus(last);
+              const pill = STATUS_PILL[st];
+              return (
+                <tr key={m.modulo_id} className="border-b border-line/50">
+                  <td className="px-3 py-2">
+                    <div className="font-medium">{m.nombre}</div>
+                    <div className="text-[10px] text-text-muted">
+                      {m.codigo} · validez {m.validez_meses} meses
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`pill ${pill.cls}`}>{pill.label}</span>
+                  </td>
+                  <td className="px-3 py-2 text-text-muted">
+                    {last ? new Date(last.fecha_completado).toLocaleDateString('es-CL') : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-text-muted">
+                    {last?.vence_at ? new Date(last.vence_at).toLocaleDateString('es-CL') : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => setRegistering(m)}
+                            className="btn-primary text-[11px] flex items-center gap-1 ml-auto">
+                      <Plus size={10} /> {last ? 'Renovar' : 'Registrar'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
+
+      <div className="panel">
+        <div className="panel-title flex items-center justify-between">
+          <span>Histórico ({capsQ.data?.length ?? 0})</span>
+        </div>
+        {(capsQ.data ?? []).length === 0 ? (
+          <div className="p-4 text-text-muted text-xs italic text-center">
+            Aún sin registros. Registrá la primera capacitación con los botones de arriba.
+          </div>
+        ) : (
+          <table className="w-full text-[11px]">
+            <thead className="border-b border-line text-text-muted uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="px-3 py-2 text-left">Módulo</th>
+                <th className="px-3 py-2 text-left">Completado</th>
+                <th className="px-3 py-2 text-left">Vence</th>
+                <th className="px-3 py-2 text-left">Notas</th>
+                <th className="px-3 py-2 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(capsQ.data ?? []).map(c => (
+                <tr key={c.cap_id} className="border-b border-line/50">
+                  <td className="px-3 py-2">{c.modulo_nombre}</td>
+                  <td className="px-3 py-2 font-mono text-[10px]">
+                    {new Date(c.fecha_completado).toLocaleDateString('es-CL')}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[10px]">
+                    {c.vence_at ? new Date(c.vence_at).toLocaleDateString('es-CL') : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-text-secondary truncate max-w-[200px]" title={c.notas ?? ''}>
+                    {c.notas ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => {
+                              if (confirm('Eliminar este registro?')) delMut.mutate(c.cap_id);
+                            }}
+                            className="text-accent-red hover:underline">
+                      <Trash2 size={11} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {registering && (
+        <CapacitacionFormModal
+          driverId={driverId}
+          modulo={registering}
+          onClose={() => setRegistering(null)}
+          onSaved={() => { refresh(); setRegistering(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function CapacitacionFormModal({ driverId, modulo, onClose, onSaved }: {
+  driverId: string;
+  modulo: CapacitacionModulo;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [fecha, setFecha] = useState(today);
+  const [vence, setVence] = useState('');  // si vacío, backend calcula
+  const [notas, setNotas] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null); setSaving(true);
+    try {
+      await api.admin.createDriverCapacitacion(driverId, {
+        modulo_id: modulo.modulo_id,
+        fecha_completado: fecha,
+        vence_at: vence || null,
+        notas: notas.trim() || null,
+      });
+      onSaved();
+    } catch (ex: any) {
+      setErr(ex?.message ?? 'error');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Registrar: ${modulo.nombre}`} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3 text-[12px]">
+        <div className="text-[11px] text-text-muted">
+          Validez configurada: <strong>{modulo.validez_meses} meses</strong>. Si dejás vencimiento vacío, se calcula automáticamente.
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Fecha completado</span>
+          <input type="date" className="input" required value={fecha}
+                 onChange={e => setFecha(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            Vencimiento (opcional, calculado si vacío)
+          </span>
+          <input type="date" className="input" value={vence}
+                 onChange={e => setVence(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Notas</span>
+          <textarea className="input" rows={2} maxLength={500}
+                    value={notas} onChange={e => setNotas(e.target.value)} />
+        </label>
+        {err && <div className="text-accent-red text-[11px]">{err}</div>}
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? 'Guardando…' : 'Registrar'}
+        </button>
+      </form>
+    </Modal>
   );
 }

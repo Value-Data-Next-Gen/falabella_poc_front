@@ -861,6 +861,29 @@ export interface AdminVehicle {
 
 export type DotacionEstado = 'disponible' | 'ausente' | 'licencia' | 'mantencion' | 'baja' | 'reemplazo';
 
+export interface CapacitacionModulo {
+  modulo_id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  validez_meses: number;
+  activo: boolean;
+}
+
+export interface DriverCapacitacion {
+  cap_id: number;
+  driver_id: string;
+  modulo_id: number;
+  modulo_codigo: string;
+  modulo_nombre: string;
+  fecha_completado: string;
+  vence_at: string | null;
+  notas: string | null;
+  doc_id: number | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export type DriverDocTipo = 'licencia' | 'antecedentes' | 'contrato' | 'poliza' | 'certificacion' | 'otro';
 
 export interface DriverDocument {

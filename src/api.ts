@@ -2,11 +2,13 @@ import {
   AvailableDates,
   BulkCSVResult,
   Contacto,
+  CapacitacionModulo,
   ContactoCreate,
   ContactoUpdate,
   DotacionConflict,
   DotacionDiariaRow,
   DotacionEstado,
+  DriverCapacitacion,
   DriverDocument,
   EmpresaSummary,
   TestBroadcastResult,
@@ -409,6 +411,34 @@ export const api = {
     updateVehicle: (id: number, req: Partial<AdminVehicle>) =>
       put<AdminVehicle>(`/admin/vehicles/${id}`, req),
     deleteVehicle: (id: number) => del<{ deleted: number }>(`/admin/vehicles/${id}`),
+
+    // Capacitaciones — catálogo
+    listCapacitacionModulos: (only_active = false) =>
+      get<CapacitacionModulo[]>(`/admin/capacitacion-modulos${only_active ? '?only_active=true' : ''}`),
+    createCapacitacionModulo: (req: Omit<CapacitacionModulo, 'modulo_id'>) =>
+      post<CapacitacionModulo>('/admin/capacitacion-modulos', req),
+    updateCapacitacionModulo: (id: number, req: Partial<CapacitacionModulo>) =>
+      put<CapacitacionModulo>(`/admin/capacitacion-modulos/${id}`, req),
+    deleteCapacitacionModulo: (id: number) =>
+      del<{ deleted: number }>(`/admin/capacitacion-modulos/${id}`),
+
+    // Capacitaciones — registros del driver
+    listDriverCapacitaciones: (driver_id: string) =>
+      get<DriverCapacitacion[]>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones`),
+    createDriverCapacitacion: (driver_id: string, req: {
+      modulo_id: number;
+      fecha_completado: string;       // YYYY-MM-DD
+      vence_at?: string | null;
+      notas?: string | null;
+      doc_id?: number | null;
+    }) => post<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones`, req),
+    updateDriverCapacitacion: (driver_id: string, cap_id: number, req: {
+      fecha_completado?: string;
+      vence_at?: string | null;
+      notas?: string | null;
+    }) => put<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`, req),
+    deleteDriverCapacitacion: (driver_id: string, cap_id: number) =>
+      del<{ deleted: number }>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`),
 
     // Driver documents
     listDriverDocs: (driver_id: string) =>
