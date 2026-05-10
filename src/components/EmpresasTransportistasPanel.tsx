@@ -1,14 +1,15 @@
 import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
+import { Modal } from './shared/Modal';
 import {
   Building2, CheckCircle2, Clock, Download, FileWarning, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
 } from 'lucide-react';
 import { api } from '../api';
 import {
-  BulkCSVResult, Contacto, ContactoCreate, ContactoRegion, ContactoRol,
-  EmpresaSummary, MotivoSeverity, TestBroadcastResult,
+  AdminDriver, AdminVehicle, BulkCSVResult, Contacto, ContactoCreate,
+  ContactoRegion, ContactoRol, EmpresaSummary, MotivoSeverity, TestBroadcastResult,
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -225,15 +226,28 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
 function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
   const [onlyActive, setOnlyActive] = useState(true);
+  const [editing, setEditing] = useState<AdminDriver | null>(null);
+  const [creating, setCreating] = useState(false);
+
   const driversQ = useQuery({
     queryKey: ['admin-drivers'],
     queryFn: api.admin.listDrivers,
   });
+  const vehiclesQ = useQuery({
+    queryKey: ['admin-vehicles'],
+    queryFn: api.admin.listVehicles,
+  });
   const drivers = (driversQ.data ?? [])
     .filter(d => d.empresa_id === empresaId)
     .filter(d => !onlyActive || d.active);
+  const vehiclesOfEmpresa = (vehiclesQ.data ?? []).filter(v => v.empresa_id === empresaId);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-drivers'] });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => api.admin.deleteDriver(id),
+    onSuccess: refresh,
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -245,18 +259,23 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
             Solo activos
           </label>
         </div>
-        <BulkXlsxButtons
-          downloadPath={`/admin/drivers/template?empresa_id=${empresaId}`}
-          filename={`drivers_${empresaId}.xlsx`}
-          uploadPath={`/admin/drivers/upload?empresa_id=${empresaId}`}
-          onUploaded={refresh}
-        />
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreating(true)} className="btn-primary text-[11px] flex items-center gap-1">
+            <Plus size={11} /> Agregar driver
+          </button>
+          <BulkXlsxButtons
+            downloadPath={`/admin/drivers/template?empresa_id=${empresaId}`}
+            filename={`drivers_${empresaId}.xlsx`}
+            uploadPath={`/admin/drivers/upload?empresa_id=${empresaId}`}
+            onUploaded={refresh}
+          />
+        </div>
       </div>
       {driversQ.isLoading ? (
         <div className="text-text-muted text-xs">Cargando…</div>
       ) : drivers.length === 0 ? (
         <div className="text-text-muted text-xs italic py-6 text-center">
-          Sin drivers en esta empresa. Subí un XLSX desde el botón de arriba para crearlos en bulk.
+          Sin drivers en esta empresa. Agregá uno con el botón de arriba o subí un XLSX en bulk.
         </div>
       ) : (
         <table className="w-full text-[11px]">
@@ -265,7 +284,8 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
               <th className="px-2 py-1.5 text-left">ID</th>
               <th className="px-2 py-1.5 text-left">Nombre</th>
               <th className="px-2 py-1.5 text-left">Vehículo</th>
-              <th className="px-2 py-1.5 text-right">Activo</th>
+              <th className="px-2 py-1.5 text-center">Activo</th>
+              <th className="px-2 py-1.5 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -274,17 +294,145 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
                 <td className="px-2 py-1.5 font-mono text-[10px] text-text-muted">{d.driver_id}</td>
                 <td className="px-2 py-1.5">{d.name}</td>
                 <td className="px-2 py-1.5">{d.vehicle_name} <span className="text-text-muted">#{d.vehicle_id}</span></td>
-                <td className="px-2 py-1.5 text-right">
+                <td className="px-2 py-1.5 text-center">
                   <span className={`pill ${d.active ? 'pill-green' : 'pill-red'}`}>
                     {d.active ? 'Sí' : 'No'}
                   </span>
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  <div className="flex items-center gap-2 justify-end">
+                    <button onClick={() => setEditing(d)} className="text-accent-blue hover:underline">
+                      <Pencil size={11} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Eliminar driver ${d.name} (${d.driver_id})?`)) delMut.mutate(d.driver_id);
+                      }}
+                      className="text-accent-red hover:underline"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      {creating && (
+        <DriverFormModal
+          empresaId={empresaId}
+          vehicles={vehiclesOfEmpresa}
+          onClose={() => setCreating(false)}
+          onSaved={() => { refresh(); setCreating(false); }}
+        />
+      )}
+      {editing && (
+        <DriverFormModal
+          empresaId={empresaId}
+          vehicles={vehiclesOfEmpresa}
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { refresh(); setEditing(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+
+function DriverFormModal({ empresaId, vehicles, initial, onClose, onSaved }: {
+  empresaId: number;
+  vehicles: AdminVehicle[];
+  initial?: AdminDriver;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!initial;
+  const [driver_id, setDriverId] = useState(initial?.driver_id ?? '');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [license, setLicense] = useState(initial?.license ?? '');
+  const [vehicle_id, setVehicleId] = useState<number>(initial?.vehicle_id ?? (vehicles[0]?.vehicle_id ?? 0));
+  const [active, setActive] = useState(initial?.active ?? true);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null); setSaving(true);
+    try {
+      const v = vehicles.find(x => x.vehicle_id === vehicle_id);
+      if (isEdit) {
+        await api.admin.updateDriver(initial!.driver_id, {
+          name, phone, license, empresa_id: empresaId,
+          vehicle_id, vehicle_name: v?.name ?? '',
+          active,
+        });
+      } else {
+        await api.admin.createDriver({
+          driver_id, name, phone: phone || null, license: license || null,
+          empresa_id: empresaId, vehicle_id, vehicle_name: v?.name ?? '',
+          rating: 0, deliveries_30d: 0, fail_rate_30d: 0,
+          joined_at: null, active, is_problem_hidden: false,
+          empresa_nombre: null,
+        });
+      }
+      onSaved();
+    } catch (ex: any) {
+      setErr(ex?.message ?? 'error guardando');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={isEdit ? `Editar driver ${initial!.driver_id}` : 'Nuevo driver'} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3 text-[12px]">
+        {!isEdit && (
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">ID (único, ej: DRV-005)</span>
+            <input className="input" required value={driver_id}
+                   onChange={e => setDriverId(e.target.value)} />
+          </label>
+        )}
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Nombre</span>
+          <input className="input" required value={name} onChange={e => setName(e.target.value)} />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Teléfono</span>
+            <input className="input" value={phone ?? ''} onChange={e => setPhone(e.target.value)}
+                   placeholder="+56..." />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Licencia</span>
+            <input className="input" value={license ?? ''} onChange={e => setLicense(e.target.value)} />
+          </label>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Vehículo asignado</span>
+          <select className="input" value={vehicle_id}
+                  onChange={e => setVehicleId(Number(e.target.value))} required>
+            {vehicles.length === 0 && <option value={0}>— sin vehículos en esta empresa —</option>}
+            {vehicles.map(v => (
+              <option key={v.vehicle_id} value={v.vehicle_id}>
+                #{v.vehicle_id} — {v.name} ({v.plate})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+          <span>Activo</span>
+        </label>
+        {err && <div className="text-accent-red text-[11px]">{err}</div>}
+        <button type="submit" className="btn-primary" disabled={saving || vehicles.length === 0}>
+          {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear driver'}
+        </button>
+      </form>
+    </Modal>
   );
 }
 
@@ -295,6 +443,9 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
 function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
   const [onlyActive, setOnlyActive] = useState(true);
+  const [editing, setEditing] = useState<AdminVehicle | null>(null);
+  const [creating, setCreating] = useState(false);
+
   const vehiclesQ = useQuery({
     queryKey: ['admin-vehicles'],
     queryFn: api.admin.listVehicles,
@@ -304,6 +455,10 @@ function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
     .filter(v => !onlyActive || v.active);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vehicles'] });
+  const delMut = useMutation({
+    mutationFn: (id: number) => api.admin.deleteVehicle(id),
+    onSuccess: refresh,
+  });
 
   return (
     <div className="flex flex-col gap-3">
@@ -315,18 +470,23 @@ function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
             Solo activos
           </label>
         </div>
-        <BulkXlsxButtons
-          downloadPath={`/admin/vehicles/template?empresa_id=${empresaId}`}
-          filename={`vehicles_${empresaId}.xlsx`}
-          uploadPath={`/admin/vehicles/upload?empresa_id=${empresaId}`}
-          onUploaded={refresh}
-        />
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreating(true)} className="btn-primary text-[11px] flex items-center gap-1">
+            <Plus size={11} /> Agregar vehículo
+          </button>
+          <BulkXlsxButtons
+            downloadPath={`/admin/vehicles/template?empresa_id=${empresaId}`}
+            filename={`vehicles_${empresaId}.xlsx`}
+            uploadPath={`/admin/vehicles/upload?empresa_id=${empresaId}`}
+            onUploaded={refresh}
+          />
+        </div>
       </div>
       {vehiclesQ.isLoading ? (
         <div className="text-text-muted text-xs">Cargando…</div>
       ) : vehicles.length === 0 ? (
         <div className="text-text-muted text-xs italic py-6 text-center">
-          Sin vehículos en esta empresa. Subí un XLSX para crearlos en bulk.
+          Sin vehículos en esta empresa. Agregá uno o subí un XLSX en bulk.
         </div>
       ) : (
         <table className="w-full text-[11px]">
@@ -336,7 +496,8 @@ function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
               <th className="px-2 py-1.5 text-left">Nombre</th>
               <th className="px-2 py-1.5 text-left">Patente</th>
               <th className="px-2 py-1.5 text-left">Tipo</th>
-              <th className="px-2 py-1.5 text-right">Activo</th>
+              <th className="px-2 py-1.5 text-center">Activo</th>
+              <th className="px-2 py-1.5 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -346,17 +507,149 @@ function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
                 <td className="px-2 py-1.5">{v.name}</td>
                 <td className="px-2 py-1.5 font-mono">{v.plate}</td>
                 <td className="px-2 py-1.5">{v.type}</td>
-                <td className="px-2 py-1.5 text-right">
+                <td className="px-2 py-1.5 text-center">
                   <span className={`pill ${v.active ? 'pill-green' : 'pill-red'}`}>
                     {v.active ? 'Sí' : 'No'}
                   </span>
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  <div className="flex items-center gap-2 justify-end">
+                    <button onClick={() => setEditing(v)} className="text-accent-blue hover:underline">
+                      <Pencil size={11} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Eliminar vehículo ${v.name} (${v.plate})?`)) delMut.mutate(v.vehicle_id);
+                      }}
+                      className="text-accent-red hover:underline"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      {creating && (
+        <VehicleFormModal
+          empresaId={empresaId}
+          onClose={() => setCreating(false)}
+          onSaved={() => { refresh(); setCreating(false); }}
+        />
+      )}
+      {editing && (
+        <VehicleFormModal
+          empresaId={empresaId}
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { refresh(); setEditing(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+
+function VehicleFormModal({ empresaId, initial, onClose, onSaved }: {
+  empresaId: number;
+  initial?: AdminVehicle;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!initial;
+  const [vehicle_id, setVehicleId] = useState<number>(initial?.vehicle_id ?? 0);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [type, setType] = useState(initial?.type ?? 'truck');
+  const [plate, setPlate] = useState(initial?.plate ?? '');
+  const [capacity_m3, setCapacity] = useState<number>(initial?.capacity_m3 ?? 10);
+  const [year, setYear] = useState<string>(initial?.year ? String(initial.year) : '');
+  const [active, setActive] = useState(initial?.active ?? true);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null); setSaving(true);
+    try {
+      if (isEdit) {
+        await api.admin.updateVehicle(initial!.vehicle_id, {
+          empresa_id: empresaId, name, type, plate, capacity_m3,
+          year: year ? Number(year) : null,
+          active,
+        });
+      } else {
+        await api.admin.createVehicle({
+          vehicle_id, empresa_id: empresaId, name, type, plate,
+          capacity_m3,
+          driver_id: null, driver_name: null,
+          depot_lat: -33.45, depot_lon: -70.66,
+          year: year ? Number(year) : null,
+          active, is_problem_hidden: false,
+          empresa_nombre: null,
+        });
+      }
+      onSaved();
+    } catch (ex: any) {
+      setErr(ex?.message ?? 'error guardando');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={isEdit ? `Editar vehículo #${initial!.vehicle_id}` : 'Nuevo vehículo'} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3 text-[12px]">
+        {!isEdit && (
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">ID (entero único)</span>
+            <input className="input" type="number" required min={1}
+                   value={vehicle_id || ''} onChange={e => setVehicleId(Number(e.target.value))} />
+          </label>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Nombre</span>
+            <input className="input" required value={name} onChange={e => setName(e.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Tipo</span>
+            <select className="input" value={type} onChange={e => setType(e.target.value)}>
+              <option value="truck">Camión</option>
+              <option value="van">Van</option>
+              <option value="moto">Moto</option>
+              <option value="auto">Auto</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Patente</span>
+            <input className="input font-mono uppercase" required value={plate}
+                   onChange={e => setPlate(e.target.value.toUpperCase())} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Capacidad (m³)</span>
+            <input className="input" type="number" min={0} value={capacity_m3}
+                   onChange={e => setCapacity(Number(e.target.value))} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">Año</span>
+            <input className="input" type="number" min={1990} max={2100}
+                   value={year} onChange={e => setYear(e.target.value)} />
+          </label>
+        </div>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+          <span>Activo</span>
+        </label>
+        {err && <div className="text-accent-red text-[11px]">{err}</div>}
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear vehículo'}
+        </button>
+      </form>
+    </Modal>
   );
 }
 
