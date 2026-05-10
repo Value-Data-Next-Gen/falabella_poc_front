@@ -91,6 +91,7 @@ export function Sidebar({
               <button
                 onClick={() => onChange(m.key)}
                 title={m.hint}
+                data-tour-id={`sidebar-${m.key}`}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors rounded-md mx-2 my-0.5 ${
                   active
                     ? 'bg-brand/15 text-brand font-medium'
