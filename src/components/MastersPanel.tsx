@@ -578,17 +578,83 @@ export function UsersTab() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('');
+  const [empresaFilter, setEmpresaFilter] = useState<string>('');
+  const [activoFilter, setActivoFilter] = useState<string>('');
+  const [showMatrix, setShowMatrix] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-users'] });
   const delMut = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh });
 
+  const all = data ?? [];
+  const filtered = all.filter(u => {
+    if (roleFilter && u.role !== roleFilter) return false;
+    if (empresaFilter !== '' && String(u.empresa_id ?? '') !== empresaFilter) return false;
+    if (activoFilter && String(u.activo) !== activoFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      if (!u.email.toLowerCase().includes(q)
+          && !u.display_name.toLowerCase().includes(q)
+          && !(u.phone_e164 ?? '').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const anyFilter = !!(search || roleFilter || empresaFilter || activoFilter);
+
   return (
     <div className="panel">
-      <div className="panel-title flex items-center justify-between">
-        <span>{data?.length ?? 0} usuarios</span>
-        <button onClick={() => setCreating(true)} className="btn-primary text-xs flex items-center gap-1">
-          <Plus size={12} /> Nuevo usuario
-        </button>
+      <div className="panel-title flex items-center justify-between flex-wrap gap-2">
+        <span>{filtered.length}{anyFilter ? ` / ${all.length}` : ''} usuarios</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setShowMatrix(true)}
+                  className="btn text-[11px] flex items-center gap-1">
+            <ShieldAlert size={11} /> Matriz de permisos
+          </button>
+          <button onClick={() => setCreating(true)} className="btn-primary text-xs flex items-center gap-1">
+            <Plus size={12} /> Nuevo usuario
+          </button>
+        </div>
+      </div>
+
+      <div className="px-3 py-2 border-b border-line/50 flex flex-wrap items-center gap-2 text-[11px]">
+        <input
+          type="search"
+          placeholder="Buscar por email/nombre/teléfono..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input !py-1 !text-[11px] w-64"
+        />
+        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                className="input !py-1 !text-[11px]">
+          <option value="">Todos los roles</option>
+          <option value="falabella_admin">falabella_admin</option>
+          <option value="falabella_ops">falabella_ops</option>
+          <option value="transport_manager">transport_manager</option>
+        </select>
+        <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value)}
+                className="input !py-1 !text-[11px]">
+          <option value="">Todas las empresas</option>
+          <option value="">— Falabella (sin empresa) —</option>
+          {empresasQ.data?.map(em => (
+            <option key={em.empresa_id} value={String(em.empresa_id)}>
+              #{em.empresa_id} — {em.nombre}
+            </option>
+          ))}
+        </select>
+        <select value={activoFilter} onChange={e => setActivoFilter(e.target.value)}
+                className="input !py-1 !text-[11px]">
+          <option value="">Activos e inactivos</option>
+          <option value="true">Solo activos</option>
+          <option value="false">Solo inactivos</option>
+        </select>
+        {anyFilter && (
+          <button onClick={() => { setSearch(''); setRoleFilter(''); setEmpresaFilter(''); setActivoFilter(''); }}
+                  className="text-text-muted hover:text-text-primary underline">
+            Limpiar
+          </button>
+        )}
       </div>
       {isLoading || !data ? (
         <div className="p-4 text-text-muted text-xs">Cargando...</div>
@@ -607,7 +673,7 @@ export function UsersTab() {
             </tr>
           </thead>
           <tbody>
-            {data.map(u => (
+            {filtered.map(u => (
               <tr key={u.user_id} className="border-b border-line/50 hover:bg-bg-700/30">
                 <td className="px-3 py-2 text-text-muted">#{u.user_id}</td>
                 <td className="px-3 py-2 font-mono">{u.email}</td>
@@ -687,6 +753,61 @@ export function UsersTab() {
           />
         </Modal>
       )}
+      {showMatrix && (
+        <Modal title="Matriz de permisos por rol" onClose={() => setShowMatrix(false)}>
+          <RoleMatrix />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+
+function RoleMatrix() {
+  const ROWS: { feature: string; admin: string; ops: string; manager: string }[] = [
+    { feature: 'Operación / Plan diario',     admin: '✓ todas las empresas', ops: '✓ todas',          manager: '⚠ solo su empresa' },
+    { feature: 'Carga SimpliRoute',           admin: '✓',                    ops: '✓',                manager: '✗' },
+    { feature: 'Empresas (CRUD)',             admin: '✓',                    ops: '✗',                manager: '✗' },
+    { feature: 'Drivers (CRUD)',              admin: '✓ todas',              ops: '✓ todas',          manager: '⚠ solo su empresa' },
+    { feature: 'Vehículos (CRUD)',            admin: '✓ todas',              ops: '✓ todas',          manager: '⚠ solo su empresa' },
+    { feature: 'Documentos del driver',       admin: '✓',                    ops: '✓',                manager: '⚠ solo su empresa' },
+    { feature: 'Capacitaciones (registros)',  admin: '✓',                    ops: '✓',                manager: '⚠ solo su empresa' },
+    { feature: 'Capacitaciones (catálogo)',   admin: '✓',                    ops: '✗',                manager: '✗' },
+    { feature: 'Dotación diaria',             admin: '✓',                    ops: '✓',                manager: '⚠ solo su empresa' },
+    { feature: 'VIPs (CRUD)',                 admin: '✓',                    ops: '✗ (lectura)',      manager: '✗ (lectura limitada)' },
+    { feature: 'Usuarios (CRUD)',             admin: '✓',                    ops: '✗',                manager: '✗' },
+    { feature: 'Motivos / catálogo',          admin: '✓',                    ops: '✗ (lectura)',      manager: '✗' },
+    { feature: 'Notificaciones / WhatsApp',   admin: '✓',                    ops: '✓',                manager: 'recibe alertas de su empresa' },
+    { feature: 'Access log (login attempts)', admin: '✓',                    ops: '✗',                manager: '✗' },
+  ];
+  return (
+    <div className="text-[11px]">
+      <table className="w-full">
+        <thead className="border-b border-line text-text-muted uppercase tracking-wider text-[10px]">
+          <tr>
+            <th className="px-2 py-1.5 text-left">Feature</th>
+            <th className="px-2 py-1.5 text-left">falabella_admin</th>
+            <th className="px-2 py-1.5 text-left">falabella_ops</th>
+            <th className="px-2 py-1.5 text-left">transport_manager</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map((r, i) => (
+            <tr key={i} className="border-b border-line/30">
+              <td className="px-2 py-1.5">{r.feature}</td>
+              <td className="px-2 py-1.5">{r.admin}</td>
+              <td className="px-2 py-1.5">{r.ops}</td>
+              <td className="px-2 py-1.5">{r.manager}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-[10px] text-text-muted mt-3 leading-relaxed">
+        <strong>Convenciones:</strong> ✓ = acceso total · ⚠ = acceso scopeado · ✗ = sin acceso ·{' '}
+        <em>solo su empresa</em> = el transport_manager tiene <code>empresa_id</code>{' '}
+        y el backend filtra recursos por ese ID (ver <code>require_fleet_access</code> y{' '}
+        <code>_enforce_fleet_empresa</code> en mantenedores.py).
+      </div>
     </div>
   );
 }
