@@ -706,7 +706,7 @@ export interface AccessSummary {
 }
 
 // ---- Auth ----
-export type UserRole = 'falabella_admin' | 'falabella_ops' | 'transport_manager';
+export type UserRole = 'falabella_admin' | 'falabella_ops' | 'transport_manager' | 'driver';
 
 export interface AuthUser {
   user_id: number;
@@ -715,6 +715,7 @@ export interface AuthUser {
   role: UserRole;
   empresa_id: number | null;
   empresa_nombre: string | null;
+  driver_id: string | null;
 }
 
 export interface LoginResponse {

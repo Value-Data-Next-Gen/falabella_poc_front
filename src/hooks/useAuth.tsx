@@ -10,6 +10,7 @@ interface AuthContextValue {
   logout: () => void;
   isAdmin: boolean;
   isFalabella: boolean;
+  isDriver: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       isAdmin: user?.role === 'falabella_admin',
       isFalabella: user?.role === 'falabella_admin' || user?.role === 'falabella_ops',
+      isDriver: user?.role === 'driver',
     }),
     [user, loading, error, login, logout],
   );

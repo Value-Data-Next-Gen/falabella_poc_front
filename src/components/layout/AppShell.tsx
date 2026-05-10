@@ -7,7 +7,9 @@ import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
 import { AnaliticaModule } from '../modules/AnaliticaModule';
 import { ConfiguracionSystemModule } from '../modules/ConfiguracionSystemModule';
+import { DriverDashboardPage } from '../pages/DriverDashboardPage';
 import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
+import { useAuth } from '../../hooks/useAuth';
 
 interface NavState {
   module: ModuleKey;
@@ -34,8 +36,18 @@ function writeHash(s: NavState): void {
 }
 
 export function AppShell() {
+  const { isDriver } = useAuth();
   const [nav, setNav] = useState<NavState>(() => readHash());
   const [tourOpen, setTourOpen] = useState(false);
+
+  // El rol driver tiene su propio dashboard sin sidebar/topbar/tour.
+  if (isDriver) {
+    return (
+      <div className="h-full bg-bg-900 text-text-primary">
+        <DriverDashboardPage />
+      </div>
+    );
+  }
 
   // Mostrar tour la primera vez (post-login)
   useEffect(() => {

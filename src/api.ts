@@ -272,7 +272,7 @@ export const api = {
       ),
   },
 
-  // Preferences
+  // Preferences + driver-scoped endpoints (rol driver)
   me: {
     prefs: () => get<UserPreferences>('/me/preferences'),
     updatePrefs: (req: Partial<UserPreferences>) => {
@@ -287,6 +287,28 @@ export const api = {
         return r.json() as Promise<UserPreferences>;
       });
     },
+    // Driver dashboard
+    profile: () => get<{
+      user_id: number; driver_id: string; name: string; email: string;
+      phone: string | null; license: string | null;
+      empresa_id: number | null; empresa_nombre: string | null;
+      vehicle_id: number | null; vehicle_name: string | null; plate: string | null;
+      active: boolean;
+    }>('/me/profile'),
+    orders: (fecha?: string) => get<Array<{
+      tracking_id: string; order: number; title: string; address: string;
+      comuna: string | null; region: string; status: string;
+      current_eta_cl: string; current_eta_hhmm: string; sla_hour: number;
+      ruta_id: string | null; reference: number | null;
+    }>>(`/me/orders${fecha ? `?fecha=${fecha}` : ''}`),
+    documents: () => get<Array<{
+      doc_id: number; tipo: string; filename: string; file_size: number;
+      uploaded_at: string; expires_at: string | null; notes: string | null;
+    }>>('/me/documents'),
+    capacitaciones: () => get<Array<{
+      cap_id: number; modulo_codigo: string; modulo_nombre: string;
+      fecha_completado: string; vence_at: string | null; notas: string | null;
+    }>>('/me/capacitaciones'),
   },
 
   // Notifications
