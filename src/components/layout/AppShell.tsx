@@ -17,9 +17,13 @@ interface NavState {
 function readHash(): NavState {
   const hash = (window.location.hash || '').replace(/^#\/?/, '');
   if (!hash) return { module: 'operacion', sub: null };
-  const [mod, sub] = hash.split('/');
+  const slash = hash.indexOf('/');
+  const mod = slash === -1 ? hash : hash.slice(0, slash);
+  // Mantenemos TODO lo que viene después del módulo en `sub` para que cada
+  // módulo parsee sus propias sub-rutas (ej: empresas/22/drivers/DRV-001).
+  const sub = slash === -1 ? null : (hash.slice(slash + 1) || null);
   const valid = MODULES.find(m => m.key === mod)?.key ?? 'operacion';
-  return { module: valid, sub: sub || null };
+  return { module: valid, sub };
 }
 
 function writeHash(s: NavState): void {

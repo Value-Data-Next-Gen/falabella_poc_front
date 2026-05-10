@@ -47,18 +47,14 @@ const MOTIVOS_CATALOGO = [
 ];
 
 
-export function EmpresasTransportistasPanel() {
+export function EmpresasTransportistasPanel({ onOpen }: { onOpen?: (empresaId: number) => void } = {}) {
   const { isFalabella } = useAuth();
-
-  // Hooks SIEMPRE se ejecutan en el mismo orden — el guard de permisos va
-  // después de declararlos. Si no, React rompe el orden cuando el rol cambia.
   const empresasQ = useQuery({
     queryKey: ['empresa-contactos-list'],
     queryFn: api.empresaContactos.listEmpresas,
     enabled: isFalabella,
   });
-
-  const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaSummary | null>(null);
+  const [search, setSearch] = useState('');
 
   if (!isFalabella) {
     return (
@@ -74,35 +70,58 @@ export function EmpresasTransportistasPanel() {
   }
 
   const downloadGlobalTemplate = () => {
-    // Cualquier empresa ID sirve; el contenido es el mismo. Usamos 0 para
-    // dejar claro que es genérico.
     api.empresaContactos.downloadCsvTemplate(0).catch(() => void 0);
+  };
+
+  const all = empresasQ.data ?? [];
+  const filtered = search.trim()
+    ? all.filter(e => {
+        const q = search.trim().toLowerCase();
+        return e.nombre.toLowerCase().includes(q) || String(e.empresa_id).includes(q);
+      })
+    : all;
+
+  const open = (id: number) => {
+    if (onOpen) onOpen(id);
+    else window.location.hash = `#/maestros/empresas/${id}`;
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="panel p-4 flex items-center justify-between">
+      <div className="panel p-4 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
             <Building2 size={16} /> Empresas transportistas
           </h2>
           <p className="text-xs text-text-muted mt-1">
-            Configurá los destinatarios de WhatsApp por empresa. Separados de los
-            usuarios login: un contacto puede recibir alertas sin tener cuenta.
+            Click en una empresa para gestionar sus drivers, vehículos, contactos y alertas WhatsApp.
           </p>
         </div>
-        <button onClick={downloadGlobalTemplate}
-                className="btn text-xs flex items-center gap-1">
-          <Download size={12} /> CSV template
-        </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <input
+            type="search"
+            placeholder="Buscar por nombre o ID..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input !py-1.5 !text-[12px] w-64"
+          />
+          <button onClick={downloadGlobalTemplate}
+                  className="btn text-xs flex items-center gap-1">
+            <Download size={12} /> CSV template
+          </button>
+        </div>
       </div>
 
       <div className="panel">
-        <div className="panel-title">
-          <span>{empresasQ.data?.length ?? 0} empresas</span>
+        <div className="panel-title flex items-center justify-between">
+          <span>{filtered.length}{search ? ` / ${all.length}` : ''} empresas</span>
         </div>
         {empresasQ.isLoading || !empresasQ.data ? (
           <div className="p-4 text-text-muted text-xs">Cargando…</div>
+        ) : filtered.length === 0 ? (
+          <div className="p-6 text-text-muted text-xs italic text-center">
+            {search ? `Sin resultados para "${search}"` : 'No hay empresas. Creá una desde el panel de admin.'}
+          </div>
         ) : (
           <table className="w-full text-xs">
             <thead className="border-b border-line">
@@ -115,8 +134,12 @@ export function EmpresasTransportistasPanel() {
               </tr>
             </thead>
             <tbody>
-              {empresasQ.data.map(e => (
-                <tr key={e.empresa_id} className="border-b border-line/50 hover:bg-bg-700/30">
+              {filtered.map(e => (
+                <tr
+                  key={e.empresa_id}
+                  className="border-b border-line/50 hover:bg-bg-700/30 cursor-pointer"
+                  onClick={() => open(e.empresa_id)}
+                >
                   <td className="px-3 py-2">
                     <div className="font-semibold">{e.nombre}</div>
                     <div className="text-text-muted text-[10px]">#{e.empresa_id}</div>
@@ -134,10 +157,10 @@ export function EmpresasTransportistasPanel() {
                   </td>
                   <td className="px-3 py-2 text-right">
                     <button
-                      onClick={() => setSelectedEmpresa(e)}
+                      onClick={ev => { ev.stopPropagation(); open(e.empresa_id); }}
                       className="text-accent-blue hover:underline text-xs"
                     >
-                      Ver contactos →
+                      Abrir →
                     </button>
                   </td>
                 </tr>
@@ -146,13 +169,6 @@ export function EmpresasTransportistasPanel() {
           </table>
         )}
       </div>
-
-      {selectedEmpresa && (
-        <EmpresaDrawer
-          empresa={selectedEmpresa}
-          onClose={() => setSelectedEmpresa(null)}
-        />
-      )}
     </div>
   );
 }
@@ -223,11 +239,15 @@ function EmpresaDrawer({ empresa, onClose }: { empresa: EmpresaSummary; onClose:
 // =============================================================================
 // Tab: Drivers de la empresa (con bulk Excel)
 // =============================================================================
-function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
+export function DriversForEmpresaTab({ empresaId, onOpenDriver }: {
+  empresaId: number;
+  onOpenDriver?: (driverId: string) => void;
+}) {
   const qc = useQueryClient();
   const [onlyActive, setOnlyActive] = useState(true);
   const [editing, setEditing] = useState<AdminDriver | null>(null);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
 
   const driversQ = useQuery({
     queryKey: ['admin-drivers'],
@@ -237,9 +257,17 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
     queryKey: ['admin-vehicles'],
     queryFn: api.admin.listVehicles,
   });
-  const drivers = (driversQ.data ?? [])
+  const allOfEmpresa = (driversQ.data ?? [])
     .filter(d => d.empresa_id === empresaId)
     .filter(d => !onlyActive || d.active);
+  const drivers = search.trim()
+    ? allOfEmpresa.filter(d => {
+        const q = search.trim().toLowerCase();
+        return d.driver_id.toLowerCase().includes(q)
+            || d.name.toLowerCase().includes(q)
+            || (d.phone ?? '').toLowerCase().includes(q);
+      })
+    : allOfEmpresa;
   const vehiclesOfEmpresa = (vehiclesQ.data ?? []).filter(v => v.empresa_id === empresaId);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-drivers'] });
@@ -251,13 +279,22 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="text-xs text-text-muted">{drivers.length} drivers</div>
+          <div className="text-xs text-text-muted">
+            {drivers.length}{search ? ` / ${allOfEmpresa.length}` : ''} drivers
+          </div>
           <label className="flex items-center gap-1 text-[11px] cursor-pointer">
             <input type="checkbox" checked={onlyActive} onChange={e => setOnlyActive(e.target.checked)} />
             Solo activos
           </label>
+          <input
+            type="search"
+            placeholder="Buscar driver..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input !py-1 !text-[11px] w-48"
+          />
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setCreating(true)} className="btn-primary text-[11px] flex items-center gap-1">
@@ -290,7 +327,11 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
           </thead>
           <tbody>
             {drivers.map(d => (
-              <tr key={d.driver_id} className="border-b border-line/50">
+              <tr
+                key={d.driver_id}
+                className={`border-b border-line/50 ${onOpenDriver ? 'hover:bg-bg-700/30 cursor-pointer' : ''}`}
+                onClick={onOpenDriver ? () => onOpenDriver(d.driver_id) : undefined}
+              >
                 <td className="px-2 py-1.5 font-mono text-[10px] text-text-muted">{d.driver_id}</td>
                 <td className="px-2 py-1.5">{d.name}</td>
                 <td className="px-2 py-1.5">{d.vehicle_name} <span className="text-text-muted">#{d.vehicle_id}</span></td>
@@ -301,11 +342,12 @@ function DriversForEmpresaTab({ empresaId }: { empresaId: number }) {
                 </td>
                 <td className="px-2 py-1.5 text-right">
                   <div className="flex items-center gap-2 justify-end">
-                    <button onClick={() => setEditing(d)} className="text-accent-blue hover:underline">
+                    <button onClick={ev => { ev.stopPropagation(); setEditing(d); }} className="text-accent-blue hover:underline">
                       <Pencil size={11} />
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={ev => {
+                        ev.stopPropagation();
                         if (confirm(`Eliminar driver ${d.name} (${d.driver_id})?`)) delMut.mutate(d.driver_id);
                       }}
                       className="text-accent-red hover:underline"
@@ -440,19 +482,28 @@ function DriverFormModal({ empresaId, vehicles, initial, onClose, onSaved }: {
 // =============================================================================
 // Tab: Vehículos de la empresa (con bulk Excel)
 // =============================================================================
-function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
+export function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
   const [onlyActive, setOnlyActive] = useState(true);
   const [editing, setEditing] = useState<AdminVehicle | null>(null);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
 
   const vehiclesQ = useQuery({
     queryKey: ['admin-vehicles'],
     queryFn: api.admin.listVehicles,
   });
-  const vehicles = (vehiclesQ.data ?? [])
+  const allOfEmpresa = (vehiclesQ.data ?? [])
     .filter(v => v.empresa_id === empresaId)
     .filter(v => !onlyActive || v.active);
+  const vehicles = search.trim()
+    ? allOfEmpresa.filter(v => {
+        const q = search.trim().toLowerCase();
+        return String(v.vehicle_id).includes(q)
+            || v.name.toLowerCase().includes(q)
+            || (v.plate ?? '').toLowerCase().includes(q);
+      })
+    : allOfEmpresa;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vehicles'] });
   const delMut = useMutation({
@@ -462,13 +513,22 @@ function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="text-xs text-text-muted">{vehicles.length} vehículos</div>
+          <div className="text-xs text-text-muted">
+            {vehicles.length}{search ? ` / ${allOfEmpresa.length}` : ''} vehículos
+          </div>
           <label className="flex items-center gap-1 text-[11px] cursor-pointer">
             <input type="checkbox" checked={onlyActive} onChange={e => setOnlyActive(e.target.checked)} />
             Solo activos
           </label>
+          <input
+            type="search"
+            placeholder="Buscar vehículo..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input !py-1 !text-[11px] w-48"
+          />
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setCreating(true)} className="btn-primary text-[11px] flex items-center gap-1">
@@ -657,7 +717,7 @@ function VehicleFormModal({ empresaId, initial, onClose, onSaved }: {
 // =============================================================================
 // Tab: contactos (CRUD)
 // =============================================================================
-function ContactosTab({ empresaId }: { empresaId: number }) {
+export function ContactosTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
   const contactosQ = useQuery({
     queryKey: ['contactos', empresaId],
@@ -989,7 +1049,7 @@ function ChipToggle({
 // =============================================================================
 // Tab: import CSV
 // =============================================================================
-function CSVTab({ empresaId }: { empresaId: number }) {
+export function CSVTab({ empresaId }: { empresaId: number }) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -1091,7 +1151,7 @@ function CSVTab({ empresaId }: { empresaId: number }) {
 // =============================================================================
 // Tab: test broadcast
 // =============================================================================
-function BroadcastTab({ empresa }: { empresa: EmpresaSummary }) {
+export function BroadcastTab({ empresa }: { empresa: EmpresaSummary }) {
   const [result, setResult] = useState<TestBroadcastResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
