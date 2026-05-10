@@ -819,6 +819,8 @@ export interface AdminUser {
   role: UserRole;
   empresa_id: number | null;
   empresa_nombre: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
   activo: boolean;
   phone_e164: string | null;
   notify_whatsapp: boolean;

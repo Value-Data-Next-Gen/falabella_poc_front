@@ -409,11 +409,13 @@ export const api = {
     listUsers: () => get<AdminUser[]>('/admin/users'),
     createUser: (req: {
       email: string; password: string; display_name: string; role: string;
-      empresa_id?: number | null; activo?: boolean; phone_e164?: string;
-      notify_whatsapp?: boolean;
+      empresa_id?: number | null; driver_id?: string | null;
+      activo?: boolean; phone_e164?: string | null;
+      notify_whatsapp?: boolean; empresa_nombre?: string | null;
     }) => post<AdminUser>('/admin/users', req),
     updateUser: (id: number, req: Partial<{
-      email: string; display_name: string; role: string; empresa_id: number | null;
+      email: string; display_name: string; role: string;
+      empresa_id: number | null; driver_id: string | null;
       activo: boolean; phone_e164: string; notify_whatsapp: boolean;
     }>) => put<AdminUser>(`/admin/users/${id}`, req),
     resetPassword: (id: number, new_password: string) =>

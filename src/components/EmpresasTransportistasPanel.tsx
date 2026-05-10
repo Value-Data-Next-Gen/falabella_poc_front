@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
 import { Modal } from './shared/Modal';
 import {
-  Building2, CheckCircle2, Clock, Download, FileWarning, Pencil, Plus, Send,
+  Building2, CheckCircle2, Clock, Download, FileWarning, KeyRound, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -257,6 +257,17 @@ export function DriversForEmpresaTab({ empresaId, onOpenDriver }: {
     queryKey: ['admin-vehicles'],
     queryFn: api.admin.listVehicles,
   });
+  const usersQ = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: api.admin.listUsers,
+  });
+  // Set de driver_id que YA tienen cuenta de login
+  const driversWithAccount = new Set(
+    (usersQ.data ?? [])
+      .filter(u => u.role === 'driver' && u.driver_id)
+      .map(u => u.driver_id!)
+  );
+  const [grantingFor, setGrantingFor] = useState<AdminDriver | null>(null);
   const allOfEmpresa = (driversQ.data ?? [])
     .filter(d => d.empresa_id === empresaId)
     .filter(d => !onlyActive || d.active);
@@ -342,6 +353,18 @@ export function DriversForEmpresaTab({ empresaId, onOpenDriver }: {
                 </td>
                 <td className="px-2 py-1.5 text-right">
                   <div className="flex items-center gap-2 justify-end">
+                    {driversWithAccount.has(d.driver_id) ? (
+                      <span className="pill bg-accent-green/15 text-accent-green border-accent-green/40 border text-[9px]"
+                            title="Tiene cuenta de login">
+                        <KeyRound size={9} className="inline" /> cuenta
+                      </span>
+                    ) : (
+                      <button onClick={ev => { ev.stopPropagation(); setGrantingFor(d); }}
+                              className="text-accent-yellow hover:underline text-[10px] flex items-center gap-1"
+                              title="Crear cuenta de login para este driver">
+                        <KeyRound size={10} /> crear acceso
+                      </button>
+                    )}
                     <button onClick={ev => { ev.stopPropagation(); setEditing(d); }} className="text-accent-blue hover:underline">
                       <Pencil size={11} />
                     </button>
@@ -379,7 +402,82 @@ export function DriversForEmpresaTab({ empresaId, onOpenDriver }: {
           onSaved={() => { refresh(); setEditing(null); }}
         />
       )}
+      {grantingFor && (
+        <GrantDriverAccessModal
+          driver={grantingFor}
+          onClose={() => setGrantingFor(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['admin-users'] }); setGrantingFor(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+
+function GrantDriverAccessModal({ driver, onClose, onSaved }: {
+  driver: AdminDriver;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  // Email default: <driver_id>@<empresa>.local — el admin lo edita.
+  const [email, setEmail] = useState(`${driver.driver_id.toLowerCase()}@empresa${driver.empresa_id ?? ''}.cl`);
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState(driver.phone ?? '');
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null); setSaving(true);
+    try {
+      await api.admin.createUser({
+        email,
+        password,
+        display_name: driver.name,
+        role: 'driver',
+        empresa_id: driver.empresa_id ?? null,
+        driver_id: driver.driver_id,
+        activo: true,
+        phone_e164: phone || null,
+        notify_whatsapp: false,
+        empresa_nombre: null,
+      });
+      onSaved();
+    } catch (ex: any) {
+      setErr(ex?.message ?? 'error');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Crear acceso para ${driver.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-3 text-[12px]">
+        <div className="text-[11px] text-text-muted">
+          El driver podrá entrar al sistema con estas credenciales y verá solo sus pedidos, documentos y capacitaciones.
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Email</span>
+          <input type="email" required className="input"
+                 value={email} onChange={e => setEmail(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Password (4+ chars)</span>
+          <input type="text" required minLength={4} className="input font-mono"
+                 value={password} onChange={e => setPassword(e.target.value)}
+                 placeholder="Compartilo por WhatsApp con el driver" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Teléfono (opcional)</span>
+          <input type="tel" className="input"
+                 value={phone} onChange={e => setPhone(e.target.value)}
+                 placeholder="+56..." />
+        </label>
+        {err && <div className="text-accent-red text-[11px]">{err}</div>}
+        <button type="submit" className="btn-primary" disabled={saving || !password}>
+          {saving ? 'Creando…' : 'Crear cuenta'}
+        </button>
+      </form>
+    </Modal>
   );
 }
 
