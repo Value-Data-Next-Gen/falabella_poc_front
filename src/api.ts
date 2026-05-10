@@ -311,9 +311,21 @@ export const api = {
 
   // VIP
   vip: {
-    list: (opts?: { q?: string }) => {
-      const q = opts?.q ? `?q=${encodeURIComponent(opts.q)}` : '';
-      return get<VipClient[]>(`/vip-clients${q}`);
+    list: (opts?: {
+      q?: string;
+      solo_del_dia?: boolean;
+      empresa_id?: number | null;  // -1 = solo globales (NULL)
+      tier?: string;
+      active?: boolean;
+    }) => {
+      const p: string[] = [];
+      if (opts?.q) p.push(`q=${encodeURIComponent(opts.q)}`);
+      if (opts?.solo_del_dia) p.push('solo_del_dia=true');
+      if (opts?.empresa_id != null) p.push(`empresa_id=${opts.empresa_id}`);
+      if (opts?.tier) p.push(`tier=${encodeURIComponent(opts.tier)}`);
+      if (opts?.active != null) p.push(`active=${opts.active}`);
+      const qs = p.length ? `?${p.join('&')}` : '';
+      return get<VipClient[]>(`/vip-clients${qs}`);
     },
     create: (req: {
       match_type: string; match_value: string; empresa_id?: number | null;

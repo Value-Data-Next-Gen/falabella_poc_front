@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, Building2, Clock, KeyRound, Loader2, Pencil, Plus, ShieldAlert, Sparkles,
@@ -84,16 +84,39 @@ export function MastersPanel() {
 // =============================================================================
 export function VipTab({ highlightVipId, searchQ }: { highlightVipId?: number | null; searchQ?: string } = {}) {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<VipClient[]>({
-    queryKey: ['admin-vip', searchQ ?? ''],
-    queryFn: () => api.vip.list(searchQ ? { q: searchQ } : undefined),
-  });
   const empresasQ = useQuery({ queryKey: ['admin-empresas'], queryFn: api.admin.listEmpresas });
   const [editing, setEditing] = useState<VipClient | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // Filtros
+  const [soloDelDia, setSoloDelDia] = useState(false);
+  const [filterEmpresa, setFilterEmpresa] = useState<string>('');  // '', '-1' (global), o id
+  const [filterTier, setFilterTier] = useState<string>('');
+  const [filterActive, setFilterActive] = useState<string>('');   // '', 'true', 'false'
+
+  const filterParams = {
+    q: searchQ || undefined,
+    solo_del_dia: soloDelDia || undefined,
+    empresa_id: filterEmpresa === '' ? undefined : Number(filterEmpresa),
+    tier: filterTier || undefined,
+    active: filterActive === '' ? undefined : filterActive === 'true',
+  };
+
+  const { data, isLoading } = useQuery<VipClient[]>({
+    queryKey: ['admin-vip', filterParams],
+    queryFn: () => api.vip.list(filterParams),
+  });
+
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-vip'] });
   const delMut = useMutation({ mutationFn: api.vip.remove, onSuccess: refresh });
+
+  const clearFilters = () => {
+    setSoloDelDia(false);
+    setFilterEmpresa('');
+    setFilterTier('');
+    setFilterActive('');
+  };
+  const anyFilterActive = soloDelDia || filterEmpresa !== '' || filterTier !== '' || filterActive !== '';
 
   return (
     <div className="panel">
@@ -102,6 +125,33 @@ export function VipTab({ highlightVipId, searchQ }: { highlightVipId?: number | 
         <button onClick={() => setCreating(true)} className="btn-primary text-xs flex items-center gap-1">
           <Plus size={12} /> Nuevo VIP
         </button>
+      </div>
+      <div className="px-3 py-2 border-b border-line/50 flex flex-wrap items-center gap-2 text-[11px]">
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" checked={soloDelDia} onChange={e => setSoloDelDia(e.target.checked)} />
+          <span>Solo del día</span>
+        </label>
+        <select className="input !py-1 !text-[11px]" value={filterEmpresa}
+                onChange={e => setFilterEmpresa(e.target.value)}>
+          <option value="">Todas las empresas</option>
+          <option value="-1">Solo globales</option>
+          {empresasQ.data?.map(em => (
+            <option key={em.empresa_id} value={em.empresa_id}>#{em.empresa_id} — {em.nombre}</option>
+          ))}
+        </select>
+        <input className="input !py-1 !text-[11px] w-24" placeholder="Tier"
+               value={filterTier} onChange={e => setFilterTier(e.target.value)} />
+        <select className="input !py-1 !text-[11px]" value={filterActive}
+                onChange={e => setFilterActive(e.target.value)}>
+          <option value="">Activos e inactivos</option>
+          <option value="true">Solo activos</option>
+          <option value="false">Solo inactivos</option>
+        </select>
+        {anyFilterActive && (
+          <button onClick={clearFilters} className="text-text-muted hover:text-text-primary underline">
+            Limpiar
+          </button>
+        )}
       </div>
       {isLoading || !data ? (
         <div className="p-4 text-text-muted text-xs">Cargando...</div>
@@ -328,11 +378,19 @@ function VipForm({ initial, isEdit, empresas, onSubmit }: {
 // =============================================================================
 function Modal({ title, onClose, children }:
   { title: string; onClose: () => void; children: ReactNode }) {
+  // Cerrar solo si el mousedown Y el mouseup ocurrieron sobre el backdrop.
+  // Evita el bug "se abre y cierra solo" cuando React 18 commitea entre
+  // mousedown y mouseup del clic original (mouseup termina cayendo en el
+  // backdrop recién montado y dispara onClick → onClose).
+  const downOnBackdrop = useRef(false);
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-         onClick={onClose}>
-      <div className="bg-bg-800 border border-line rounded-md w-full max-w-lg max-h-[90vh] overflow-auto"
-           onClick={e => e.stopPropagation()}>
+         onMouseDown={e => { downOnBackdrop.current = e.target === e.currentTarget; }}
+         onMouseUp={e => {
+           if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
+           downOnBackdrop.current = false;
+         }}>
+      <div className="bg-bg-800 border border-line rounded-md w-full max-w-lg max-h-[90vh] overflow-auto">
         <div className="px-4 py-3 border-b border-line flex items-center justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wider">{title}</h3>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary">×</button>

@@ -48,6 +48,16 @@ const MOTIVOS_CATALOGO = [
 export function EmpresasTransportistasPanel() {
   const { isFalabella } = useAuth();
 
+  // Hooks SIEMPRE se ejecutan en el mismo orden — el guard de permisos va
+  // después de declararlos. Si no, React rompe el orden cuando el rol cambia.
+  const empresasQ = useQuery({
+    queryKey: ['empresa-contactos-list'],
+    queryFn: api.empresaContactos.listEmpresas,
+    enabled: isFalabella,
+  });
+
+  const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaSummary | null>(null);
+
   if (!isFalabella) {
     return (
       <div className="panel p-6 text-center text-text-muted">
@@ -60,13 +70,6 @@ export function EmpresasTransportistasPanel() {
       </div>
     );
   }
-
-  const empresasQ = useQuery({
-    queryKey: ['empresa-contactos-list'],
-    queryFn: api.empresaContactos.listEmpresas,
-  });
-
-  const [selectedEmpresa, setSelectedEmpresa] = useState<EmpresaSummary | null>(null);
 
   const downloadGlobalTemplate = () => {
     // Cualquier empresa ID sirve; el contenido es el mismo. Usamos 0 para
