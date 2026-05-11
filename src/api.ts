@@ -466,6 +466,10 @@ export const api = {
     }) => put<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`, req),
     deleteDriverCapacitacion: (driver_id: string, cap_id: number) =>
       del<{ deleted: number }>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`),
+    validateDriverCapacitacion: (driver_id: string, cap_id: number) =>
+      post<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}/validate`, {}),
+    unvalidateDriverCapacitacion: (driver_id: string, cap_id: number) =>
+      post<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}/unvalidate`, {}),
 
     // Document types — catálogo configurable
     listDocTypes: (opts?: { entity_type?: DocEntityType; only_active?: boolean }) => {

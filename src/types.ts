@@ -890,6 +890,9 @@ export interface DriverCapacitacion {
   doc_id: number | null;
   created_by: number | null;
   created_at: string;
+  validated_by_user_id: number | null;
+  validated_at: string | null;
+  validated_by_name: string | null;
 }
 
 export type DriverDocTipo = 'licencia' | 'antecedentes' | 'contrato' | 'poliza' | 'certificacion' | 'otro';
