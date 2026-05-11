@@ -439,6 +439,25 @@ export const api = {
       put<AdminVehicle>(`/admin/vehicles/${id}`, req),
     deleteVehicle: (id: number) => del<{ deleted: number }>(`/admin/vehicles/${id}`),
 
+    // WhatsApp invite
+    whatsappInvite: (req: {
+      phone_e164: string;
+      name?: string;
+      role_hint?: 'driver' | 'manager' | 'contacto';
+      driver_id?: string;
+      user_id?: number;
+      contact_id?: number;
+      custom_message?: string;
+    }) => post<{
+      ok: boolean;
+      status: string;
+      twilio_sid: string | null;
+      error: string | null;
+      sandbox_warning: string | null;
+      target_phone: string;
+      body_preview: string;
+    }>('/admin/whatsapp/invite', req),
+
     // Capacitaciones — catálogo
     listCapacitacionModulos: (only_active = false) =>
       get<CapacitacionModulo[]>(`/admin/capacitacion-modulos${only_active ? '?only_active=true' : ''}`),

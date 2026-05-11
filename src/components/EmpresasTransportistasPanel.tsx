@@ -2,6 +2,7 @@ import { ChangeEvent, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
 import { Modal } from './shared/Modal';
+import { WhatsAppInviteButton } from './shared/WhatsAppInviteButton';
 import {
   Building2, CheckCircle2, Clock, Download, FileText, FileWarning, KeyRound, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
@@ -358,6 +359,12 @@ export function DriversForEmpresaTab({ empresaId, onOpenDriver }: {
                 </td>
                 <td className="px-2 py-1.5 text-right">
                   <div className="flex items-center gap-2 justify-end">
+                    <WhatsAppInviteButton
+                      phone={d.phone}
+                      name={d.name}
+                      roleHint="driver"
+                      driverId={d.driver_id}
+                    />
                     {driversWithAccount.has(d.driver_id) ? (
                       <span className="pill bg-accent-green/15 text-accent-green border-accent-green/40 border text-[9px]"
                             title="Tiene cuenta de login">
@@ -973,6 +980,12 @@ function ContactoCard({
                   className="text-accent-blue text-xs hover:underline flex items-center gap-1">
             <Pencil size={11} /> editar
           </button>
+          <WhatsAppInviteButton
+            phone={contacto.phone_e164}
+            name={contacto.nombre}
+            roleHint={contacto.rol === 'jefe' ? 'manager' : 'contacto'}
+            contactId={contacto.contact_id}
+          />
           {!contacto.opted_in_at && (
             <button onClick={onOptIn}
                     className="text-accent-green text-xs hover:underline flex items-center gap-1">
