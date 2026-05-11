@@ -41,6 +41,9 @@ export function CargaEntregasPanel({ initialFecha, onFechaChange }: CargaEntrega
       }
       setConflicts(r.conflicts ?? []);
       qc.invalidateQueries({ queryKey: ['planificacion', 'imports'] });
+      qc.invalidateQueries({ queryKey: ['planif-calendar'] });
+      qc.invalidateQueries({ queryKey: ['planif-day-status'] });
+      qc.invalidateQueries({ queryKey: ['plan-diario'] });
       // Auto-clear flash después de 6s (los conflicts persisten hasta nueva carga)
       setTimeout(() => setFlash(null), 6_000);
     },
@@ -99,6 +102,8 @@ export function CargaEntregasPanel({ initialFecha, onFechaChange }: CargaEntrega
         setConflicts(j.conflicts ?? []);
         qc.invalidateQueries({ queryKey: ['planificacion', 'imports'] });
         qc.invalidateQueries({ queryKey: ['plan-diario'] });
+        qc.invalidateQueries({ queryKey: ['planif-calendar'] });
+        qc.invalidateQueries({ queryKey: ['planif-day-status'] });
       }
       setTimeout(() => setFlash(null), 8_000);
     } catch (e: any) {
