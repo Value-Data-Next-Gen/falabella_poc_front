@@ -697,6 +697,16 @@ export const api = {
       }>>('/planificacion/imports'),
     dotacionCheck: (fecha: string) =>
       get<DotacionConflict[]>(`/planificacion/dotacion-check?fecha=${fecha}`),
+    startDay: (fecha: string) => post<{
+      ok: boolean;
+      fecha: string;
+      visitas_en_db: number;
+      live_gen_paused: boolean;
+      state_today: string | null;
+      snapshot_size: number;
+      conflicts: DotacionConflict[];
+      message: string;
+    }>(`/planificacion/start-day?fecha=${fecha}`, {}),
   },
 
   // Sprint 7 — buscador global del topbar

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarDays, CheckCircle2, Download, Inbox, Loader2, RefreshCw, UploadCloud } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Download, Inbox, Loader2, Play, RefreshCw, UploadCloud } from 'lucide-react';
 import { api } from '../../api';
 import { DotacionConflict } from '../../types';
 
@@ -45,6 +45,21 @@ export function CargaEntregasPanel() {
       setFlash(c.length === 0
         ? `✅ Sin conflictos: todos los drivers de ${fecha} están disponibles`
         : `⚠️ ${c.length} conflicto(s) — revisá la lista de abajo`);
+      setTimeout(() => setFlash(null), 6_000);
+    },
+  });
+
+  const startDayMut = useMutation({
+    mutationFn: (f: string) => api.planificacion.startDay(f),
+    onSuccess: r => {
+      setConflicts(r.conflicts ?? []);
+      setFlash(`🚀 ${r.message}`);
+      qc.invalidateQueries({ queryKey: ['state'] });
+      qc.invalidateQueries({ queryKey: ['plan-diario'] });
+      setTimeout(() => setFlash(null), 8_000);
+    },
+    onError: (e: Error) => {
+      setFlash(`❌ ${e.message}`);
       setTimeout(() => setFlash(null), 6_000);
     },
   });
@@ -120,6 +135,20 @@ export function CargaEntregasPanel() {
           >
             {checkMut.isPending ? <Loader2 size={11} className="animate-spin" /> : <AlertTriangle size={11} />}
             Verificar dotación
+          </button>
+
+          <button
+            onClick={() => {
+              if (confirm(`Iniciar día ${fecha}? Esto pausa el generador de visitas en vivo y fija la fecha operativa.`)) {
+                startDayMut.mutate(fecha);
+              }
+            }}
+            disabled={startDayMut.isPending}
+            className="btn-primary flex items-center gap-2 px-3 py-1.5 text-[12px] rounded-md"
+            title="Iniciar el día operativo: pausa live_gen + setea STATE.today + cuadra el snapshot"
+          >
+            {startDayMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            Iniciar día
           </button>
 
           {flash && (
