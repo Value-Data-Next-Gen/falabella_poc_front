@@ -515,8 +515,11 @@ function DriverFormModal({ empresaId, vehicles, initial, onClose, onSaved }: {
           active,
         });
       } else {
+        if (!phone || phone.trim().length < 8) {
+          throw new Error('Teléfono obligatorio (formato +56912345678)');
+        }
         await api.admin.createDriver({
-          driver_id, name, phone: phone || null, license: license || null,
+          driver_id, name, phone: phone.trim(), license: license || null,
           empresa_id: empresaId, vehicle_id, vehicle_name: v?.name ?? '',
           rating: 0, deliveries_30d: 0, fail_rate_30d: 0,
           joined_at: null, active, is_problem_hidden: false,
@@ -546,9 +549,15 @@ function DriverFormModal({ empresaId, vehicles, initial, onClose, onSaved }: {
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-text-muted">Teléfono</span>
-            <input className="input" value={phone ?? ''} onChange={e => setPhone(e.target.value)}
-                   placeholder="+56..." />
+            <span className="text-[10px] uppercase tracking-wider text-text-muted">
+              Teléfono <span className="text-accent-red">*</span>
+            </span>
+            <input className="input font-mono" required minLength={8}
+                   value={phone ?? ''} onChange={e => setPhone(e.target.value)}
+                   placeholder="+56912345678" />
+            <span className="text-[9px] text-text-muted">
+              Obligatorio — es el contacto del driver para WhatsApp.
+            </span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider text-text-muted">Licencia</span>
