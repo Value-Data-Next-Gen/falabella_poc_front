@@ -3,9 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
 import { Modal } from './shared/Modal';
 import {
-  Building2, CheckCircle2, Clock, Download, FileWarning, KeyRound, Pencil, Plus, Send,
+  Building2, CheckCircle2, Clock, Download, FileText, FileWarning, KeyRound, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
 } from 'lucide-react';
+import { EntityDocumentsTab } from './shared/EntityDocumentsTab';
 import { api } from '../api';
 import {
   AdminDriver, AdminVehicle, BulkCSVResult, Contacto, ContactoCreate,
@@ -598,6 +599,7 @@ export function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
   const [onlyActive, setOnlyActive] = useState(true);
   const [editing, setEditing] = useState<AdminVehicle | null>(null);
   const [creating, setCreating] = useState(false);
+  const [docsFor, setDocsFor] = useState<AdminVehicle | null>(null);
   const [search, setSearch] = useState('');
 
   const vehiclesQ = useQuery({
@@ -685,6 +687,10 @@ export function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
                 </td>
                 <td className="px-2 py-1.5 text-right">
                   <div className="flex items-center gap-2 justify-end">
+                    <button onClick={() => setDocsFor(v)}
+                            className="text-accent-yellow hover:underline" title="Documentos del vehículo">
+                      <FileText size={11} />
+                    </button>
                     <button onClick={() => setEditing(v)} className="text-accent-blue hover:underline">
                       <Pencil size={11} />
                     </button>
@@ -718,6 +724,12 @@ export function VehiclesForEmpresaTab({ empresaId }: { empresaId: number }) {
           onClose={() => setEditing(null)}
           onSaved={() => { refresh(); setEditing(null); }}
         />
+      )}
+      {docsFor && (
+        <Modal title={`Documentos · ${docsFor.name} (${docsFor.plate})`} onClose={() => setDocsFor(null)} width="lg">
+          <EntityDocumentsTab entityType="vehicle" entityId={docsFor.vehicle_id}
+                              label={`el vehículo ${docsFor.plate}`} />
+        </Modal>
       )}
     </div>
   );

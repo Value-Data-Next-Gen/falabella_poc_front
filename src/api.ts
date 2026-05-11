@@ -5,12 +5,15 @@ import {
   CapacitacionModulo,
   ContactoCreate,
   ContactoUpdate,
+  DocEntityType,
+  DocumentType,
   DotacionConflict,
   DotacionDiariaRow,
   DotacionEstado,
   DriverCapacitacion,
   DriverDocument,
   EmpresaSummary,
+  EntityDocument,
   TestBroadcastResult,
   AccessLogRow,
   AccessSummary,
@@ -463,6 +466,32 @@ export const api = {
     }) => put<DriverCapacitacion>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`, req),
     deleteDriverCapacitacion: (driver_id: string, cap_id: number) =>
       del<{ deleted: number }>(`/admin/drivers/${encodeURIComponent(driver_id)}/capacitaciones/${cap_id}`),
+
+    // Document types — catálogo configurable
+    listDocTypes: (opts?: { entity_type?: DocEntityType; only_active?: boolean }) => {
+      const p: string[] = [];
+      if (opts?.entity_type) p.push(`entity_type=${opts.entity_type}`);
+      if (opts?.only_active) p.push('only_active=true');
+      return get<DocumentType[]>(`/admin/document-types${p.length ? '?' + p.join('&') : ''}`);
+    },
+    createDocType: (req: Omit<DocumentType, 'doc_type_id'>) =>
+      post<DocumentType>('/admin/document-types', req),
+    updateDocType: (id: number, req: Partial<DocumentType>) =>
+      put<DocumentType>(`/admin/document-types/${id}`, req),
+    deleteDocType: (id: number) =>
+      del<{ deleted: number }>(`/admin/document-types/${id}`),
+
+    // Empresa documents
+    listEmpresaDocs: (empresa_id: number) =>
+      get<EntityDocument[]>(`/admin/empresas/${empresa_id}/documents`),
+    deleteEmpresaDoc: (empresa_id: number, doc_id: number) =>
+      del<{ deleted: number }>(`/admin/empresas/${empresa_id}/documents/${doc_id}`),
+
+    // Vehicle documents
+    listVehicleDocs: (vehicle_id: number) =>
+      get<EntityDocument[]>(`/admin/vehicles/${vehicle_id}/documents`),
+    deleteVehicleDoc: (vehicle_id: number, doc_id: number) =>
+      del<{ deleted: number }>(`/admin/vehicles/${vehicle_id}/documents/${doc_id}`),
 
     // Driver documents
     listDriverDocs: (driver_id: string) =>

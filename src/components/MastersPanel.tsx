@@ -588,7 +588,7 @@ export function UsersTab() {
   const delMut = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh });
 
   const all = data ?? [];
-  const filtered = all.filter(u => {
+  const matchFilters = (u: AdminUser): boolean => {
     if (roleFilter && u.role !== roleFilter) return false;
     if (empresaFilter !== '' && String(u.empresa_id ?? '') !== empresaFilter) return false;
     if (activoFilter && String(u.activo) !== activoFilter) return false;
@@ -599,7 +599,10 @@ export function UsersTab() {
           && !(u.phone_e164 ?? '').toLowerCase().includes(q)) return false;
     }
     return true;
-  });
+  };
+  const filtered = all.filter(matchFilters);
+  const falabellaUsers = filtered.filter(u => u.role === 'falabella_admin' || u.role === 'falabella_ops');
+  const externalUsers  = filtered.filter(u => u.role === 'transport_manager' || u.role === 'driver');
 
   const anyFilter = !!(search || roleFilter || empresaFilter || activoFilter);
 
@@ -659,54 +662,24 @@ export function UsersTab() {
       {isLoading || !data ? (
         <div className="p-4 text-text-muted text-xs">Cargando...</div>
       ) : (
-        <table className="w-full text-xs">
-          <thead className="border-b border-line">
-            <tr className="text-text-muted uppercase tracking-wider text-[10px]">
-              <th className="px-3 py-2 text-left">ID</th>
-              <th className="px-3 py-2 text-left">Email</th>
-              <th className="px-3 py-2 text-left">Nombre</th>
-              <th className="px-3 py-2 text-left">Rol</th>
-              <th className="px-3 py-2 text-left">Empresa</th>
-              <th className="px-3 py-2 text-left">Estado</th>
-              <th className="px-3 py-2 text-left">Último login</th>
-              <th className="px-3 py-2 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(u => (
-              <tr key={u.user_id} className="border-b border-line/50 hover:bg-bg-700/30">
-                <td className="px-3 py-2 text-text-muted">#{u.user_id}</td>
-                <td className="px-3 py-2 font-mono">{u.email}</td>
-                <td className="px-3 py-2">{u.display_name}</td>
-                <td className="px-3 py-2">
-                  <span className={`pill ${u.role === 'falabella_admin' ? 'pill-violet' : u.role === 'falabella_ops' ? 'pill-blue' : 'pill-green'}`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-text-secondary">{u.empresa_nombre ?? '—'}</td>
-                <td className="px-3 py-2">
-                  <span className={`pill ${u.activo ? 'pill-green' : 'pill-red'}`}>
-                    {u.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-text-muted text-[10px]">
-                  {u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : '—'}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex items-center gap-3 justify-end">
-                    <button onClick={() => setEditing(u)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
-                      <Pencil size={12} /> Editar
-                    </button>
-                    <button onClick={() => setResetting(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1">
-                      <KeyRound size={12} /> Pwd
-                    </button>
-                    <ConfirmDelete what={u.email} onConfirm={() => delMut.mutate(u.user_id)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <UserSection
+            title="Usuarios Falabella"
+            subtitle="Admin y operación interna"
+            users={falabellaUsers}
+            onEdit={setEditing}
+            onReset={setResetting}
+            onDelete={(id) => delMut.mutate(id)}
+          />
+          <UserSection
+            title="Usuarios externos"
+            subtitle="Transportistas (managers) y drivers"
+            users={externalUsers}
+            onEdit={setEditing}
+            onReset={setResetting}
+            onDelete={(id) => delMut.mutate(id)}
+          />
+        </>
       )}
 
       {creating && (
@@ -757,6 +730,90 @@ export function UsersTab() {
         <Modal title="Matriz de permisos por rol" onClose={() => setShowMatrix(false)}>
           <RoleMatrix />
         </Modal>
+      )}
+    </div>
+  );
+}
+
+
+function UserSection({ title, subtitle, users, onEdit, onReset, onDelete }: {
+  title: string;
+  subtitle: string;
+  users: AdminUser[];
+  onEdit: (u: AdminUser) => void;
+  onReset: (u: AdminUser) => void;
+  onDelete: (id: number) => void;
+}) {
+  return (
+    <div className="mt-2">
+      <div className="px-3 py-2 bg-bg-700/30 border-b border-line/40 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider font-semibold">{title}</div>
+          <div className="text-[10px] text-text-muted">{subtitle}</div>
+        </div>
+        <span className="text-[10px] text-text-muted">{users.length}</span>
+      </div>
+      {users.length === 0 ? (
+        <div className="px-3 py-3 text-[11px] text-text-muted italic">Sin usuarios en esta categoría</div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead className="border-b border-line">
+            <tr className="text-text-muted uppercase tracking-wider text-[10px]">
+              <th className="px-3 py-2 text-left">ID</th>
+              <th className="px-3 py-2 text-left">Email</th>
+              <th className="px-3 py-2 text-left">Nombre</th>
+              <th className="px-3 py-2 text-left">Rol</th>
+              <th className="px-3 py-2 text-left">Empresa / Driver</th>
+              <th className="px-3 py-2 text-left">Estado</th>
+              <th className="px-3 py-2 text-left">Último login</th>
+              <th className="px-3 py-2 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.user_id} className="border-b border-line/50 hover:bg-bg-700/30">
+                <td className="px-3 py-2 text-text-muted">#{u.user_id}</td>
+                <td className="px-3 py-2 font-mono">{u.email}</td>
+                <td className="px-3 py-2">{u.display_name}</td>
+                <td className="px-3 py-2">
+                  <span className={`pill ${
+                    u.role === 'falabella_admin' ? 'pill-violet'
+                    : u.role === 'falabella_ops' ? 'pill-blue'
+                    : u.role === 'driver' ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40 border'
+                    : 'pill-green'
+                  }`}>
+                    {u.role}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-text-secondary">
+                  {u.empresa_nombre ?? '—'}
+                  {u.driver_id && (
+                    <div className="text-[10px] text-text-muted font-mono">{u.driver_id}</div>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <span className={`pill ${u.activo ? 'pill-green' : 'pill-red'}`}>
+                    {u.activo ? 'Activo' : 'Inactivo'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-text-muted text-[10px]">
+                  {u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : '—'}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex items-center gap-3 justify-end">
+                    <button onClick={() => onEdit(u)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
+                      <Pencil size={12} /> Editar
+                    </button>
+                    <button onClick={() => onReset(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1">
+                      <KeyRound size={12} /> Pwd
+                    </button>
+                    <ConfirmDelete what={u.email} onConfirm={() => onDelete(u.user_id)} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

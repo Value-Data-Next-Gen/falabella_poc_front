@@ -894,6 +894,31 @@ export interface DriverCapacitacion {
 
 export type DriverDocTipo = 'licencia' | 'antecedentes' | 'contrato' | 'poliza' | 'certificacion' | 'otro';
 
+export type DocEntityType = 'driver' | 'vehicle' | 'empresa';
+
+export interface DocumentType {
+  doc_type_id: number;
+  entity_type: DocEntityType;
+  codigo: string;
+  nombre: string;
+  mandatory: boolean;
+  validez_meses: number | null;
+  active: boolean;
+}
+
+export interface EntityDocument {
+  doc_id: number;
+  entity_id: number;
+  tipo: string;
+  filename: string;
+  file_size: number;
+  content_type: string | null;
+  uploaded_at: string;
+  uploaded_by_user_id: number | null;
+  expires_at: string | null;
+  notes: string | null;
+}
+
 export interface DriverDocument {
   doc_id: number;
   driver_id: string;

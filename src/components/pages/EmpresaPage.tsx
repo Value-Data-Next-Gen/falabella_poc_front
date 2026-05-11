@@ -6,9 +6,10 @@ import {
   ContactosTab, CSVTab, BroadcastTab, DriversForEmpresaTab, VehiclesForEmpresaTab,
 } from '../EmpresasTransportistasPanel';
 import { Modal } from '../shared/Modal';
+import { EntityDocumentsTab } from '../shared/EntityDocumentsTab';
 import { useAuth } from '../../hooks/useAuth';
 
-type TabKey = 'drivers' | 'vehiculos' | 'contactos' | 'csv' | 'broadcast';
+type TabKey = 'drivers' | 'vehiculos' | 'documentos' | 'contactos' | 'csv' | 'broadcast';
 
 interface EmpresaPageProps {
   empresaId: number;
@@ -70,11 +71,12 @@ export function EmpresaPage({ empresaId, onBack, onOpenDriver }: EmpresaPageProp
       {/* Tabs */}
       <div className="flex border-b border-line">
         {([
-          { key: 'drivers',   label: 'Drivers' },
-          { key: 'vehiculos', label: 'Vehículos' },
-          { key: 'contactos', label: 'Contactos' },
-          { key: 'csv',       label: 'CSV (contactos)' },
-          { key: 'broadcast', label: 'Broadcast' },
+          { key: 'drivers',    label: 'Drivers' },
+          { key: 'vehiculos',  label: 'Vehículos' },
+          { key: 'documentos', label: 'Documentos' },
+          { key: 'contactos',  label: 'Contactos' },
+          { key: 'csv',        label: 'CSV (contactos)' },
+          { key: 'broadcast',  label: 'Broadcast' },
         ] as { key: TabKey; label: string }[]).map(t => (
           <button
             key={t.key}
@@ -91,11 +93,12 @@ export function EmpresaPage({ empresaId, onBack, onOpenDriver }: EmpresaPageProp
       </div>
 
       <div className="flex-1 min-h-0">
-        {tab === 'drivers'   && <DriversForEmpresaTab empresaId={empresaId} onOpenDriver={onOpenDriver} />}
-        {tab === 'vehiculos' && <VehiclesForEmpresaTab empresaId={empresaId} />}
-        {tab === 'contactos' && <ContactosTab empresaId={empresaId} />}
-        {tab === 'csv'       && <CSVTab empresaId={empresaId} />}
-        {tab === 'broadcast' && empresa && <BroadcastTab empresa={empresa} />}
+        {tab === 'drivers'    && <DriversForEmpresaTab empresaId={empresaId} onOpenDriver={onOpenDriver} />}
+        {tab === 'vehiculos'  && <VehiclesForEmpresaTab empresaId={empresaId} />}
+        {tab === 'documentos' && <EntityDocumentsTab entityType="empresa" entityId={empresaId} label="esta empresa" />}
+        {tab === 'contactos'  && <ContactosTab empresaId={empresaId} />}
+        {tab === 'csv'        && <CSVTab empresaId={empresaId} />}
+        {tab === 'broadcast'  && empresa && <BroadcastTab empresa={empresa} />}
       </div>
 
       {editing && empresa && (
