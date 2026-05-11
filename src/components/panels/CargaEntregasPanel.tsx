@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarDays, CheckCircle2, Download, Inbox, Loader2, Play, RefreshCw, UploadCloud } from 'lucide-react';
-import { api } from '../../api';
+import { AlertTriangle, CalendarDays, CheckCircle2, Download, FileSpreadsheet, Inbox, Loader2, Play, RefreshCw, Upload, UploadCloud } from 'lucide-react';
+import { api, getToken } from '../../api';
 import { DotacionConflict } from '../../types';
 
 export function CargaEntregasPanel() {
@@ -63,6 +63,40 @@ export function CargaEntregasPanel() {
       setTimeout(() => setFlash(null), 6_000);
     },
   });
+
+  // ----- Upload Excel REAL de SimpliRoute -----
+  const xlsxInputRef = useRef<HTMLInputElement>(null);
+  const [xlsxBusy, setXlsxBusy] = useState(false);
+  const [xlsxForce, setXlsxForce] = useState(false);
+  const uploadXlsx = async (file: File) => {
+    setXlsxBusy(true); setFlash(null); setConflicts([]);
+    try {
+      const t = getToken();
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch(
+        `${(import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'}${api.planificacion.importXlsxPath(xlsxForce)}`,
+        { method: 'POST', headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd },
+      );
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.detail ?? r.statusText);
+      if (j.ok === false) {
+        setFlash(`⚠️ ${j.message}`);
+      } else {
+        setFlash(`✅ ${j.message}`);
+        setConflicts(j.conflicts ?? []);
+        qc.invalidateQueries({ queryKey: ['planificacion', 'imports'] });
+        qc.invalidateQueries({ queryKey: ['plan-diario'] });
+      }
+      setTimeout(() => setFlash(null), 8_000);
+    } catch (e: any) {
+      setFlash(`❌ ${e?.message ?? 'error'}`);
+      setTimeout(() => setFlash(null), 6_000);
+    } finally {
+      setXlsxBusy(false);
+      if (xlsxInputRef.current) xlsxInputRef.current.value = '';
+    }
+  };
 
   const imports = importsQ.data ?? [];
   const alreadyForFecha = imports.find(i => i.fecha === fecha);
@@ -168,6 +202,42 @@ export function CargaEntregasPanel() {
             Ya cargaste {fecha}: {alreadyForFecha.count} visitas el {alreadyForFecha.imported_at}
           </div>
         )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title flex items-center gap-2">
+          <FileSpreadsheet size={14} /> Subir Excel real SimpliRoute
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          <div className="text-[12px] text-text-muted">
+            Formato esperado: <code className="px-1 bg-bg-700 rounded text-[10px]">datos_eta_YYYY-MM-DD.xlsx</code>{' '}
+            con hojas <strong>Simpli</strong> (visitas) y opcional <strong>Geo</strong> (suborders).
+            La fecha viene en la columna <code className="px-1 bg-bg-700 rounded text-[10px]">planned_date</code>.
+            Procesa todas las fechas que contenga el archivo.
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => xlsxInputRef.current?.click()}
+              disabled={xlsxBusy}
+              className="btn-primary flex items-center gap-2 px-3 py-1.5 text-[12px] rounded-md disabled:opacity-50"
+            >
+              {xlsxBusy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              Subir XLSX real
+            </button>
+            <input
+              ref={xlsxInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadXlsx(f); }}
+            />
+            <label className="flex items-center gap-1 text-[11px] cursor-pointer">
+              <input type="checkbox" checked={xlsxForce} onChange={e => setXlsxForce(e.target.checked)} />
+              Force: reemplazar fechas existentes
+            </label>
+            <span className="text-[10px] text-text-muted ml-auto">Máx 50MB</span>
+          </div>
+        </div>
       </div>
 
       {conflicts.length > 0 && (

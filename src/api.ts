@@ -711,6 +711,10 @@ export const api = {
       conflicts: DotacionConflict[];
       message: string;
     }>(`/planificacion/start-day?fecha=${fecha}`, {}),
+    // El upload del xlsx real va via fetch directo (multipart). Solo defino
+    // la URL aquí; el componente arma el FormData.
+    importXlsxPath: (force?: boolean) =>
+      `/planificacion/import-xlsx${force ? '?force=true' : ''}`,
   },
 
   // Sprint 7 — buscador global del topbar
