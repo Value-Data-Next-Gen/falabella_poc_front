@@ -159,7 +159,14 @@ export function CalendarioOperativoPanel({ selectedISO: externalSelected, onSele
           info={dayMap.get(selectedISO)}
           isToday={selectedISO === todayISO}
           onStartDay={() => {
-            if (confirm(`Iniciar día ${selectedISO}? Esto pausa el live_gen y fija STATE.today.`)) {
+            const msg = (
+              `Iniciar día ${selectedISO}?\n\n` +
+              `Esta acción:\n` +
+              `  • Pausa el generador de visitas en vivo\n` +
+              `  • Fija ${selectedISO} como día operativo\n` +
+              `  • Resetea todas las visitas a status 'pending' y limpia checkouts`
+            );
+            if (confirm(msg)) {
               startDayMut.mutate(selectedISO);
             }
           }}

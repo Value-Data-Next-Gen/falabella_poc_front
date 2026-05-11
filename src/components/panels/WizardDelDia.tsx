@@ -30,6 +30,8 @@ export function WizardDelDia({ fecha, onChangeFecha, onJumpToTab }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planif-day-status', fecha] });
       qc.invalidateQueries({ queryKey: ['state'] });
+      qc.invalidateQueries({ queryKey: ['plan-diario'] });
+      qc.invalidateQueries({ queryKey: ['planif-calendar'] });
     },
   });
 
@@ -176,7 +178,15 @@ export function WizardDelDia({ fecha, onChangeFecha, onJumpToTab }: Props) {
         })}
         {canStart && (
           <button onClick={() => {
-                    if (confirm(`Iniciar día ${fecha}? Esto pausa live_gen y fija STATE.today.`)) {
+                    const msg = (
+                      `Iniciar día ${fecha}?\n\n` +
+                      `Esta acción:\n` +
+                      `  • Pausa el generador de visitas en vivo\n` +
+                      `  • Fija ${fecha} como día operativo\n` +
+                      `  • Resetea todas las visitas a status 'pending' y limpia checkouts\n\n` +
+                      `Si querés conservar el estado actual de las visitas, cancelá y usa el botón con reset=false desde la API.`
+                    );
+                    if (confirm(msg)) {
                       startMut.mutate(fecha);
                     }
                   }}

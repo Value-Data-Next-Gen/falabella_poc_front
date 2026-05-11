@@ -720,16 +720,21 @@ export const api = {
       }>>('/planificacion/imports'),
     dotacionCheck: (fecha: string) =>
       get<DotacionConflict[]>(`/planificacion/dotacion-check?fecha=${fecha}`),
-    startDay: (fecha: string) => post<{
-      ok: boolean;
-      fecha: string;
-      visitas_en_db: number;
-      live_gen_paused: boolean;
-      state_today: string | null;
-      snapshot_size: number;
-      conflicts: DotacionConflict[];
-      message: string;
-    }>(`/planificacion/start-day?fecha=${fecha}`, {}),
+    startDay: (fecha: string, opts?: { reset_status?: boolean }) => {
+      const p = [`fecha=${fecha}`];
+      if (opts?.reset_status === false) p.push('reset_status=false');
+      return post<{
+        ok: boolean;
+        fecha: string;
+        visitas_en_db: number;
+        visitas_reset: number;
+        live_gen_paused: boolean;
+        state_today: string | null;
+        snapshot_size: number;
+        conflicts: DotacionConflict[];
+        message: string;
+      }>(`/planificacion/start-day?${p.join('&')}`, {});
+    },
     // El upload del xlsx real va via fetch directo (multipart). Solo defino
     // la URL aquí; el componente arma el FormData.
     importXlsxPath: (force?: boolean) =>
