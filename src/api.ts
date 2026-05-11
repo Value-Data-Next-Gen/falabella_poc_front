@@ -762,7 +762,39 @@ export const api = {
       dotacion_checked: boolean;
       no_conflicts: boolean;
       started: boolean;
+      config_issues_count: number;
+      driver_issues_count: number;
+      vip_count: number;
+      prep_ok: boolean;
     }>(`/planificacion/day-status?fecha=${fecha}`),
+    dayPrep: (fecha: string) => get<{
+      fecha: string;
+      vips: Array<{
+        tracking_id: string;
+        cliente: string;
+        comuna: string | null;
+        folio: string | null;
+        deadline: string | null;
+        ruta_id: string | null;
+        driver_name: string | null;
+        priority_set: boolean;
+      }>;
+      config_issues: Array<{
+        tracking_id: string;
+        cliente: string;
+        issue_type: 'no_region' | 'no_comuna' | 'no_ruta' | 'no_ct' | 'vip_sin_prioridad';
+        issue_label: string;
+      }>;
+      driver_issues: Array<{
+        driver_id: string | null;
+        driver_name: string | null;
+        ruta_id: string | null;
+        issue_type: 'dotacion' | 'sin_telefono' | 'sin_licencia' | 'driver_inactivo' | 'vehiculo_no_operable';
+        issue_label: string;
+        affects_visits: number;
+      }>;
+      all_ok: boolean;
+    }>(`/planificacion/day-prep?fecha=${fecha}`),
   },
 
   // Sprint 7 — buscador global del topbar

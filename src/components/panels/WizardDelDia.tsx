@@ -65,10 +65,12 @@ export function WizardDelDia({ fecha, onChangeFecha, onJumpToTab }: Props) {
       key: 'plan',
       label: 'Revisar plan',
       tab: 'plan',
-      done: !!s?.loaded && !!s?.no_conflicts,
-      detail: s && s.conflicts_count > 0
-        ? 'Resolvé conflictos primero'
-        : (s?.loaded ? 'Listo' : '—'),
+      done: !!s?.loaded && !!s?.prep_ok,
+      detail: !s?.loaded
+        ? '—'
+        : s.prep_ok
+          ? 'Sin issues'
+          : `${(s.config_issues_count ?? 0) + (s.driver_issues_count ?? 0)} issue(s) por resolver`,
       icon: ShieldAlert,
     },
     {
@@ -91,7 +93,7 @@ export function WizardDelDia({ fecha, onChangeFecha, onJumpToTab }: Props) {
     },
   ];
 
-  const canStart = !!s?.loaded && !!s?.no_conflicts && !s?.started;
+  const canStart = !!s?.loaded && !!s?.prep_ok && !s?.started;
 
   return (
     <div className="panel mb-3">
@@ -196,9 +198,13 @@ export function WizardDelDia({ fecha, onChangeFecha, onJumpToTab }: Props) {
             Iniciar día
           </button>
         )}
-        {s?.conflicts_count && s.conflicts_count > 0 ? (
+        {s && !s.prep_ok && s.loaded ? (
           <div className="ml-2 text-[10px] text-accent-yellow flex items-center gap-1">
-            <AlertCircle size={11} /> Resolvé los {s.conflicts_count} conflictos en "Dotación del día"
+            <AlertCircle size={11} />
+            {s.conflicts_count > 0 && <span>{s.conflicts_count} conflictos dotación</span>}
+            {(s.config_issues_count ?? 0) > 0 && <span>· {s.config_issues_count} config</span>}
+            {(s.driver_issues_count ?? 0) > 0 && <span>· {s.driver_issues_count} drivers</span>}
+            <span className="ml-1">— resolvelos en "Plan del día"</span>
           </div>
         ) : null}
       </div>

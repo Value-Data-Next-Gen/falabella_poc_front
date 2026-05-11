@@ -3,7 +3,7 @@ import { CalendarDays, ClipboardList, Settings2, UploadCloud, Users } from 'luci
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { CargaEntregasPanel } from '../panels/CargaEntregasPanel';
 import { CalendarioOperativoPanel } from '../panels/CalendarioOperativoPanel';
-import { PlanDiarioPanel } from '../PlanDiarioPanel';
+import { PlanDelDiaSimplePanel } from '../panels/PlanDelDiaSimplePanel';
 import { DayConfigPanel } from '../DayConfigPanel';
 import { DotacionPanel } from '../panels/DotacionPanel';
 import { WizardDelDia } from '../panels/WizardDelDia';
@@ -37,7 +37,7 @@ export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSu
         />
         {active === 'carga'      && <CargaEntregasPanel initialFecha={fecha} onFechaChange={setFecha} />}
         {active === 'calendario' && <CalendarioOperativoPanel selectedISO={fecha} onSelect={setFecha} />}
-        {active === 'plan'       && <PlanDiarioPanel mode="planning" />}
+        {active === 'plan'       && <PlanDelDiaSimplePanel fecha={fecha} />}
         {active === 'dotacion'   && <DotacionPanel initialFecha={fecha} />}
         {active === 'dia'        && <DayConfigPanel />}
       </div>
