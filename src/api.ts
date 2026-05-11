@@ -715,6 +715,16 @@ export const api = {
     // la URL aquí; el componente arma el FormData.
     importXlsxPath: (force?: boolean) =>
       `/planificacion/import-xlsx${force ? '?force=true' : ''}`,
+    calendar: (month?: string) => get<Array<{
+      fecha: string;
+      visitas: number;
+      is_today: boolean;
+      imported_at: string | null;
+      conflicts_count: number;
+      failed: number;
+      completed: number;
+      pending: number;
+    }>>(`/planificacion/calendar${month ? `?month=${month}` : ''}`),
   },
 
   // Sprint 7 — buscador global del topbar
