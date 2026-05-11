@@ -725,6 +725,20 @@ export const api = {
       completed: number;
       pending: number;
     }>>(`/planificacion/calendar${month ? `?month=${month}` : ''}`),
+    dayStatus: (fecha: string) => get<{
+      fecha: string;
+      visitas: number;
+      completed: number; failed: number; pending: number;
+      conflicts_count: number;
+      is_state_today: boolean;
+      live_gen_running: boolean;
+      imported_at: string | null;
+      imported_by_user_id: number | null;
+      loaded: boolean;
+      dotacion_checked: boolean;
+      no_conflicts: boolean;
+      started: boolean;
+    }>(`/planificacion/day-status?fecha=${fecha}`),
   },
 
   // Sprint 7 — buscador global del topbar

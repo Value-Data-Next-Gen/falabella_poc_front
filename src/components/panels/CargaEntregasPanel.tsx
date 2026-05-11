@@ -4,9 +4,21 @@ import { AlertTriangle, CalendarDays, CheckCircle2, Download, FileSpreadsheet, I
 import { api, getToken } from '../../api';
 import { DotacionConflict } from '../../types';
 
-export function CargaEntregasPanel() {
+interface CargaEntregasPanelProps {
+  initialFecha?: string;
+  onFechaChange?: (f: string) => void;
+}
+
+export function CargaEntregasPanel({ initialFecha, onFechaChange }: CargaEntregasPanelProps = {}) {
   const today = new Date().toISOString().slice(0, 10);
-  const [fecha, setFecha] = useState<string>(today);
+  const [fecha, setFechaState] = useState<string>(initialFecha ?? today);
+  // Si nos pasan la fecha desde arriba, mantenemos local en sync.
+  // (no usamos directamente initialFecha como valor controlado para no
+  // perder la edición local si el usuario tipea)
+  const setFecha = (f: string) => {
+    setFechaState(f);
+    onFechaChange?.(f);
+  };
   const [flash, setFlash] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<DotacionConflict[]>([]);
   const qc = useQueryClient();

@@ -24,13 +24,27 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-export function CalendarioOperativoPanel() {
+interface CalendarioOperativoPanelProps {
+  selectedISO?: string | null;
+  onSelect?: (iso: string) => void;
+}
+
+export function CalendarioOperativoPanel({ selectedISO: externalSelected, onSelect }: CalendarioOperativoPanelProps = {}) {
   const qc = useQueryClient();
   const [cursor, setCursor] = useState(() => {
+    if (externalSelected) {
+      const [y, m] = externalSelected.split('-');
+      return new Date(Number(y), Number(m) - 1, 1);
+    }
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
-  const [selectedISO, setSelectedISO] = useState<string | null>(null);
+  const [localSelected, setLocalSelected] = useState<string | null>(externalSelected ?? null);
+  const selectedISO = externalSelected !== undefined ? externalSelected : localSelected;
+  const setSelectedISO = (iso: string) => {
+    setLocalSelected(iso);
+    onSelect?.(iso);
+  };
 
   const calQ = useQuery({
     queryKey: ['planif-calendar', monthKey(cursor)],

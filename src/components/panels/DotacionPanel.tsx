@@ -30,11 +30,15 @@ function todayISO(): string {
   return `${y}-${m}-${day}`;
 }
 
-export function DotacionPanel() {
+interface DotacionPanelProps {
+  initialFecha?: string;
+}
+
+export function DotacionPanel({ initialFecha }: DotacionPanelProps = {}) {
   const { user, isFalabella } = useAuth();
   const qc = useQueryClient();
 
-  const [fecha, setFecha] = useState(todayISO());
+  const [fecha, setFecha] = useState(initialFecha ?? todayISO());
   const [empresaId, setEmpresaId] = useState<number | ''>(
     isFalabella ? '' : (user?.empresa_id ?? '')
   );
