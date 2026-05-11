@@ -399,9 +399,9 @@ export const api = {
   admin: {
     // Empresas
     listEmpresas: () => get<AdminEmpresa[]>('/admin/empresas'),
-    createEmpresa: (req: { empresa_id: number; nombre: string; activo?: boolean }) =>
+    createEmpresa: (req: { empresa_id: number; nombre: string; activo?: boolean; central_phone?: string | null }) =>
       post<AdminEmpresa>('/admin/empresas', req),
-    updateEmpresa: (id: number, req: { nombre?: string; activo?: boolean }) =>
+    updateEmpresa: (id: number, req: { nombre?: string; activo?: boolean; central_phone?: string | null }) =>
       put<AdminEmpresa>(`/admin/empresas/${id}`, req),
     deleteEmpresa: (id: number) => del<{ deleted: number }>(`/admin/empresas/${id}`),
 

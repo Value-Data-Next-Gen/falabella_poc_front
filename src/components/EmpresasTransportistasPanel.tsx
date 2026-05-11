@@ -28,7 +28,11 @@ const REGION_META: Record<ContactoRegion, string> = {
 };
 
 const SEVERITY_OPTIONS: MotivoSeverity[] = ['low', 'medium', 'high', 'critical'];
-const ROL_OPTIONS: ContactoRol[] = ['jefe', 'coordinador', 'dispatcher', 'driver', 'otro'];
+// 'driver' fue removido: los drivers ahora viven en fpoc.drivers con su propio
+// phone. Los contactos por empresa son SOLO no-drivers (jefe, coord, dispatcher,
+// otro). Los registros legacy con rol='driver' siguen apareciendo en la lista
+// pero no se pueden crear nuevos.
+const ROL_OPTIONS: ContactoRol[] = ['jefe', 'coordinador', 'dispatcher', 'otro'];
 
 // Lista oficial de motivos (espejo del backend MOTIVOS_CATALOGO).
 const MOTIVOS_CATALOGO = [

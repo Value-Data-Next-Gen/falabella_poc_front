@@ -728,9 +728,13 @@ export interface Empresa {
   empresa_id: number;
   nombre: string;
   activo: boolean;
+  central_phone?: string | null;
 }
 
 // ---- Empresa contactos (destinatarios WhatsApp por empresa transportista) ----
+// El rol 'driver' se mantiene en el type por compat con datos existentes,
+// pero la UI ya no permite crear contactos con ese rol — los drivers viven
+// en fpoc.drivers con su propio phone.
 export type ContactoRol = 'jefe' | 'coordinador' | 'dispatcher' | 'driver' | 'otro';
 export type ContactoRegion = 'RM' | 'regiones' | 'all';
 
@@ -738,6 +742,7 @@ export interface EmpresaSummary {
   empresa_id: number;
   nombre: string;
   activo: boolean;
+  central_phone: string | null;
   contactos_count: number;
   opted_in_count: number;
   last_alert_at: string | null;
