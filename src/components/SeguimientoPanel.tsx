@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { FpocVisitRow, SeguimientoKPIs } from '../types';
+import { formatMotivoLabel } from '../lib/formatMotivoLabel';
 
 const FLAG_LABELS: Record<string, string> = {
   ruta_eta_futuro: 'ETA a > 24h',
@@ -209,7 +210,7 @@ export function SeguimientoPanel() {
                   const pct = (m.count / max) * 100;
                   return (
                     <li key={m.motivo} className="flex items-center gap-2">
-                      <span className="flex-1 truncate" title={m.motivo}>{m.motivo}</span>
+                      <span className="flex-1 truncate" title={m.motivo}>{formatMotivoLabel(m.motivo)}</span>
                       <span className="w-24 h-2 bg-bg-700 rounded overflow-hidden">
                         <span className="block h-full bg-accent-red" style={{ width: `${pct}%` }} />
                       </span>

@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Loader2, MessageSquare, Send, X } from 'lucide-react';
 import { api } from '../api';
+import { formatMotivoLabel } from '../lib/formatMotivoLabel';
 
 export function ReportMotivoButton({
   trackingId,
@@ -125,7 +126,7 @@ function ReportMotivoModal({
                 return (
                   <option key={m.motivo} value={m.motivo}>
                     {isAlert ? '🔔 ' : ''}
-                    {m.motivo}
+                    {formatMotivoLabel(m.motivo)}
                   </option>
                 );
               })}
