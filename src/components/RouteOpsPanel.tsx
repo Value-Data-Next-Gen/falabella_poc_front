@@ -163,7 +163,8 @@ export function RouteOpsPanel() {
           value={`${globalTotals.completed}/${globalTotals.total}`}
           icon={MapPin}
         />
-        <KpiTile label="RED pendientes" value={globalTotals.red} icon={AlertTriangle} accent="text-accent-red" />
+        <KpiTile label="Críticas pendientes" value={globalTotals.red} icon={AlertTriangle} accent="text-accent-red"
+                 hint="Visitas pendientes con semáforo SLA en rojo (slack negativo o p(fallo) ≥ umbral crítico)." />
         <KpiTile label="VIP" value={globalTotals.vip} icon={Star} accent="text-cmr" />
         <KpiTile
           label="Incidentes activos"
@@ -218,9 +219,8 @@ export function RouteOpsPanel() {
       <div className="grid grid-cols-12 gap-3 flex-1 min-h-0 overflow-hidden">
         <aside className="col-span-12 lg:col-span-4 xl:col-span-3 panel flex flex-col overflow-hidden">
           <div className="panel-title">
-            <span>Rutas / drivers</span>
-            <span className="text-text-muted normal-case tracking-normal text-[10px]">
-              click = seleccionar
+            <span title="Hacé click sobre un driver para ver el detalle de su ruta a la derecha.">
+              Rutas / drivers
             </span>
           </div>
           <div className="overflow-y-auto flex-1">
@@ -362,11 +362,11 @@ export function RouteOpsPanel() {
   );
 }
 
-function KpiTile({ label, value, icon: Icon, accent }: {
-  label: string; value: number | string; icon: any; accent?: string;
+function KpiTile({ label, value, icon: Icon, accent, hint }: {
+  label: string; value: number | string; icon: any; accent?: string; hint?: string;
 }) {
   return (
-    <div className="kpi-card">
+    <div className="kpi-card" title={hint}>
       <div className="kpi-label flex items-center gap-1">
         <Icon size={11} /> {label}
       </div>

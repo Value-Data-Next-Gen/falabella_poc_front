@@ -66,7 +66,12 @@ function computeDates(base: string, preset: PeriodPreset, custom: string) {
 
 export function SeguimientoPanel() {
   const datesQ = useQuery({ queryKey: ['seg-dates'], queryFn: api.seg.availableDates });
-  const baseDate = datesQ.data?.max_date ?? '';
+  // Día operativo del simulador (STATE.today). Si tiene datos, lo preferimos
+  // sobre max_date (que devuelve la última fecha con visitas reales — útil
+  // para histórico pero confuso si el día operativo es otro).
+  const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 30_000 });
+  const operationalDate = stateQ.data?.today ?? '';
+  const baseDate = operationalDate || (datesQ.data?.max_date ?? '');
 
   const [preset, setPreset] = useState<PeriodPreset>('latest');
   const [custom, setCustom] = useState<string>('');
@@ -142,7 +147,12 @@ export function SeguimientoPanel() {
             />
           )}
           <span className="ml-auto text-text-muted flex items-center gap-3">
-            <span>Fecha activa: <span className="text-brand font-mono">{primary || '—'}</span></span>
+            <span title="Día sobre el que se calculan los KPIs. Por defecto coincide con el día operativo activo del simulador; cambia con los presets o con la fecha custom.">
+              Fecha activa: <span className="text-brand font-mono">{primary || '—'}</span>
+              {operationalDate && primary === operationalDate && (
+                <span className="ml-1 text-[10px] uppercase tracking-wider text-accent-blue">· día operativo</span>
+              )}
+            </span>
             {compareTo && (
               <span>Comparando contra: <span className="text-text-primary font-mono">{compareTo}</span> <span className="text-text-muted">({comparelabel})</span></span>
             )}
@@ -154,10 +164,10 @@ export function SeguimientoPanel() {
       <section className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
         <KPICard label="Visitas" icon={Database} curr={kpis?.total} prev={kpisPrev?.total} />
         <KPICard label="Completadas %" icon={CheckCircle2} curr={kpis?.completion_pct} prev={kpisPrev?.completion_pct} unit="%" accent="text-brand" />
-        <KPICard label="Failed" icon={XCircle} curr={kpis?.failed} prev={kpisPrev?.failed} accent="text-accent-red" inverted />
-        <KPICard label="Ruta anómala %" icon={AlertTriangle} curr={kpis?.ruta_anomala_pct} prev={kpisPrev?.ruta_anomala_pct} unit="%" accent="text-accent-yellow" inverted />
-        <KPICard label="SLA prom (h)" icon={Clock} curr={kpis?.sla_hour_avg} prev={kpisPrev?.sla_hour_avg} precision={2} />
-        <KPICard label="On-time (±1h)" icon={CheckCircle2} curr={kpis?.on_time} prev={kpisPrev?.on_time} accent="text-brand" />
+        <KPICard label="Fallidas" icon={XCircle} curr={kpis?.failed} prev={kpisPrev?.failed} accent="text-accent-red" inverted />
+        <KPICard label="% rutas anómalas" icon={AlertTriangle} curr={kpis?.ruta_anomala_pct} prev={kpisPrev?.ruta_anomala_pct} unit="%" accent="text-accent-yellow" inverted />
+        <KPICard label="SLA promedio (h)" icon={Clock} curr={kpis?.sla_hour_avg} prev={kpisPrev?.sla_hour_avg} precision={2} />
+        <KPICard label="A tiempo (±1h)" icon={CheckCircle2} curr={kpis?.on_time} prev={kpisPrev?.on_time} accent="text-brand" />
         <KPICard label="Tarde > 1h" icon={Clock} curr={kpis?.late} prev={kpisPrev?.late} accent="text-accent-red" inverted />
       </section>
 
