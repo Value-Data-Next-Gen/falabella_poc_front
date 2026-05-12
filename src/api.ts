@@ -954,6 +954,62 @@ export const api = {
     }>(`/planificacion/day-prep?fecha=${fecha}`),
   },
 
+  operacion: {
+    driverPositions: (fecha: string, empresa_id?: number | null) => {
+      const p = new URLSearchParams({ fecha });
+      if (empresa_id != null) p.set('empresa_id', String(empresa_id));
+      return get<{
+        sim_active: boolean;
+        sim_clock: string | null;
+        tick_sec: number;
+        minutes_per_tick: number;
+        drivers: Array<{
+          vehicle_id: number;
+          ruta_id: string | null;
+          driver_name: string | null;
+          patente: number | null;
+          empresa_id: number | null;
+          empresa_nombre: string | null;
+          current_stop: number | null;
+          next_stop: number | null;
+          lat: number | null;
+          lon: number | null;
+          ts_sim: string | null;
+          status: string;
+          speed_kmh: number | null;
+          stops_total: number;
+          stops_completed: number;
+          stops_failed: number;
+          vip_visitas: number;
+        }>;
+      }>(`/operacion/driver-positions?${p.toString()}`);
+    },
+    folios: (params: { fecha: string; empresa_id?: number | null; ruta_id?: string | null; only_vip?: boolean; limit?: number }) => {
+      const p = new URLSearchParams({ fecha: params.fecha });
+      if (params.empresa_id != null) p.set('empresa_id', String(params.empresa_id));
+      if (params.ruta_id) p.set('ruta_id', params.ruta_id);
+      if (params.only_vip) p.set('only_vip', 'true');
+      if (params.limit) p.set('limit', String(params.limit));
+      return get<Array<{
+        ruta_id: string | null;
+        vehicle_id: number | null;
+        driver_name: string | null;
+        tracking_id: string;
+        order: number | null;
+        cliente: string;
+        direccion: string | null;
+        comuna: string | null;
+        region: string | null;
+        folio: string | null;
+        subfolios: string[];
+        status: string;
+        is_vip: boolean;
+        vip_tier: string | null;
+        eta: string | null;
+      }>>(`/operacion/folios?${p.toString()}`);
+    },
+  },
+
   // Sprint 7 — buscador global del topbar
   search: {
     global: (q: string) =>

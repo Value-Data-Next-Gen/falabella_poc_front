@@ -12,6 +12,8 @@ import { PlanDiarioPanel } from '../PlanDiarioPanel';
 import { WatchlistPanel } from '../WatchlistPanel';
 import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
+import { MapaFoliosTable } from '../panels/MapaFoliosTable';
+import { RutaDetalleDrawer } from '../panels/RutaDetalleDrawer';
 
 // R3: solo Mapa + Alertas. Legacy 'plan' / 'watchlist' redirigen a 'mapa' y
 // abren el drawer correspondiente.
@@ -218,7 +220,15 @@ function MapaTab({ region, empresaId, onlyVip }: {
   empresaId: number | 'all';
   onlyVip: boolean;
 }) {
+  const [drawerRutaId, setDrawerRutaId] = useState<string | null>(null);
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
+  const empresasQ = useQuery({
+    queryKey: ['empresas-contactos-empresas-list'],
+    queryFn: api.empresaContactos.listEmpresas,
+  });
+  const empresaNombre = empresaId === 'all'
+    ? null
+    : empresasQ.data?.find(e => e.empresa_id === empresaId)?.nombre ?? null;
   // Plan diario nos da: rutas con driver_name, vehículos (patente/vehicle_id),
   // y vip_visitas — lo usamos para filtrar vehículos por driver / ruta / VIP.
   const planQ = useQuery({
@@ -337,17 +347,34 @@ function MapaTab({ region, empresaId, onlyVip }: {
         </span>
       </div>
 
-      <div className="panel flex-1 flex flex-col">
+      <div className="panel flex flex-col">
         <div className="panel-title">
           <span>Mapa operacional</span>
           <span className="text-text-muted normal-case tracking-normal text-[11px]">
             color = p(fallo) · borde violeta = alerta VD
           </span>
         </div>
-        <div className="flex-1 min-h-[500px]">
+        <div className="min-h-[440px] h-[440px]">
           <OperationsMap selectedVehicles={selectedVehicles} />
         </div>
       </div>
+
+      <MapaFoliosTable
+        fecha={stateQ.data?.today ?? ''}
+        empresaId={empresaId === 'all' ? null : empresaId}
+        empresaNombre={empresaNombre}
+        onlyVip={onlyVip}
+        onOpenRuta={(rid) => setDrawerRutaId(rid)}
+      />
+
+      {drawerRutaId && (
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setDrawerRutaId(null)}>
+          <div className="absolute right-0 top-0 bottom-0 w-full max-w-2xl bg-bg-900 border-l border-line shadow-2xl overflow-auto"
+               onClick={e => e.stopPropagation()}>
+            <RutaDetalleDrawer rutaId={drawerRutaId} onClose={() => setDrawerRutaId(null)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
