@@ -732,10 +732,10 @@ export interface Empresa {
 }
 
 // ---- Empresa contactos (destinatarios WhatsApp por empresa transportista) ----
-// El rol 'driver' se mantiene en el type por compat con datos existentes,
-// pero la UI ya no permite crear contactos con ese rol — los drivers viven
-// en fpoc.drivers con su propio phone.
-export type ContactoRol = 'jefe' | 'coordinador' | 'dispatcher' | 'driver' | 'otro';
+// Los drivers viven en fpoc.drivers con su propio phone. Los contactos de
+// empresa son SOLO no-drivers. Filas legacy con rol='driver' fueron migradas
+// a 'otro' en migración 012; el backend ya no acepta crear 'driver' acá.
+export type ContactoRol = 'jefe' | 'coordinador' | 'dispatcher' | 'otro';
 export type ContactoRegion = 'RM' | 'regiones' | 'all';
 
 export interface EmpresaSummary {

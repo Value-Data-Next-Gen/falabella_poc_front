@@ -19,9 +19,12 @@ const ROL_META: Record<ContactoRol, { label: string; cls: string }> = {
   jefe:        { label: 'Jefe',         cls: 'pill-violet' },
   coordinador: { label: 'Coordinador',  cls: 'pill-blue' },
   dispatcher:  { label: 'Dispatcher',   cls: 'pill-blue' },
-  driver:      { label: 'Driver',       cls: 'pill-green' },
   otro:        { label: 'Otro',         cls: 'bg-bg-700 text-text-secondary border border-line px-2 py-0.5 rounded text-[10px]' },
 };
+
+// Fallback visual para contactos legacy con rol fuera del set actual (no debería
+// pasar tras la migración 012, pero defensivo).
+const FALLBACK_ROL_META = { label: 'Otro', cls: 'bg-bg-700 text-text-secondary border border-line px-2 py-0.5 rounded text-[10px]' };
 
 const REGION_META: Record<ContactoRegion, string> = {
   RM: 'Solo RM',
@@ -30,10 +33,6 @@ const REGION_META: Record<ContactoRegion, string> = {
 };
 
 const SEVERITY_OPTIONS: MotivoSeverity[] = ['low', 'medium', 'high', 'critical'];
-// 'driver' fue removido: los drivers ahora viven en fpoc.drivers con su propio
-// phone. Los contactos por empresa son SOLO no-drivers (jefe, coord, dispatcher,
-// otro). Los registros legacy con rol='driver' siguen apareciendo en la lista
-// pero no se pueden crear nuevos.
 const ROL_OPTIONS: ContactoRol[] = ['jefe', 'coordinador', 'dispatcher', 'otro'];
 
 // Lista oficial de motivos (espejo del backend MOTIVOS_CATALOGO).
@@ -934,7 +933,7 @@ function ContactoCard({
   onOptIn: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const rol = ROL_META[contacto.rol];
+  const rol = ROL_META[contacto.rol] ?? FALLBACK_ROL_META;
 
   return (
     <div className="border border-line rounded-md bg-bg-700/30 p-3">
