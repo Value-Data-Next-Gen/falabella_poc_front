@@ -384,15 +384,29 @@ function MapaTab({ region, empresaId, onlyVip }: {
             color = p(fallo) · borde violeta = alerta VD
           </span>
         </div>
-        <div className="min-h-[440px] h-[440px]">
-          <OperationsMap
-            selectedVehicles={selectedVehicles}
-            externalRegion={region}
-            externalEmpresaId={empresaId === 'all' ? null : empresaId}
-            externalDriverName={driverFilter}
-            externalRutaId={rutaFilter}
-            externalOnlyVip={onlyVip}
-          />
+        <div className="min-h-[440px] h-[440px] relative">
+          {planVacio ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-bg-900/80 text-center px-6">
+              <div className="max-w-md flex flex-col items-center gap-2">
+                <span className="text-[18px] text-text-muted">🗺️</span>
+                <div className="text-[13px] font-semibold text-text-primary">Sin plan operativo para esta fecha</div>
+                <div className="text-[11px] text-text-muted">
+                  El mapa muestra solo rutas reales del plan-diario.
+                  Para ver pines, cargá un XLSX en Planificación → Día operativo
+                  o cambiá la fecha activa en el topbar a una con plan EN_CURSO.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <OperationsMap
+              selectedVehicles={selectedVehicles}
+              externalRegion={region}
+              externalEmpresaId={empresaId === 'all' ? null : empresaId}
+              externalDriverName={driverFilter}
+              externalRutaId={rutaFilter}
+              externalOnlyVip={onlyVip}
+            />
+          )}
         </div>
       </div>
 
