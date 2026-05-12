@@ -4,6 +4,7 @@ import { Search, Star, ArrowDownUp, ArrowUp, ArrowDown } from 'lucide-react';
 import { api } from '../../api';
 import { REGIONES_CL } from '../../lib/regiones';
 import { formatMotivoLabel } from '../../lib/formatMotivoLabel';
+import { useDiaActivo } from '../../hooks/useDiaActivo';
 
 type SortKey = 'folio' | 'ruta' | 'region' | 'empresa' | 'driver' | 'estado' | 'eta' | 'hora_real';
 type SortDir = 'asc' | 'desc';
@@ -14,13 +15,8 @@ const STATUS_PILL: Record<string, string> = {
   pending: 'bg-bg-700 text-text-muted',
 };
 
-const todayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 export function TablaVisitas() {
-  const [fecha, setFecha] = useState(todayISO());
+  const { fecha, setFecha } = useDiaActivo();
   const [empresaId, setEmpresaId] = useState<number | ''>('');
   const [region, setRegion] = useState<string>('');
   const [estado, setEstado] = useState<string>('');

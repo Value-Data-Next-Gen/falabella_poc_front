@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { CalendarDays, PlayCircle } from 'lucide-react';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { CalendarioOperativoPanel } from '../panels/CalendarioOperativoPanel';
 import { DiaOperativoPanel } from '../panels/DiaOperativoPanel';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
+import { useDiaActivo } from '../../hooks/useDiaActivo';
 
 // Ronda 3: 2 tabs en Planificación. Las antiguas (Carga / Dotación / Plan /
 // Clientes / Config) se mueven a cards expandibles DENTRO de DiaOperativoPanel.
@@ -14,19 +14,13 @@ const LEGACY_PLAN_SUBS = new Set([
   'carga', 'dotacion', 'plan', 'clientes', 'configdia',
 ]);
 
-const todayISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
 export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
-  // Las sub-rutas viejas redirigen a 'dia' y la card correspondiente se abre
-  // por default dentro del panel (vía openCard).
   const subRaw = sub ?? 'dia';
   const isLegacy = LEGACY_PLAN_SUBS.has(subRaw);
   const active = SUBS[subRaw] ? subRaw : (isLegacy ? 'dia' : 'dia');
   const openCard = isLegacy ? subRaw : null;
-  const [fecha, setFecha] = useState(todayISO());
+  // R7-P4: la fecha activa la administra el selector global del Topbar.
+  const { fecha, setFecha } = useDiaActivo();
   const tabs: SubTabDef[] = [
     { key: 'dia',        label: 'Día operativo', icon: PlayCircle   },
     { key: 'calendario', label: 'Calendario',    icon: CalendarDays },

@@ -12,6 +12,7 @@ import { DriverDashboardPage } from '../pages/DriverDashboardPage';
 import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
 import { useAuth } from '../../hooks/useAuth';
 import { AgentDock } from '../AgentDock';
+import { DiaActivoProvider } from '../../hooks/useDiaActivo';
 
 interface NavState {
   module: ModuleKey;
@@ -132,6 +133,7 @@ export function AppShell() {
     : null;
 
   return (
+    <DiaActivoProvider>
     <div className="h-full flex bg-bg-900 text-text-primary">
       <Sidebar current={nav.module} onChange={k => navigate(k)} />
 
@@ -159,5 +161,6 @@ export function AppShell() {
       />
       <AgentDock />
     </div>
+    </DiaActivoProvider>
   );
 }

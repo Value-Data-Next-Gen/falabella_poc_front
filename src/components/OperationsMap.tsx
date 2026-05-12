@@ -10,6 +10,19 @@ import { useTheme } from '../hooks/useTheme';
 
 const DEPOT: [number, number] = [-70.66, -33.45]; // [lon, lat]
 
+// Bounding box de Chile continental + insular para filtrar coords inválidas
+// que aparecen sobre el océano. Cualquier visita con (lat,lon) fuera de este
+// rango se descarta antes de renderizar.
+const CHILE_BBOX = { latMin: -56.5, latMax: -17.5, lonMin: -76.0, lonMax: -66.0 };
+function isValidLatLon(lat: number, lon: number): boolean {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  if (lat === 0 && lon === 0) return false;
+  return (
+    lat >= CHILE_BBOX.latMin && lat <= CHILE_BBOX.latMax &&
+    lon >= CHILE_BBOX.lonMin && lon <= CHILE_BBOX.lonMax
+  );
+}
+
 type ViewState = {
   longitude: number;
   latitude: number;
@@ -127,6 +140,8 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
   const [region, setRegion] = useState<RegionFilter>('all');
   const [empresaFilter, setEmpresaFilter] = useState<Set<number>>(new Set());
   const [plateFilter, setPlateFilter] = useState<Set<string>>(new Set());
+  const [rutaFilter, setRutaFilter] = useState<string>('');
+  const [onlyVip, setOnlyVip] = useState<boolean>(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
   const visitsQ = useQuery({
@@ -146,6 +161,14 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     queryFn: api.empresaContactos.listEmpresas,
   });
   const fleetQ = useQuery({ queryKey: ['fleet-vehicles-map'], queryFn: api.fleetVehicles });
+  // R7-P4: cruce vehicle_id → empresa_id, ruta_id, is_vip via plan-diario.
+  // Sin esto no podemos filtrar empresa/ruta/VIP en el mapa (la entidad Visit
+  // del endpoint legacy /api/visits no expone esas dimensiones).
+  const planQ = useQuery({
+    queryKey: ['plan-diario-map-filters'],
+    queryFn: () => api.planDiario({ source: 'synthetic' }),
+    refetchInterval: 30000,
+  });
 
   const { theme } = useTheme();
   const mapStyle = theme === 'dark' ? MAP_STYLE_DARK : MAP_STYLE_LIGHT;
@@ -166,26 +189,59 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     return m;
   }, [fleetQ.data]);
 
-  // Aplicamos filtros locales (empresa y patente). region ya viene del backend.
+  // R7-P4: derivamos del plan-diario el mapping vehicle_id → {empresa_id, ruta_id}
+  // y el set de tracking_ids VIP. Sin esto los filtros de empresa/ruta/VIP no
+  // pueden discriminar (Visit del endpoint legacy no trae esas dimensiones).
+  const { empresaByVid, rutaByVid, vipTrackingSet, rutaOptions } = useMemo(() => {
+    const empresaByVid: Record<number, number> = {};
+    const rutaByVid: Record<number, string> = {};
+    const vipTrackingSet = new Set<string>();
+    const rutas = new Set<string>();
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (r.vehicle_id != null) {
+          empresaByVid[r.vehicle_id] = emp.empresa_id;
+          if (r.ruta_id) rutaByVid[r.vehicle_id] = r.ruta_id;
+        }
+        if (r.ruta_id) rutas.add(r.ruta_id);
+        r.visitas?.forEach(v => { if (v.is_vip) vipTrackingSet.add(v.tracking_id); });
+      });
+    });
+    return { empresaByVid, rutaByVid, vipTrackingSet, rutaOptions: Array.from(rutas).sort() };
+  }, [planQ.data]);
+
+  // Filtros del mapa. Aplicación:
+  //  1. coordenadas inválidas (fuera del bbox de Chile) → fuera.
+  //  2. empresa elegida → solo vehículos de esa empresa.
+  //  3. ruta elegida → solo el vehículo de esa ruta.
+  //  4. patente elegida → match por placa.
+  //  5. onlyVip → solo visitas marcadas VIP en plan-diario.
   const visits = useMemo(() => {
-    let out = allVisits;
+    let out = allVisits.filter(v => isValidLatLon(v.latitude, v.longitude));
     if (empresaFilter.size > 0) {
-      // Empresa filter requiere mapear vehicle_id -> empresa. Lo hacemos via fleet
-      // que no trae empresa, así que filtramos por vehicle_id usando plate match
-      // de una empresa: en realidad no tenemos empresa_id por visita en /api/visits.
-      // En su lugar, usamos selectedVehicles si vino y descartamos visitas cuya
-      // patente no esté en el set de patentes filtradas — ese es el camino real.
-      // Filtramos por vehicle_id si su plate matchea alguna empresa elegida en
-      // el panel de empresas; pero como no tenemos esa relación pública,
-      // dejamos empresa-filter como filtro client-side de patente solamente.
+      out = out.filter(v => {
+        const eid = empresaByVid[v.vehicle_id];
+        return eid != null && empresaFilter.has(eid);
+      });
+    }
+    if (rutaFilter) {
+      out = out.filter(v => rutaByVid[v.vehicle_id] === rutaFilter);
     }
     if (plateFilter.size > 0) {
       out = out.filter(v => plateByVid[v.vehicle_id] && plateFilter.has(plateByVid[v.vehicle_id]));
     }
+    if (onlyVip) {
+      out = out.filter(v => vipTrackingSet.has(v.tracking_id));
+    }
     return out;
-  }, [allVisits, plateFilter, empresaFilter, plateByVid]);
+  }, [allVisits, plateFilter, empresaFilter, rutaFilter, onlyVip, plateByVid, empresaByVid, rutaByVid, vipTrackingSet]);
 
-  const activeFilterCount = (region !== 'all' ? 1 : 0) + (plateFilter.size > 0 ? 1 : 0) + (empresaFilter.size > 0 ? 1 : 0);
+  const activeFilterCount =
+    (region !== 'all' ? 1 : 0) +
+    (plateFilter.size > 0 ? 1 : 0) +
+    (empresaFilter.size > 0 ? 1 : 0) +
+    (rutaFilter ? 1 : 0) +
+    (onlyVip ? 1 : 0);
 
   const fitToVisits = useCallback((pts: Visit[], animate = true) => {
     if (!pts.length) return;
@@ -240,11 +296,10 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     });
     return Object.entries(byVehicle).map(([vid, vs]) => {
       const sorted = [...vs].sort((a, b) => a.order - b.order);
-      const path: [number, number][] = [
-        DEPOT,
-        ...sorted.map(v => [v.longitude, v.latitude] as [number, number]),
-        DEPOT,
-      ];
+      // R7-P4: la ruta SOLO conecta los stops planificados. Antes el path
+      // empezaba y terminaba en DEPOT (Santiago), produciendo líneas largas
+      // hacia Santiago para rutas regionales (Antofagasta, Biobío, etc.).
+      const path: [number, number][] = sorted.map(v => [v.longitude, v.latitude] as [number, number]);
       return {
         vehicle_id: Number(vid),
         path,
@@ -403,7 +458,7 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
 
           {plateFilter.size > 0 && (
             <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
-              Filtrando · {plateFilter.size} patente{plateFilter.size > 1 ? 's' : ''}
+              {plateFilter.size} patente{plateFilter.size > 1 ? 's' : ''}
             </span>
           )}
           {empresaFilter.size > 0 && (
@@ -411,10 +466,23 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
               {empresaFilter.size} empresa{empresaFilter.size > 1 ? 's' : ''}
             </span>
           )}
+          {rutaFilter && (
+            <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40 font-mono">
+              {rutaFilter}
+            </span>
+          )}
+          {onlyVip && (
+            <span className="text-[11px] text-cmr bg-cmr/10 px-2 py-0.5 rounded border border-cmr/40 flex items-center gap-1">
+              <Crosshair size={9} /> VIP
+            </span>
+          )}
 
-          {(plateFilter.size > 0 || empresaFilter.size > 0 || region !== 'all') && (
+          {activeFilterCount > 0 && (
             <button
-              onClick={() => { setPlateFilter(new Set()); setEmpresaFilter(new Set()); setRegion('all'); }}
+              onClick={() => {
+                setPlateFilter(new Set()); setEmpresaFilter(new Set());
+                setRegion('all'); setRutaFilter(''); setOnlyVip(false);
+              }}
               className="text-[10px] text-text-muted hover:text-accent-red"
               title="Limpiar filtros"
             >
@@ -424,7 +492,7 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
         </div>
 
         {filterOpen && (
-          <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md text-[11px] mt-1 w-full md:w-auto">
+          <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-3 grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl text-[11px] mt-1 w-full md:w-auto">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Empresa transportista</div>
               <select
@@ -443,6 +511,29 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Ruta</div>
+              <input
+                list="map-ruta-list"
+                value={rutaFilter}
+                onChange={e => setRutaFilter(e.target.value)}
+                placeholder="R-YYYYMMDD-NNN"
+                className="input w-full text-[11px] font-mono"
+              />
+              <datalist id="map-ruta-list">
+                {rutaOptions.map(r => <option key={r} value={r} />)}
+              </datalist>
+              <label className="flex items-center gap-1.5 cursor-pointer mt-3">
+                <input
+                  type="checkbox"
+                  checked={onlyVip}
+                  onChange={e => setOnlyVip(e.target.checked)}
+                  className="accent-cmr"
+                />
+                <Crosshair size={11} className="text-cmr" />
+                <span>Solo visitas VIP</span>
+              </label>
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Patente</div>

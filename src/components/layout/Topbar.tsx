@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bell, Building2, Crown, MessageSquare, Package,
+  Bell, Building2, CalendarDays, Crown, MessageSquare, Package,
   Search, Sparkles, Star, Truck, User, X,
 } from 'lucide-react';
 import { api } from '../../api';
 import { ModuleKey, MODULES } from './Sidebar';
 import { SearchHit, SearchKind, SearchResults, StreamEvent } from '../../types';
+import { useDiaActivo } from '../../hooks/useDiaActivo';
 
 const NOTIF_SEEN_KEY = 'fpoc.notif.lastSeenId';
 
@@ -235,6 +236,7 @@ export function Topbar({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <DiaActivoPicker />
         {/* Tour */}
         {onOpenTour && (
           <button
@@ -394,4 +396,22 @@ function labelForType(t: string): string {
     case 'red_simpli': return 'Rojo SimpliRoute';
     default: return t;
   }
+}
+
+// =============================================================================
+// R7-P4: selector global de fecha activa (sincroniza todos los módulos)
+// =============================================================================
+function DiaActivoPicker() {
+  const { fecha, setFecha } = useDiaActivo();
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-bg-700/40 border border-line text-[11px]" title="Fecha activa — sincroniza Planificación / Operación / Control">
+      <CalendarDays size={11} className="text-text-muted" />
+      <input
+        type="date"
+        value={fecha}
+        onChange={e => setFecha(e.target.value)}
+        className="bg-transparent outline-none text-text-primary tabular-nums"
+      />
+    </div>
+  );
 }
