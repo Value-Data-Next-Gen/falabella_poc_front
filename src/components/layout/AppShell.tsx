@@ -32,10 +32,15 @@ function readHash(): NavState {
   if (!hash) return { module: 'operacion', sub: null };
   const slash = hash.indexOf('/');
   const modRaw = slash === -1 ? hash : hash.slice(0, slash);
-  const mod = LEGACY_MODULE_REDIRECTS[modRaw] ?? modRaw;
-  const sub = slash === -1 ? null : (hash.slice(slash + 1) || null);
+  let mod = LEGACY_MODULE_REDIRECTS[modRaw] ?? modRaw;
+  let sub = slash === -1 ? null : (hash.slice(slash + 1) || null);
+  // R7: Copiloto operativo se movió de Auditoría IA → Operación.
+  if (mod === 'auditoria-ia' && (sub === 'copiloto' || sub === 'asistente')) {
+    mod = 'operacion';
+    sub = 'copiloto';
+  }
   const valid = MODULES.find(m => m.key === mod)?.key ?? 'operacion';
-  if (modRaw !== mod) {
+  if (modRaw !== mod || (slash !== -1 && sub !== hash.slice(slash + 1))) {
     const h = sub ? `#/${valid}/${sub}` : `#/${valid}`;
     window.history.replaceState(null, '', h);
   }
@@ -112,10 +117,11 @@ export function AppShell() {
     mapa: 'Mapa',
     alertas: 'Alertas en vivo',
     // Auditoría IA
-    copiloto: 'Copiloto operativo',
     comentarios: 'Alertas IA',
-    asistente: 'Copiloto operativo',
     correcciones: 'Correcciones de motivo',
+    // Operación
+    copiloto: 'Copiloto operativo',
+    asistente: 'Copiloto operativo',
     // Control
     kpis: 'KPIs',
     visitas: 'Tabla de visitas',

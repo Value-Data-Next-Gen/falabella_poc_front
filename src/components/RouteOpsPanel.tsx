@@ -34,6 +34,7 @@ import {
   TrackingNotifSummary,
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useDiaActivo } from '../hooks/useDiaActivo';
 import { NotifiedBadge } from './NotifiedBadge';
 import { ReportMotivoButton } from './ReportMotivoButton';
 import { AsistenteIAPanel } from './AsistenteIAPanel';
@@ -64,9 +65,20 @@ const STATUS_META: Record<DriverStatus, { label: string; cls: string }> = {
 export function RouteOpsPanel() {
   const { isFalabella, isAdmin } = useAuth();
   const qc = useQueryClient();
+  // R7-P4: respeta la fecha activa global + day_state. Si el día no está
+  // EN_CURSO no mostramos data (antes traía 12 drivers fake del simulador).
+  const { fecha: activeDate } = useDiaActivo();
 
   const empresasQ = useQuery({ queryKey: ['empresas'], queryFn: api.empresas, enabled: isFalabella });
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
+  const dayStateQ = useQuery({
+    queryKey: ['day-state-copiloto', activeDate],
+    queryFn: () => api.planificacion.getDayState(activeDate),
+    enabled: !!activeDate,
+    refetchInterval: 15_000,
+  });
+  const dayState = dayStateQ.data?.state ?? null;
+  const dayEnCurso = dayState === 'EN_CURSO';
 
   const [empresaFilter, setEmpresaFilter] = useState<number | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<'' | DriverStatus>('');
@@ -78,11 +90,13 @@ export function RouteOpsPanel() {
   // RouteOpsPanel usa la estructura LEGACY (Empresa->Drivers) del Sprint 1.
   // El Plan Diario "nuevo" (Empresa->Rutas) se renderiza desde PlanDiarioPanel.
   const planQ = useQuery<PlanDiarioResponseLegacy>({
-    queryKey: ['plan-diario-legacy', empresaFilter],
+    queryKey: ['plan-diario-legacy', empresaFilter, activeDate],
     queryFn: () => api.planDiario({
       empresa_id: empresaFilter === 'all' ? undefined : empresaFilter,
       legacy: true,
+      planned_date: activeDate,
     }) as any,
+    enabled: !!activeDate && dayEnCurso,
     refetchInterval: 5_000,
   });
 
@@ -150,6 +164,30 @@ export function RouteOpsPanel() {
     const incVehicles = Object.entries(incidents).filter(([, v]) => Number(v) > 0).length;
     return { drvActive, drvDone, red, vip, completed, total, incVehicles };
   }, [drivers, stateQ.data]);
+
+  // R7-P4: si el día no está EN_CURSO mostramos placeholder en lugar de la
+  // grilla. Antes el panel traía data del simulador legacy aunque el día
+  // estuviera en BORRADOR.
+  if (!dayEnCurso && !dayStateQ.isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-full">
+        <div className="max-w-md text-center flex flex-col items-center gap-3">
+          <Truck size={28} className="text-text-muted" />
+          <div className="text-[14px] font-semibold text-text-primary">Copiloto inactivo</div>
+          <div className="text-[12px] text-text-muted">
+            El copiloto operativo solo se muestra cuando el día está{' '}
+            <span className="font-mono text-brand">EN_CURSO</span>.
+            <br />
+            Fecha activa: <span className="font-mono text-text-secondary">{activeDate}</span>
+            {' · '}Estado: <span className="font-mono">{dayState ?? 'sin estado'}</span>
+          </div>
+          <div className="text-[11px] text-text-muted mt-2">
+            Para activarlo: <strong>Planificación → Día operativo → Iniciar día</strong>.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 p-3 h-full overflow-hidden">

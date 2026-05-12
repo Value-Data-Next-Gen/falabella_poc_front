@@ -15,11 +15,12 @@ import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
 import { MapaFoliosTable } from '../panels/MapaFoliosTable';
 import { RutaDetalleDrawer } from '../panels/RutaDetalleDrawer';
+import { RouteOpsPanel } from '../RouteOpsPanel';
 import { useDiaActivo } from '../../hooks/useDiaActivo';
 
-// R3: solo Mapa + Alertas. Legacy 'plan' / 'watchlist' redirigen a 'mapa' y
-// abren el drawer correspondiente.
-const SUBS: Record<string, true> = { mapa: true, alertas: true };
+// R7: 3 tabs. Copiloto operativo viene de Auditoría IA (era vista operacional,
+// no de auditoría). Legacy 'plan' / 'watchlist' redirigen a 'mapa'.
+const SUBS: Record<string, true> = { mapa: true, alertas: true, copiloto: true };
 const LEGACY_OP_SUBS: Record<string, 'plan' | 'watchlist'> = {
   plan: 'plan',
   watchlist: 'watchlist',
@@ -81,8 +82,9 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
   // Ronda 3: 2 tabs. Plan en ejecución y Watchlist se accesan como drawer
   // dentro de Mapa (botones en el header). Legacy slugs siguen aceptados.
   const tabs: SubTabDef[] = [
-    { key: 'mapa',    label: 'Mapa',            icon: MapIcon },
-    { key: 'alertas', label: 'Alertas en vivo', icon: Radio },
+    { key: 'mapa',     label: 'Mapa',             icon: MapIcon },
+    { key: 'copiloto', label: 'Copiloto operativo', icon: Truck },
+    { key: 'alertas',  label: 'Alertas en vivo',  icon: Radio },
   ];
 
   const filterProps = { region, onlyVip, empresaId, hideLocalFilters: true };
@@ -174,6 +176,7 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             onlyVip={onlyVip}
           />
         )}
+        {active === 'copiloto' && <RouteOpsPanel />}
         {active === 'alertas' && <div className="h-full"><EventStream /></div>}
 
         {/* Drawers — Plan en ejecución y Watchlist */}

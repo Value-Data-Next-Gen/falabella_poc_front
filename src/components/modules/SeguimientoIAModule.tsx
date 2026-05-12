@@ -7,13 +7,12 @@ import { api } from '../../api';
 import { EventType, StreamEvent } from '../../types';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { MotivoCorrectionsPanel } from '../panels/MotivoCorrectionsPanel';
-import { RouteOpsPanel } from '../RouteOpsPanel';
 
-// R7: 3 tabs definitivas. 'asistente' (chat conversacional) salió de acá y
-// ahora vive como dock global flotante en AppShell. Slug 'asistente' redirige
-// a 'copiloto' para preservar bookmarks viejos.
-const SUBS: Record<string, true> = { copiloto: true, comentarios: true, correcciones: true, asistente: true };
-const SUB_REDIRECT: Record<string, string> = { asistente: 'copiloto' };
+// Auditoría IA: solo vistas de revisión IA. El Copiloto operativo se movió
+// a Operación (es vista operacional, no de auditoría). Los slugs antiguos
+// 'copiloto' y 'asistente' redirigen ahí mismo via AppShell.
+const SUBS: Record<string, true> = { comentarios: true, correcciones: true };
+const SUB_REDIRECT: Record<string, string> = {};
 
 const ALERT_TYPES: EventType[] = [
   'comment_alert',
@@ -29,10 +28,9 @@ const SEV_PILL: Record<string, string> = {
 };
 
 export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
-  const activeRaw = sub && SUBS[sub] ? sub : 'copiloto';
+  const activeRaw = sub && SUBS[sub] ? sub : 'comentarios';
   const active = SUB_REDIRECT[activeRaw] ?? activeRaw;
   const tabs: SubTabDef[] = [
-    { key: 'copiloto',      label: 'Copiloto operativo',     icon: Truck },
     { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
@@ -41,7 +39,6 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
     <div className="h-full flex flex-col">
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
-        {active === 'copiloto' && <RouteOpsPanel />}
         {active === 'comentarios' && <div className="p-4"><RecentCommentsTab /></div>}
         {active === 'correcciones' && <div className="p-4"><MotivoCorrectionsPanel /></div>}
       </div>
