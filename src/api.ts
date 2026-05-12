@@ -774,6 +774,57 @@ export const api = {
       vip_count: number;
       prep_ok: boolean;
     }>(`/planificacion/day-status?fecha=${fecha}`),
+    clientesDelDia: (fecha: string, opts?: { only_no_vip?: boolean; only_with_notes?: boolean }) => {
+      const p = new URLSearchParams({ fecha });
+      if (opts?.only_no_vip) p.set('only_no_vip', 'true');
+      if (opts?.only_with_notes) p.set('only_with_notes', 'true');
+      return get<Array<{
+        cliente: string;
+        visitas: number;
+        comunas: string[];
+        rutas: string[];
+        is_vip: boolean;
+        vip_tier: string | null;
+        vip_id: number | null;
+        notes: string | null;
+        vip_marked_here: boolean;
+        priority_set_count: number;
+      }>>(`/planificacion/clientes-del-dia?${p.toString()}`);
+    },
+    upsertClientDayNote: (req: {
+      fecha: string; cliente: string;
+      notes?: string | null; vip_marked_here?: boolean;
+      create_vip?: boolean; vip_tier?: string;
+    }) => put<{ ok: boolean; fecha: string; cliente: string; vip_id: number | null }>(
+      `/planificacion/client-day-notes`, req,
+    ),
+    getDayConfig: (fecha: string) => get<{
+      fecha: string;
+      cutoff_time: string | null;
+      message_to_drivers: string | null;
+      alert_threshold_override: number | null;
+      slack_min_override: number | null;
+      restricted_vehicle_ids: number[];
+      restricted_empresa_ids: number[];
+      updated_at: string | null;
+    }>(`/planificacion/day-config?fecha=${fecha}`),
+    putDayConfig: (fecha: string, body: {
+      cutoff_time?: string | null;
+      message_to_drivers?: string | null;
+      alert_threshold_override?: number | null;
+      slack_min_override?: number | null;
+      restricted_vehicle_ids?: number[];
+      restricted_empresa_ids?: number[];
+    }) => put<{
+      fecha: string;
+      cutoff_time: string | null;
+      message_to_drivers: string | null;
+      alert_threshold_override: number | null;
+      slack_min_override: number | null;
+      restricted_vehicle_ids: number[];
+      restricted_empresa_ids: number[];
+      updated_at: string | null;
+    }>(`/planificacion/day-config?fecha=${fecha}`, body),
     dayClients: (fecha: string, q?: string, limit = 50) => {
       const params = new URLSearchParams({ fecha });
       if (q && q.trim()) params.set('q', q.trim());

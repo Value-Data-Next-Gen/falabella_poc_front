@@ -1,14 +1,19 @@
 import { useState } from 'react';
-import { CalendarDays, ClipboardList, Settings2, UploadCloud, Users } from 'lucide-react';
+import { CalendarDays, ClipboardList, Settings2, Sliders, UploadCloud, Users, UsersRound } from 'lucide-react';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { CargaEntregasPanel } from '../panels/CargaEntregasPanel';
 import { CalendarioOperativoPanel } from '../panels/CalendarioOperativoPanel';
 import { PlanDelDiaSimplePanel } from '../panels/PlanDelDiaSimplePanel';
+import { ClientesDelDiaPanel } from '../panels/ClientesDelDiaPanel';
+import { ConfigDelDiaPanel } from '../panels/ConfigDelDiaPanel';
 import { DayConfigPanel } from '../DayConfigPanel';
 import { DotacionPanel } from '../panels/DotacionPanel';
 import { WizardDelDia } from '../panels/WizardDelDia';
 
-const SUBS: Record<string, true> = { calendario: true, carga: true, dotacion: true, plan: true, dia: true };
+const SUBS: Record<string, true> = {
+  calendario: true, carga: true, dotacion: true, plan: true,
+  clientes: true, configdia: true, dia: true,
+};
 
 const todayISO = () => {
   const d = new Date();
@@ -20,11 +25,13 @@ export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSu
   // Fecha operativa global del módulo: todos los paneles la usan.
   const [fecha, setFecha] = useState(todayISO());
   const tabs: SubTabDef[] = [
-    { key: 'calendario', label: '1. Calendario',          icon: CalendarDays  },
-    { key: 'carga',      label: '2. Carga de entregas',   icon: UploadCloud   },
-    { key: 'dotacion',   label: '3. Dotación del día',    icon: Users         },
-    { key: 'plan',       label: '4. Plan del día',        icon: ClipboardList },
-    { key: 'dia',        label: 'Configuración avanzada', icon: Settings2     },
+    { key: 'calendario', label: '1. Calendario',           icon: CalendarDays  },
+    { key: 'carga',      label: '2. Carga de entregas',    icon: UploadCloud   },
+    { key: 'dotacion',   label: '3. Dotación del día',     icon: Users         },
+    { key: 'plan',       label: '4. Plan del día',         icon: ClipboardList },
+    { key: 'clientes',   label: '5. Clientes del día',     icon: UsersRound    },
+    { key: 'configdia',  label: '6. Config del día',       icon: Sliders       },
+    { key: 'dia',        label: 'Avanzada',                icon: Settings2     },
   ];
   return (
     <div className="h-full flex flex-col">
@@ -38,6 +45,8 @@ export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSu
         {active === 'carga'      && <CargaEntregasPanel initialFecha={fecha} onFechaChange={setFecha} />}
         {active === 'calendario' && <CalendarioOperativoPanel selectedISO={fecha} onSelect={setFecha} />}
         {active === 'plan'       && <PlanDelDiaSimplePanel fecha={fecha} />}
+        {active === 'clientes'   && <ClientesDelDiaPanel fecha={fecha} />}
+        {active === 'configdia'  && <ConfigDelDiaPanel fecha={fecha} />}
         {active === 'dotacion'   && <DotacionPanel initialFecha={fecha} />}
         {active === 'dia'        && <DayConfigPanel />}
       </div>
