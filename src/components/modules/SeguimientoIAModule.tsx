@@ -8,11 +8,11 @@ import { EventType, StreamEvent } from '../../types';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 // RouteOpsPanel se removió de Auditoría IA en R4 (era operativo).
 import { MotivoCorrectionsPanel } from '../panels/MotivoCorrectionsPanel';
+import { AgentChatPanel } from '../panels/AgentChatPanel';
 
-// 'asistente' (Copiloto) sigue en SUBS para redirect desde links viejos.
 const SUBS: Record<string, true> = { comentarios: true, asistente: true, correcciones: true };
-// Redirect: si entra a #/auditoria-ia/asistente, lo mandamos a 'comentarios'
-const SUB_REDIRECT: Record<string, string> = { asistente: 'comentarios' };
+// 'asistente' ahora es el chat conversacional (reusa el FSM de WhatsApp).
+const SUB_REDIRECT: Record<string, string> = {};
 
 const ALERT_TYPES: EventType[] = [
   'comment_alert',
@@ -35,6 +35,7 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
   // solo con las 2 vistas de revisión IA.
   const tabs: SubTabDef[] = [
     { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
+    { key: 'asistente',     label: 'Asistente',              icon: Sparkles },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
 
@@ -43,6 +44,7 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
         {active === 'comentarios' && <div className="p-4"><RecentCommentsTab /></div>}
+        {active === 'asistente' && <AgentChatPanel />}
         {active === 'correcciones' && <div className="p-4"><MotivoCorrectionsPanel /></div>}
       </div>
     </div>

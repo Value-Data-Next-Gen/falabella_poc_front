@@ -1010,6 +1010,13 @@ export const api = {
     },
   },
 
+  agent: {
+    send: (message: string) =>
+      post<{ reply: string; kind: string }>(`/agent/web/message`, { message }),
+    reset: () => post<{ ok: boolean }>(`/agent/web/reset`, {}),
+    state: () => get<{ phone: string; state: string; role: string | null; identified_id: string | null; context: Record<string, any> }>(`/agent/web/state`),
+  },
+
   // Sprint 7 — buscador global del topbar
   search: {
     global: (q: string) =>
