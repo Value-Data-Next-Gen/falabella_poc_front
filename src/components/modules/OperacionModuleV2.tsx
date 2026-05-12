@@ -384,10 +384,20 @@ function MapaTab({ region, empresaId, onlyVip }: {
       </div>
 
       <div className="panel flex flex-col">
-        <div className="panel-title">
+        <div className="panel-title flex items-center gap-3 flex-wrap">
           <span>Mapa operacional</span>
           <span className="text-text-muted normal-case tracking-normal text-[11px]">
             color = p(fallo) · borde violeta = alerta VD
+          </span>
+          <span className="ml-auto flex items-center gap-2 text-[11px] normal-case tracking-normal">
+            <span className="text-text-muted">📅</span>
+            <span className="font-mono tabular-nums text-text-secondary">{activeDate}</span>
+            <span className="text-text-muted">·</span>
+            <span className="text-text-muted">🕐</span>
+            <span className="font-mono tabular-nums text-brand">
+              {stateQ.data?.sim_clock ? stateQ.data.sim_clock.slice(11, 16) : '--:--'}
+            </span>
+            <span className="text-text-muted text-[10px]">sim</span>
           </span>
         </div>
         <div className="min-h-[440px] h-[440px] relative">
