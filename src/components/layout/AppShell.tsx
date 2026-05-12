@@ -105,8 +105,8 @@ export function AppShell() {
     plan: 'Día operativo',
     clientes: 'Día operativo',
     configdia: 'Día operativo',
-    // Operación
-    watchlist: 'Watchlist',
+    // Operación (R3: 2 tabs; plan/watchlist viven como drawers dentro de mapa)
+    watchlist: 'Mapa',
     mapa: 'Mapa',
     alertas: 'Alertas en vivo',
     // Auditoría IA

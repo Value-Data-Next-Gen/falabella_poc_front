@@ -13,11 +13,21 @@ import { WatchlistPanel } from '../WatchlistPanel';
 import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
 
-const SUBS: Record<string, true> = { plan: true, watchlist: true, mapa: true, alertas: true };
+// R3: solo Mapa + Alertas. Legacy 'plan' / 'watchlist' redirigen a 'mapa' y
+// abren el drawer correspondiente.
+const SUBS: Record<string, true> = { mapa: true, alertas: true };
+const LEGACY_OP_SUBS: Record<string, 'plan' | 'watchlist'> = {
+  plan: 'plan',
+  watchlist: 'watchlist',
+};
 
 export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
   const { isFalabella } = useAuth();
-  const active = sub && SUBS[sub] ? sub : 'plan';
+  const subRaw = sub ?? 'mapa';
+  const legacy = LEGACY_OP_SUBS[subRaw];
+  const active = SUBS[subRaw] ? subRaw : (legacy ? 'mapa' : 'mapa');
+  // Drawer abierto al cargar desde slug legacy
+  const [drawer, setDrawer] = useState<'plan' | 'watchlist' | null>(legacy ?? null);
 
   const [region, setRegion] = useState<RegionFilter>('all');
   const [empresaId, setEmpresaId] = useState<number | 'all'>('all');
@@ -64,11 +74,11 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
     return { total, completadas, fallidas, enRiesgo, cumplPct };
   })();
 
+  // Ronda 3: 2 tabs. Plan en ejecución y Watchlist se accesan como drawer
+  // dentro de Mapa (botones en el header). Legacy slugs siguen aceptados.
   const tabs: SubTabDef[] = [
-    { key: 'plan',      label: 'Plan en ejecución', icon: CalendarClock },
-    { key: 'watchlist', label: 'Watchlist',         icon: Flame },
-    { key: 'mapa',      label: 'Mapa',              icon: MapIcon },
-    { key: 'alertas',   label: 'Alertas en vivo',   icon: Radio },
+    { key: 'mapa',    label: 'Mapa',            icon: MapIcon },
+    { key: 'alertas', label: 'Alertas en vivo', icon: Radio },
   ];
 
   const filterProps = { region, onlyVip, empresaId, hideLocalFilters: true };
@@ -139,14 +149,24 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             icon={Flame}
             color={totals.cumplPct >= 90 ? 'text-brand' : totals.cumplPct >= 75 ? 'text-accent-yellow' : 'text-accent-red'}
           />
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setDrawer('plan')}
+                    className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
+                    title="Ver plan en ejecución (drawer)">
+              <CalendarClock size={11} /> Plan
+            </button>
+            <button onClick={() => setDrawer('watchlist')}
+                    className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
+                    title="Ver watchlist de visitas en riesgo (drawer)">
+              <Flame size={11} /> Watchlist
+            </button>
+          </div>
         </div>
       </div>
 
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
 
-      <div className="flex-1 overflow-auto">
-        {active === 'plan' && <PlanDiarioPanel filters={filterProps} mode="live" />}
-        {active === 'watchlist' && <WatchlistPanel filters={filterProps} />}
+      <div className="flex-1 overflow-auto relative">
         {active === 'mapa' && (
           <MapaTab
             region={region}
@@ -155,6 +175,27 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
           />
         )}
         {active === 'alertas' && <div className="h-full"><EventStream /></div>}
+
+        {/* Drawers — Plan en ejecución y Watchlist */}
+        {drawer && (
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setDrawer(null)}>
+            <div className="absolute right-0 top-0 bottom-0 w-full max-w-3xl bg-bg-900 border-l border-line shadow-2xl overflow-auto"
+                 onClick={e => e.stopPropagation()}>
+              <div className="sticky top-0 bg-bg-800 border-b border-line px-4 py-2 flex items-center justify-between z-10">
+                <div className="text-[13px] font-semibold uppercase tracking-wider flex items-center gap-2">
+                  {drawer === 'plan' ? <><CalendarClock size={14} /> Plan en ejecución</> : <><Flame size={14} /> Watchlist</>}
+                </div>
+                <button onClick={() => setDrawer(null)} className="text-text-muted hover:text-text-primary">
+                  <span className="sr-only">Cerrar</span>✕
+                </button>
+              </div>
+              <div className="p-2">
+                {drawer === 'plan' && <PlanDiarioPanel filters={filterProps} mode="live" />}
+                {drawer === 'watchlist' && <WatchlistPanel filters={filterProps} />}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
