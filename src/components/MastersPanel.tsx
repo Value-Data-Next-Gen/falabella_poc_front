@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { MotivosConfigPanel } from './MotivosConfigPanel';
+import { OnboardWhatsAppModal } from './shared/OnboardWhatsAppModal';
 
 type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients' | 'vip' | 'motivos';
 
@@ -583,6 +584,9 @@ export function UsersTab() {
   const [empresaFilter, setEmpresaFilter] = useState<string>('');
   const [activoFilter, setActivoFilter] = useState<string>('');
   const [showMatrix, setShowMatrix] = useState(false);
+  const [onboardTarget, setOnboardTarget] = useState<{
+    phone: string; name: string; userId?: number; roleHint: 'manager' | 'contacto';
+  } | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-users'] });
   const delMut = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh });
@@ -687,12 +691,30 @@ export function UsersTab() {
           <UserForm
             empresas={empresasQ.data ?? []}
             onSubmit={async data => {
-              await api.admin.createUser(data);
+              const created = await api.admin.createUser(data);
               refresh();
               setCreating(false);
+              // Si tiene phone + notify_whatsapp, abrir flow de onboarding guiado
+              if (data.phone_e164 && data.notify_whatsapp) {
+                setOnboardTarget({
+                  phone: data.phone_e164,
+                  name: data.display_name,
+                  userId: created.user_id,
+                  roleHint: data.role === 'transport_manager' ? 'manager' : 'manager',
+                });
+              }
             }}
           />
         </Modal>
+      )}
+      {onboardTarget && (
+        <OnboardWhatsAppModal
+          phone={onboardTarget.phone}
+          name={onboardTarget.name}
+          userId={onboardTarget.userId}
+          roleHint={onboardTarget.roleHint}
+          onClose={() => setOnboardTarget(null)}
+        />
       )}
       {editing && (
         <Modal title={`Editar #${editing.user_id} — ${editing.email}`} onClose={() => setEditing(null)}>
@@ -988,6 +1010,7 @@ export function DriversTab() {
   const [editing, setEditing] = useState<AdminDriver | null>(null);
   const [creating, setCreating] = useState(false);
   const [waEditing, setWaEditing] = useState<AdminDriver | null>(null);
+  const [onboardTarget, setOnboardTarget] = useState<{ phone: string; name: string; driverId: string } | null>(null);
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-drivers'] }); qc.invalidateQueries({ queryKey: ['drivers'] }); };
   const delMut = useMutation({ mutationFn: api.admin.deleteDriver, onSuccess: refresh });
@@ -1064,12 +1087,29 @@ export function DriversTab() {
         <Modal title="Nuevo conductor" onClose={() => setCreating(false)}>
           <DriverForm
             onSubmit={async data => {
-              await api.admin.createDriver(data);
+              const created = await api.admin.createDriver(data);
               refresh();
               setCreating(false);
+              // Driver con phone+notify → flow guiado de WhatsApp
+              if (data.phone_e164 && data.notify_whatsapp) {
+                setOnboardTarget({
+                  phone: data.phone_e164,
+                  name: data.name,
+                  driverId: created.driver_id,
+                });
+              }
             }}
           />
         </Modal>
+      )}
+      {onboardTarget && (
+        <OnboardWhatsAppModal
+          phone={onboardTarget.phone}
+          name={onboardTarget.name}
+          driverId={onboardTarget.driverId}
+          roleHint="driver"
+          onClose={() => setOnboardTarget(null)}
+        />
       )}
       {editing && (
         <Modal title={`Editar conductor ${editing.driver_id}`} onClose={() => setEditing(null)}>

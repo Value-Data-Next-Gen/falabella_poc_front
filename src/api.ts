@@ -458,6 +458,13 @@ export const api = {
       body_preview: string;
     }>('/admin/whatsapp/invite', req),
 
+    whatsappSandboxInfo: () => get<{
+      sandbox_number: string;
+      join_code: string | null;
+      instructions: string;
+      public_webhook_url: string | null;
+    }>('/whatsapp/onboard/sandbox-info'),
+
     // Capacitaciones — catálogo
     listCapacitacionModulos: (only_active = false) =>
       get<CapacitacionModulo[]>(`/admin/capacitacion-modulos${only_active ? '?only_active=true' : ''}`),
