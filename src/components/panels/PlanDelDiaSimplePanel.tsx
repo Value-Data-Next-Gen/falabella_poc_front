@@ -6,6 +6,7 @@ import {
   Star, User, Settings2,
 } from 'lucide-react';
 import { api } from '../../api';
+import { RutaDetalleDrawer } from './RutaDetalleDrawer';
 
 interface Props {
   fecha: string;
@@ -14,6 +15,7 @@ interface Props {
 type Sev = 'green' | 'red' | 'yellow' | 'gray';
 
 export function PlanDelDiaSimplePanel({ fecha }: Props) {
+  const [drawerRutaId, setDrawerRutaId] = useState<string | null>(null);
   const prepQ = useQuery({
     queryKey: ['day-prep', fecha],
     queryFn: () => api.planificacion.dayPrep(fecha),
@@ -52,7 +54,7 @@ export function PlanDelDiaSimplePanel({ fecha }: Props) {
         sev={vipsCount === 0 ? 'gray' : 'yellow'}
         emptyText="No hay clientes VIP marcados para este día."
       >
-        {data.vips.map(v => <VipRow key={v.tracking_id} v={v} />)}
+        {data.vips.map(v => <VipRow key={v.tracking_id} v={v} onOpenRuta={setDrawerRutaId} />)}
         <VipSearch fecha={fecha} />
       </Section>
       <Section
@@ -71,8 +73,11 @@ export function PlanDelDiaSimplePanel({ fecha }: Props) {
         sev={drvCount === 0 ? 'green' : 'red'}
         emptyText="Todos los drivers y vehículos asignados están operables y con datos de contacto."
       >
-        {data.driver_issues.map((d, i) => <DriverRow key={`${d.driver_name}-${d.issue_type}-${i}`} d={d} />)}
+        {data.driver_issues.map((d, i) => <DriverRow key={`${d.driver_name}-${d.issue_type}-${i}`} d={d} onOpenRuta={setDrawerRutaId} />)}
       </Section>
+      {drawerRutaId && (
+        <RutaDetalleDrawer rutaId={drawerRutaId} onClose={() => setDrawerRutaId(null)} />
+      )}
     </div>
   );
 }
@@ -154,9 +159,12 @@ function Section({ title, icon: Icon, count, sev, emptyText, children }: {
   );
 }
 
-function VipRow({ v }: { v: { tracking_id: string; cliente: string; comuna: string | null;
-                             folio: string | null; deadline: string | null; ruta_id: string | null;
-                             driver_name: string | null; priority_set: boolean } }) {
+function VipRow({ v, onOpenRuta }: {
+  v: { tracking_id: string; cliente: string; comuna: string | null;
+       folio: string | null; deadline: string | null; ruta_id: string | null;
+       driver_name: string | null; priority_set: boolean };
+  onOpenRuta: (rutaId: string) => void;
+}) {
   return (
     <div className="border-t border-line/30 px-4 py-2 text-[12px] flex items-center gap-3 flex-wrap">
       <Crown size={12} className="text-cmr shrink-0" />
@@ -172,9 +180,13 @@ function VipRow({ v }: { v: { tracking_id: string; cliente: string; comuna: stri
         </span>
       )}
       {v.ruta_id && (
-        <span className="font-mono text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand border border-brand/30 rounded inline-flex items-center gap-1">
+        <button
+          onClick={() => onOpenRuta(v.ruta_id!)}
+          className="font-mono text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand border border-brand/30 rounded inline-flex items-center gap-1 hover:bg-brand/25 transition-colors"
+          title="Ver detalle de la ruta"
+        >
           <RouteIcon size={9} /> {v.ruta_id}
-        </span>
+        </button>
       )}
       {v.driver_name && (
         <span className="text-[11px] text-text-secondary inline-flex items-center gap-0.5">
@@ -285,9 +297,12 @@ function ConfigRow({ c }: { c: { tracking_id: string; cliente: string; issue_typ
   );
 }
 
-function DriverRow({ d }: { d: { driver_id: string | null; driver_name: string | null;
-                                 ruta_id: string | null; issue_type: string;
-                                 issue_label: string; affects_visits: number } }) {
+function DriverRow({ d, onOpenRuta }: {
+  d: { driver_id: string | null; driver_name: string | null;
+       ruta_id: string | null; issue_type: string;
+       issue_label: string; affects_visits: number };
+  onOpenRuta: (rutaId: string) => void;
+}) {
   const icon = d.issue_type === 'sin_telefono' ? Phone
              : d.issue_type === 'vehiculo_no_operable' ? RouteIcon
              : ShieldAlert;
@@ -300,9 +315,13 @@ function DriverRow({ d }: { d: { driver_id: string | null; driver_name: string |
       </span>
       <span className="text-[11px] text-text-muted">{d.issue_label}</span>
       {d.ruta_id && (
-        <span className="font-mono text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand border border-brand/30 rounded">
+        <button
+          onClick={() => onOpenRuta(d.ruta_id!)}
+          className="font-mono text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand border border-brand/30 rounded hover:bg-brand/25 transition-colors"
+          title="Ver detalle de la ruta"
+        >
           {d.ruta_id}
-        </span>
+        </button>
       )}
       {d.affects_visits > 0 && (
         <span className="ml-auto text-[10px] text-accent-red font-semibold">

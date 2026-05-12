@@ -827,6 +827,38 @@ export const api = {
     }) => put<{ ok: boolean; fecha: string; cliente: string; vip_id: number | null }>(
       `/planificacion/client-day-notes`, req,
     ),
+    rutaDetalle: (rutaId: string) => get<{
+      ruta_id: string;
+      planned_date: string;
+      empresa_id: number | null;
+      empresa_nombre: string | null;
+      region: string | null;
+      driver_name: string | null;
+      patente: string | null;
+      total_stops: number;
+      completed: number;
+      pending: number;
+      failed: number;
+      vip_count: number;
+      folios_unicos: number;
+      subfolios_total: number;
+      valid_routing: boolean;
+      integrity_warnings: string[];
+      stops: Array<{
+        tracking_id: string;
+        order: number | null;
+        cliente: string;
+        direccion: string | null;
+        comuna: string | null;
+        folio: string | null;
+        subfolios: string[];
+        status: string;
+        is_vip: boolean;
+        vip_tier: string | null;
+        eta: string | null;
+        sla_hour: number | null;
+      }>;
+    }>(`/planificacion/ruta?ruta_id=${encodeURIComponent(rutaId)}`),
     getDayState: (fecha: string) => get<{
       fecha: string;
       state: 'BORRADOR' | 'VALIDADO' | 'EN_CURSO' | 'CERRADO';
