@@ -61,8 +61,11 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
       empresa_id: empresaId === 'all' ? undefined : empresaId,
       region,
       only_vip: onlyVip,
-      // Operación usa el snapshot del simulador (consistente con Mapa+Alertas).
-      source: 'synthetic',
+      // R7: leemos del XLSX real importado en fpoc.simpli_visits.
+      // 'synthetic' devolvía siempre el snapshot del simulador legacy
+      // ignorando planned_date — por eso al iniciar el día con XLSX
+      // cargado el módulo seguía vacío.
+      source: 'real',
       planned_date: activeDate ?? undefined,
     }),
     refetchInterval: 10_000,
@@ -240,7 +243,7 @@ function MapaTab({ region, empresaId, onlyVip }: {
       empresa_id: empresaId === 'all' ? undefined : empresaId,
       region,
       only_vip: onlyVip,
-      source: 'synthetic',
+      source: 'real',
       planned_date: activeDate,
     }),
     refetchInterval: 10_000,
