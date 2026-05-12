@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ChevronDown, ChevronRight, CheckCircle2, Crown,
-  Loader2, MapPin, Phone, Route as RouteIcon, ShieldAlert, User, Settings2,
+  Loader2, MapPin, Phone, Route as RouteIcon, Search, ShieldAlert,
+  Star, User, Settings2,
 } from 'lucide-react';
 import { api } from '../../api';
 
@@ -52,6 +53,7 @@ export function PlanDelDiaSimplePanel({ fecha }: Props) {
         emptyText="No hay clientes VIP marcados para este día."
       >
         {data.vips.map(v => <VipRow key={v.tracking_id} v={v} />)}
+        <VipSearch fecha={fecha} />
       </Section>
       <Section
         title="Configuración pendiente"
@@ -183,6 +185,90 @@ function VipRow({ v }: { v: { tracking_id: string; cliente: string; comuna: stri
         <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-accent-yellow/15 text-accent-yellow border border-accent-yellow/40 rounded">
           Sin prioridad seteada
         </span>
+      )}
+    </div>
+  );
+}
+
+function VipSearch({ fecha }: { fecha: string }) {
+  const qc = useQueryClient();
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const searchQ = useQuery({
+    queryKey: ['day-clients', fecha, q.trim()],
+    queryFn: () => api.planificacion.dayClients(fecha, q.trim() || undefined, 20),
+    enabled: open && q.trim().length >= 2,
+    staleTime: 10_000,
+  });
+  const markMut = useMutation({
+    mutationFn: (cliente: string) => api.vip.create({
+      match_type: 'title', match_value: cliente, tier: 'VIP',
+      notes: `Marcado desde Plan del día ${fecha}`,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['day-prep', fecha] });
+      qc.invalidateQueries({ queryKey: ['day-clients', fecha] });
+      qc.invalidateQueries({ queryKey: ['planif-day-status', fecha] });
+    },
+  });
+
+  return (
+    <div className="border-t border-line/30 px-4 py-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="text-[11px] text-text-secondary hover:text-text-primary flex items-center gap-1"
+      >
+        <Search size={11} /> Marcar otro cliente como VIP
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-2">
+          <input
+            autoFocus
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Buscar cliente (mínimo 2 letras)…"
+            className="input text-[12px]"
+          />
+          {searchQ.isFetching && (
+            <div className="text-[10px] text-text-muted flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin" /> Buscando…
+            </div>
+          )}
+          {searchQ.data && searchQ.data.length === 0 && q.trim().length >= 2 && (
+            <div className="text-[10px] text-text-muted italic">Sin resultados.</div>
+          )}
+          <div className="flex flex-col gap-1 max-h-[240px] overflow-y-auto">
+            {(searchQ.data ?? []).map(c => (
+              <div key={c.tracking_id}
+                   className="flex items-center gap-2 px-2 py-1.5 text-[11px] bg-bg-700/30 rounded">
+                <span className="font-medium truncate max-w-[200px]">{c.cliente}</span>
+                {c.comuna && <span className="text-text-muted">· {c.comuna}</span>}
+                {c.ruta_id && (
+                  <span className="font-mono text-[10px] px-1 bg-brand/10 text-brand border border-brand/30 rounded">
+                    {c.ruta_id}
+                  </span>
+                )}
+                <button
+                  disabled={c.is_vip || markMut.isPending}
+                  onClick={() => markMut.mutate(c.cliente)}
+                  className={`ml-auto px-2 py-0.5 rounded text-[10px] flex items-center gap-1 ${
+                    c.is_vip
+                      ? 'bg-cmr/20 text-cmr cursor-default'
+                      : 'btn-primary hover:bg-cmr/30'
+                  }`}
+                >
+                  <Star size={10} /> {c.is_vip ? 'Ya es VIP' : 'Marcar VIP'}
+                </button>
+              </div>
+            ))}
+          </div>
+          {markMut.error && (
+            <div className="text-[10px] text-accent-red">
+              {(markMut.error as Error).message}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -8,7 +8,7 @@ import { DayConfigPanel } from '../DayConfigPanel';
 import { DotacionPanel } from '../panels/DotacionPanel';
 import { WizardDelDia } from '../panels/WizardDelDia';
 
-const SUBS: Record<string, true> = { carga: true, calendario: true, plan: true, dotacion: true, dia: true };
+const SUBS: Record<string, true> = { calendario: true, carga: true, dotacion: true, plan: true, dia: true };
 
 const todayISO = () => {
   const d = new Date();
@@ -16,15 +16,15 @@ const todayISO = () => {
 };
 
 export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
-  const active = sub && SUBS[sub] ? sub : 'carga';
+  const active = sub && SUBS[sub] ? sub : 'calendario';
   // Fecha operativa global del módulo: todos los paneles la usan.
   const [fecha, setFecha] = useState(todayISO());
   const tabs: SubTabDef[] = [
-    { key: 'carga',      label: 'Carga de entregas',          icon: UploadCloud   },
-    { key: 'calendario', label: 'Calendario operativo',       icon: CalendarDays  },
-    { key: 'plan',       label: 'Plan del día (preparación)', icon: ClipboardList },
-    { key: 'dotacion',   label: 'Dotación del día',           icon: Users         },
-    { key: 'dia',        label: 'Configuración del día',      icon: Settings2     },
+    { key: 'calendario', label: '1. Calendario',          icon: CalendarDays  },
+    { key: 'carga',      label: '2. Carga de entregas',   icon: UploadCloud   },
+    { key: 'dotacion',   label: '3. Dotación del día',    icon: Users         },
+    { key: 'plan',       label: '4. Plan del día',        icon: ClipboardList },
+    { key: 'dia',        label: 'Configuración avanzada', icon: Settings2     },
   ];
   return (
     <div className="h-full flex flex-col">

@@ -767,6 +767,19 @@ export const api = {
       vip_count: number;
       prep_ok: boolean;
     }>(`/planificacion/day-status?fecha=${fecha}`),
+    dayClients: (fecha: string, q?: string, limit = 50) => {
+      const params = new URLSearchParams({ fecha });
+      if (q && q.trim()) params.set('q', q.trim());
+      params.set('limit', String(limit));
+      return get<Array<{
+        tracking_id: string;
+        cliente: string;
+        comuna: string | null;
+        ruta_id: string | null;
+        driver_name: string | null;
+        is_vip: boolean;
+      }>>(`/planificacion/day-clients?${params.toString()}`);
+    },
     dayPrep: (fecha: string) => get<{
       fecha: string;
       vips: Array<{

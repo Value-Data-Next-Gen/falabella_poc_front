@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Flame, Map as MapIcon,
@@ -132,7 +132,13 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
       <div className="flex-1 overflow-auto">
         {active === 'plan' && <PlanDiarioPanel filters={filterProps} mode="live" />}
         {active === 'watchlist' && <WatchlistPanel filters={filterProps} />}
-        {active === 'mapa' && <MapaTab />}
+        {active === 'mapa' && (
+          <MapaTab
+            region={region}
+            empresaId={empresaId}
+            onlyVip={onlyVip}
+          />
+        )}
         {active === 'alertas' && <div className="h-full"><EventStream /></div>}
       </div>
     </div>
@@ -151,11 +157,129 @@ function KpiInline({ label, value, icon: Icon, color }: {
   );
 }
 
-function MapaTab() {
+function MapaTab({ region, empresaId, onlyVip }: {
+  region: RegionFilter;
+  empresaId: number | 'all';
+  onlyVip: boolean;
+}) {
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
-  const allVehicles = stateQ.data?.vehicles ?? [];
+  // Plan diario nos da: rutas con driver_name, vehículos (patente/vehicle_id),
+  // y vip_visitas — lo usamos para filtrar vehículos por driver / ruta / VIP.
+  const planQ = useQuery({
+    queryKey: ['plan-diario-map', empresaId, region, onlyVip],
+    queryFn: () => api.planDiario({
+      empresa_id: empresaId === 'all' ? undefined : empresaId,
+      region,
+      only_vip: onlyVip,
+    }),
+    refetchInterval: 10_000,
+  });
+
+  const [driverFilter, setDriverFilter] = useState<string>('');
+  const [rutaFilter, setRutaFilter] = useState<string>('');
+  const [trackingQuery, setTrackingQuery] = useState<string>('');
+
+  // Construimos catálogos a partir de plan-diario
+  const { driverOptions, rutaOptions, vehicleSet } = useMemo(() => {
+    const drivers = new Set<string>();
+    const rutas = new Set<string>();
+    const vehicles = new Set<number>();
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (r.driver_name) drivers.add(r.driver_name);
+        if (r.ruta_id) rutas.add(r.ruta_id);
+        // Inferir vehicle_id desde la primera visita si está
+        const vid = r.visitas?.[0] && (r.visitas[0] as any).vehicle_id;
+        if (typeof vid === 'number') vehicles.add(vid);
+      });
+    });
+    return {
+      driverOptions: Array.from(drivers).sort(),
+      rutaOptions: Array.from(rutas).sort(),
+      vehicleSet: vehicles,
+    };
+  }, [planQ.data]);
+
+  // Vehículos a mostrar: si hay filtros, calcular subset; sino todos los del state.
+  const selectedVehicles = useMemo<number[]>(() => {
+    const all = stateQ.data?.vehicles ?? [];
+    const anyFilter = driverFilter || rutaFilter || trackingQuery || onlyVip || empresaId !== 'all';
+    if (!anyFilter) return all;
+    if (!planQ.data) return all;
+
+    const allowed = new Set<number>();
+    planQ.data.empresas.forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (driverFilter && r.driver_name !== driverFilter) return;
+        if (rutaFilter && r.ruta_id !== rutaFilter) return;
+        if (trackingQuery) {
+          const q = trackingQuery.trim().toLowerCase();
+          const match = r.visitas?.some(v =>
+            v.tracking_id.toLowerCase().includes(q) ||
+            (v.cliente_nombre ?? '').toLowerCase().includes(q)
+          );
+          if (!match) return;
+        }
+        const vid = r.visitas?.[0] && (r.visitas[0] as any).vehicle_id;
+        if (typeof vid === 'number') allowed.add(vid);
+      });
+    });
+    return all.filter(v => allowed.has(v));
+  }, [stateQ.data, planQ.data, driverFilter, rutaFilter, trackingQuery, onlyVip, empresaId]);
+
+  const totalVeh = stateQ.data?.vehicles.length ?? 0;
+  const hasFilter = !!(driverFilter || rutaFilter || trackingQuery);
+
   return (
-    <div className="p-3 h-full flex flex-col">
+    <div className="p-3 h-full flex flex-col gap-2">
+      {/* Filtros específicos del mapa */}
+      <div className="panel p-2 flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="text-text-muted uppercase tracking-wider text-[10px] mr-1">Filtrar pines</span>
+
+        <input
+          list="map-driver-list"
+          value={driverFilter}
+          onChange={e => setDriverFilter(e.target.value)}
+          placeholder="Driver…"
+          className="input !py-1 text-[11px] w-[140px]"
+        />
+        <datalist id="map-driver-list">
+          {driverOptions.map(d => <option key={d} value={d} />)}
+        </datalist>
+
+        <input
+          list="map-ruta-list"
+          value={rutaFilter}
+          onChange={e => setRutaFilter(e.target.value)}
+          placeholder="Ruta_id…"
+          className="input !py-1 text-[11px] w-[140px] font-mono"
+        />
+        <datalist id="map-ruta-list">
+          {rutaOptions.map(r => <option key={r} value={r} />)}
+        </datalist>
+
+        <input
+          value={trackingQuery}
+          onChange={e => setTrackingQuery(e.target.value)}
+          placeholder="Tracking o cliente…"
+          className="input !py-1 text-[11px] w-[180px]"
+        />
+
+        {hasFilter && (
+          <button
+            onClick={() => { setDriverFilter(''); setRutaFilter(''); setTrackingQuery(''); }}
+            className="text-text-muted hover:text-accent-red text-[10px]"
+            title="Limpiar filtros del mapa"
+          >
+            limpiar
+          </button>
+        )}
+
+        <span className="ml-auto text-text-muted">
+          Mostrando <span className="text-text-secondary tabular-nums">{selectedVehicles.length}</span> / {totalVeh} vehículos
+        </span>
+      </div>
+
       <div className="panel flex-1 flex flex-col">
         <div className="panel-title">
           <span>Mapa operacional</span>
@@ -164,7 +288,7 @@ function MapaTab() {
           </span>
         </div>
         <div className="flex-1 min-h-[500px]">
-          <OperationsMap selectedVehicles={allVehicles} />
+          <OperationsMap selectedVehicles={selectedVehicles} />
         </div>
       </div>
     </div>
