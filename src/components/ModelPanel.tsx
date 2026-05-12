@@ -13,6 +13,12 @@ import {
   YAxis,
 } from 'recharts';
 import { api } from '../api';
+import { InfoTooltip } from './ui/InfoTooltip';
+
+const TIP_AUC = 'Área bajo la curva ROC. 1.0 = perfecto, 0.5 = azar.';
+const TIP_BRIER = 'Error cuadrático medio de la probabilidad predicha. Menor es mejor.';
+const TIP_RECALL = 'Proporción de positivos reales detectados: TP / (TP + FN).';
+const TIP_PRECISION = 'Proporción de positivos predichos que fueron correctos: TP / (TP + FP).';
 
 export function ModelPanel() {
   const metricsQ = useQuery({ queryKey: ['model-metrics'], queryFn: api.modelMetrics });
@@ -35,10 +41,10 @@ export function ModelPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-4 gap-3">
-        <Metric label="AUC" value={m.auc.toFixed(3)} sub="Validación (10 días)" color="text-accent-blue" />
-        <Metric label="Brier score" value={m.brier.toFixed(4)} sub="Menor = mejor" />
-        <Metric label="Recall (sensibilidad)" value={`${(recall * 100).toFixed(1)}%`} sub={`@ threshold 0.5`} color="text-accent-violet" />
-        <Metric label="Precision" value={`${(precision * 100).toFixed(1)}%`} sub={`${tp} TP / ${tp + fp} alerts`} color="text-accent-green" />
+        <Metric label="AUC" tip={TIP_AUC} value={m.auc.toFixed(3)} sub="Validación (10 días)" color="text-accent-blue" />
+        <Metric label="Brier score" tip={TIP_BRIER} value={m.brier.toFixed(4)} sub="Menor = mejor" />
+        <Metric label="Recall (sensibilidad)" tip={TIP_RECALL} value={`${(recall * 100).toFixed(1)}%`} sub={`@ threshold 0.5`} color="text-accent-violet" />
+        <Metric label="Precision" tip={TIP_PRECISION} value={`${(precision * 100).toFixed(1)}%`} sub={`${tp} TP / ${tp + fp} alerts`} color="text-accent-green" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -111,7 +117,11 @@ export function ModelPanel() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={importanceQ.data.slice().reverse()} layout="vertical">
                 <CartesianGrid stroke="rgb(var(--line))" strokeDasharray="3 3" />
-                <XAxis type="number" stroke="rgb(var(--text-secondary))" />
+                <XAxis
+                  type="number"
+                  stroke="rgb(var(--text-secondary))"
+                  label={{ value: 'Importancia |SHAP|', position: 'insideBottom', offset: -2, fill: 'rgb(var(--text-muted))', fontSize: 11 }}
+                />
                 <YAxis
                   type="category"
                   dataKey="display"
@@ -139,11 +149,14 @@ export function ModelPanel() {
 }
 
 function Metric({
-  label, value, sub, color = 'text-text-primary',
-}: { label: string; value: string; sub?: string; color?: string }) {
+  label, value, sub, color = 'text-text-primary', tip,
+}: { label: string; value: string; sub?: string; color?: string; tip?: string }) {
   return (
     <div className="kpi-card">
-      <div className="kpi-label">{label}</div>
+      <div className="kpi-label flex items-center gap-1">
+        <span>{label}</span>
+        {tip && <InfoTooltip text={tip} />}
+      </div>
       <div className={`kpi-value ${color} tabular-nums`}>{value}</div>
       {sub && <div className="kpi-sub">{sub}</div>}
     </div>

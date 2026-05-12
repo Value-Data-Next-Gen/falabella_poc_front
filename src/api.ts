@@ -994,6 +994,8 @@ export const api = {
         ruta_id: string | null;
         vehicle_id: number | null;
         driver_name: string | null;
+        empresa_id: number | null;
+        empresa_nombre: string | null;
         tracking_id: string;
         order: number | null;
         cliente: string;
@@ -1003,9 +1005,11 @@ export const api = {
         folio: string | null;
         subfolios: string[];
         status: string;
+        motivo: string | null;
         is_vip: boolean;
         vip_tier: string | null;
         eta: string | null;
+        hora_real: string | null;
       }>>(`/operacion/folios?${p.toString()}`);
     },
   },

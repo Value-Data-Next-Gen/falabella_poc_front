@@ -117,6 +117,7 @@ export function AppShell() {
     correcciones: 'Correcciones de motivo',
     // Control
     kpis: 'KPIs',
+    visitas: 'Tabla de visitas',
     'scorecard-drivers': 'Scorecard de drivers',
     'log-notificaciones': 'Log de notificaciones',
     log: 'Log de notificaciones',

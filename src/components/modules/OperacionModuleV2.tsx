@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api';
 import { RegionFilter } from '../../types';
+import { REGIONES_CL } from '../../lib/regiones';
 import { useAuth } from '../../hooks/useAuth';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { PlanDiarioPanel } from '../PlanDiarioPanel';
@@ -102,13 +103,9 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             <option value="RM">Región Metropolitana</option>
             <option value="regiones">Todas excepto RM</option>
             <option disabled>──────────</option>
-            <option value="Valparaíso">Valparaíso</option>
-            <option value="Biobío">Biobío</option>
-            <option value="Coquimbo">Coquimbo</option>
-            <option value="Maule">Maule</option>
-            <option value="Araucanía">Araucanía</option>
-            <option value="O'Higgins">O'Higgins</option>
-            <option value="Antofagasta">Antofagasta</option>
+            {REGIONES_CL.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
           </select>
 
           {isFalabella && (
