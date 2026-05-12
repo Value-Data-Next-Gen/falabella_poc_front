@@ -6,10 +6,13 @@ import {
 import { api } from '../../api';
 import { EventType, StreamEvent } from '../../types';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
-import { RouteOpsPanel } from '../RouteOpsPanel';
+// RouteOpsPanel se removió de Auditoría IA en R4 (era operativo).
 import { MotivoCorrectionsPanel } from '../panels/MotivoCorrectionsPanel';
 
+// 'asistente' (Copiloto) sigue en SUBS para redirect desde links viejos.
 const SUBS: Record<string, true> = { comentarios: true, asistente: true, correcciones: true };
+// Redirect: si entra a #/auditoria-ia/asistente, lo mandamos a 'comentarios'
+const SUB_REDIRECT: Record<string, string> = { asistente: 'comentarios' };
 
 const ALERT_TYPES: EventType[] = [
   'comment_alert',
@@ -25,10 +28,13 @@ const SEV_PILL: Record<string, string> = {
 };
 
 export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
-  const active = sub && SUBS[sub] ? sub : 'comentarios';
+  const activeRaw = sub && SUBS[sub] ? sub : 'comentarios';
+  const active = SUB_REDIRECT[activeRaw] ?? activeRaw;
+  // Ronda 4: 'Copiloto' (RouteOpsPanel) era operativo, no de auditoría —
+  // ya está accesible desde Operación → drawer 'Plan'. Auditoría IA queda
+  // solo con las 2 vistas de revisión IA.
   const tabs: SubTabDef[] = [
     { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
-    { key: 'asistente',     label: 'Copiloto',               icon: Sparkles },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
 
@@ -37,7 +43,6 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
         {active === 'comentarios' && <div className="p-4"><RecentCommentsTab /></div>}
-        {active === 'asistente' && <RouteOpsPanel />}
         {active === 'correcciones' && <div className="p-4"><MotivoCorrectionsPanel /></div>}
       </div>
     </div>
