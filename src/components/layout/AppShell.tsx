@@ -107,7 +107,7 @@ export function AppShell() {
     mapa: 'Mapa',
     alertas: 'Alertas en vivo',
     // Seguimiento IA
-    comentarios: 'Comentarios recientes',
+    comentarios: 'Alertas IA',
     asistente: 'Asistente IA',
     correcciones: 'Correcciones de motivo',
     // Control

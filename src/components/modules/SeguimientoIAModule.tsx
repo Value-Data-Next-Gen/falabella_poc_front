@@ -27,8 +27,8 @@ const SEV_PILL: Record<string, string> = {
 export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
   const active = sub && SUBS[sub] ? sub : 'comentarios';
   const tabs: SubTabDef[] = [
-    { key: 'comentarios',   label: 'Comentarios recientes', icon: MessageSquare },
-    { key: 'asistente',     label: 'Asistente IA',          icon: Sparkles },
+    { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
+    { key: 'asistente',     label: 'Asistente IA',           icon: Sparkles },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
 
@@ -57,9 +57,11 @@ function RecentCommentsTab() {
   return (
     <div className="space-y-3">
       <div>
-        <h1 className="text-[18px] font-semibold tracking-tight">Comentarios recientes</h1>
+        <h1 className="text-[18px] font-semibold tracking-tight">Alertas IA</h1>
         <p className="text-[12px] text-text-muted mt-0.5">
-          Eventos del stream filtrados por tipos relevantes para auditoría IA.
+          Eventos del stream que la IA marca como interesantes para revisión:
+          comentarios alertables de drivers, deadlines VIP en riesgo y motivos
+          de no entrega que el modelo sugiere corregir.
         </p>
       </div>
       <div className="panel">
@@ -70,9 +72,26 @@ function RecentCommentsTab() {
           </span>
         </div>
         {eventsQ.isLoading ? (
-          <div className="p-4 text-text-muted text-[12px]">Cargando…</div>
+          <div className="p-6 flex flex-col gap-2 animate-pulse">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-bg-700/50"></div>
+                <div className="flex-1 h-3 bg-bg-700/50 rounded"></div>
+              </div>
+            ))}
+          </div>
         ) : grouped.length === 0 ? (
-          <div className="p-12 text-center text-text-muted text-[12px]">Sin alertas recientes.</div>
+          <div className="p-12 text-center text-text-muted text-[12px] flex flex-col gap-2 items-center">
+            <span className="text-[13px] font-medium text-text-secondary">
+              Sin alertas recientes.
+            </span>
+            <span className="max-w-md text-[11px]">
+              Acá vas a ver eventos generados automáticamente cuando un driver
+              reporte un comentario alertable (ej. <span className="font-mono">SINIESTRO EN CALLE</span>),
+              cuando un VIP esté por exceder su deadline, o cuando el LLM proponga corregir
+              el motivo de no entrega que escribió un driver.
+            </span>
+          </div>
         ) : (
           <div className="divide-y divide-line/40">
             {grouped.map(e => <AlertRow key={e.event_id} e={e} />)}
