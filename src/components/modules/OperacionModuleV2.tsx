@@ -135,6 +135,8 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             <span>Solo VIP</span>
           </label>
 
+          <DayStatusInline activeDate={activeDate} />
+
           <span className="ml-auto text-text-muted">
             {planQ.data?.planned_date && <>Día <span className="text-text-secondary tabular-nums">{planQ.data.planned_date}</span></>}
           </span>
@@ -443,5 +445,49 @@ function MapaTab({ region, empresaId, onlyVip }: {
         </div>
       )}
     </div>
+  );
+}
+
+// =============================================================================
+// R7: chip de diagnóstico — fecha activa + estado del día + reloj sim.
+// Si las 3 fuentes (DiaActivoPicker / day_state / state.sim_clock) no están
+// alineadas, este chip lo deja a la vista.
+// =============================================================================
+function DayStatusInline({ activeDate }: { activeDate: string }) {
+  const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
+  const dayStateQ = useQuery({
+    queryKey: ['day-state-inline', activeDate],
+    queryFn: () => api.planificacion.getDayState(activeDate),
+    enabled: !!activeDate,
+    refetchInterval: 10_000,
+  });
+  const dayState = dayStateQ.data?.state ?? '—';
+  const simClock = stateQ.data?.sim_clock ?? null;
+  const simToday = stateQ.data?.today ?? null;
+
+  const stateColor =
+    dayState === 'EN_CURSO' ? 'text-brand bg-brand/15 border-brand/40' :
+    dayState === 'VALIDADO' ? 'text-accent-blue bg-accent-blue/15 border-accent-blue/40' :
+    dayState === 'CERRADO'  ? 'text-text-muted bg-bg-700 border-line' :
+    'text-accent-yellow bg-accent-yellow/15 border-accent-yellow/40';
+
+  return (
+    <span className="flex items-center gap-2 text-[11px]">
+      <span className={`px-1.5 py-0.5 rounded border ${stateColor} font-mono`}>
+        {dayState}
+      </span>
+      <span className="text-text-muted">🕐</span>
+      <span className="font-mono tabular-nums text-text-secondary">
+        {simClock ? simClock.slice(11, 16) : '--:--'}
+      </span>
+      {simToday && simToday !== activeDate && (
+        <span
+          className="text-[10px] text-accent-red"
+          title={`Atención: fecha activa (${activeDate}) ≠ fecha del simulador legacy (${simToday}). El sim_clock corresponde a ${simToday}.`}
+        >
+          ⚠ {simToday}
+        </span>
+      )}
+    </span>
   );
 }
