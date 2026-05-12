@@ -57,12 +57,15 @@ export function PlanDiarioPanel({
   const selectedEmpresa = filters?.empresaId ?? selectedEmpresaLocal;
   const hideLocalFilters = !!filters?.hideLocalFilters;
 
+  // mode='live' (Operación) → snapshot sintético del simulador, consistente
+  // con Mapa y Alertas en vivo. mode='planning' → fuente real (XLSX).
   const planQ = useQuery({
-    queryKey: ['plan-diario', selectedEmpresa, region, onlyVip],
+    queryKey: ['plan-diario', mode, selectedEmpresa, region, onlyVip],
     queryFn: () => api.planDiario({
       empresa_id: selectedEmpresa === 'all' ? undefined : selectedEmpresa,
       region,
       only_vip: onlyVip,
+      source: mode === 'live' ? 'synthetic' : 'real',
     }),
     refetchInterval: 5_000,
   });

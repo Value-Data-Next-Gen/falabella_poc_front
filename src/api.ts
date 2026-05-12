@@ -238,12 +238,16 @@ export const api = {
   planDiario: (params?: {
     empresa_id?: number; region?: string;
     only_vip?: boolean; legacy?: boolean;
+    planned_date?: string;
+    source?: 'real' | 'synthetic';
   }) => {
     const p: string[] = [];
     if (params?.empresa_id != null) p.push(`empresa_id=${params.empresa_id}`);
     if (params?.region && params.region !== 'all') p.push(`region=${params.region}`);
     if (params?.only_vip) p.push('only_vip=true');
     if (params?.legacy) p.push('legacy=true');
+    if (params?.planned_date) p.push(`planned_date=${params.planned_date}`);
+    if (params?.source) p.push(`source=${params.source}`);
     const q = p.length ? '?' + p.join('&') : '';
     return get<PlanDiarioResponse>(`/plan-diario${q}`);
   },

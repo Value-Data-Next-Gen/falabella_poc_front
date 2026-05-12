@@ -29,14 +29,29 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
     enabled: isFalabella,
   });
 
+  // Día activo del simulador. Las 4 tabs de Operación deben leer del mismo
+  // source (snapshot sintético del simulador), no del XLSX real. Antes este
+  // query usaba source='real' por default y devolvía 0 visitas cuando STATE.today
+  // no coincidía con un XLSX cargado.
+  const appStateQ = useQuery({
+    queryKey: ['state'],
+    queryFn: api.state,
+    refetchInterval: 5_000,
+  });
+  const activeDate = appStateQ.data?.today ?? null;
+
   const planQ = useQuery({
-    queryKey: ['plan-diario-mod-kpi-v2', empresaId, region, onlyVip],
+    queryKey: ['plan-diario-mod-kpi-v2', empresaId, region, onlyVip, activeDate],
     queryFn: () => api.planDiario({
       empresa_id: empresaId === 'all' ? undefined : empresaId,
       region,
       only_vip: onlyVip,
+      // Operación usa el snapshot del simulador (consistente con Mapa+Alertas).
+      source: 'synthetic',
+      planned_date: activeDate ?? undefined,
     }),
     refetchInterval: 10_000,
+    enabled: !!activeDate,
   });
 
   const totals = (() => {
@@ -171,6 +186,7 @@ function MapaTab({ region, empresaId, onlyVip }: {
       empresa_id: empresaId === 'all' ? undefined : empresaId,
       region,
       only_vip: onlyVip,
+      source: 'synthetic',  // mismo source que el header + Plan en ejecución
     }),
     refetchInterval: 10_000,
   });
