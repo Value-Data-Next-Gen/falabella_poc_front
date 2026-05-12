@@ -289,8 +289,20 @@ function MapaTab({ region, empresaId, onlyVip }: {
   const totalVeh = stateQ.data?.vehicles.length ?? 0;
   const hayFiltros = onlyVip || empresaId !== 'all' || driverFilter !== '' || rutaFilter !== '' || region !== 'all';
 
+  const planVacio = (planQ.data?.empresas?.length ?? 0) === 0;
+
   return (
     <div className="p-3 h-full flex flex-col gap-2">
+      {planVacio && (
+        <div className="rounded border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-2 text-[11px] text-accent-yellow flex items-start gap-2">
+          <span className="font-semibold shrink-0">⚠ Sin plan operativo</span>
+          <span className="flex-1">
+            No hay plan cargado para <span className="font-mono text-text-primary">{stateQ.data?.today ?? '—'}</span>.
+            Los pines que ves vienen del simulador legacy y los dropdowns Driver/Ruta están vacíos porque no hay rutas reales.
+            Para tener data real: <strong>Planificación → Día operativo → Carga del día</strong> (importá XLSX) y luego <strong>"Iniciar día"</strong>.
+          </span>
+        </div>
+      )}
       {/* R7-P4: barra única de filtros visibles siempre. Controlan TODO lo
           que muestra el mapa abajo. */}
       <div className="panel p-2 flex flex-wrap items-center gap-2 text-[11px]">
@@ -299,10 +311,13 @@ function MapaTab({ region, empresaId, onlyVip }: {
         <select
           value={driverFilter}
           onChange={e => setDriverFilter(e.target.value)}
-          className="input !py-1 text-[11px] min-w-[160px]"
-          title="Filtrar por driver"
+          className="input !py-1 text-[11px] min-w-[160px] disabled:opacity-50"
+          disabled={driverOptions.length === 0}
+          title={driverOptions.length === 0 ? 'Sin drivers en el plan del día' : 'Filtrar por driver'}
         >
-          <option value="">Todos los drivers</option>
+          <option value="">
+            {driverOptions.length === 0 ? '(sin drivers)' : `Todos los drivers (${driverOptions.length})`}
+          </option>
           {driverOptions.map(d => (
             <option key={d} value={d}>{d}</option>
           ))}
@@ -311,10 +326,13 @@ function MapaTab({ region, empresaId, onlyVip }: {
         <select
           value={rutaFilter}
           onChange={e => setRutaFilter(e.target.value)}
-          className="input !py-1 text-[11px] min-w-[260px]"
-          title="Filtrar por ruta"
+          className="input !py-1 text-[11px] min-w-[260px] disabled:opacity-50"
+          disabled={rutaOptions.length === 0}
+          title={rutaOptions.length === 0 ? 'Sin rutas en el plan del día' : 'Filtrar por ruta'}
         >
-          <option value="">Todas las rutas</option>
+          <option value="">
+            {rutaOptions.length === 0 ? '(sin rutas)' : `Todas las rutas (${rutaOptions.length})`}
+          </option>
           {rutaOptions
             .filter(r => empresaId === 'all' ? true :
               r.empresa_nombre === (empresasQ.data?.find(em => em.empresa_id === empresaId)?.nombre ?? ''))
