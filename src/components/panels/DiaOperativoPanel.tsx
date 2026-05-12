@@ -13,17 +13,15 @@ interface Props {
   onJumpToTab: (key: string) => void;
 }
 
-type DayState = 'BORRADOR' | 'LISTO' | 'EN_CURSO' | 'PAUSADO' | 'CERRADO';
+type DayState = 'BORRADOR' | 'VALIDADO' | 'EN_CURSO' | 'CERRADO';
 
 const STATE_META: Record<DayState, { label: string; cls: string; tip: string }> = {
   BORRADOR: { label: 'BORRADOR',  cls: 'bg-bg-700 text-text-secondary border-line',
-              tip: 'Día con visitas cargadas. Resolvé los issues bloqueantes y validá para pasar a LISTO.' },
-  LISTO:    { label: 'LISTO',     cls: 'bg-accent-blue/15 text-accent-blue border-accent-blue/40',
-              tip: 'Sin issues. Apretá "Iniciar día" para arrancar el reloj operativo.' },
+              tip: 'Día con visitas cargadas. Resolvé los issues bloqueantes y validá para pasar a VALIDADO.' },
+  VALIDADO: { label: 'VALIDADO',  cls: 'bg-accent-blue/15 text-accent-blue border-accent-blue/40',
+              tip: 'Listo para operar. Apretá "Iniciar día" para arrancar el reloj operativo.' },
   EN_CURSO: { label: 'EN CURSO',  cls: 'bg-accent-green/15 text-accent-green border-accent-green/40',
-              tip: 'Reloj corriendo. El generator inyecta visitas en vivo.' },
-  PAUSADO:  { label: 'PAUSADO',   cls: 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40',
-              tip: 'Pausa temporal. El reloj no avanza. Apretá "Reanudar" para continuar.' },
+              tip: 'Reloj corriendo. El generador inyecta visitas en vivo.' },
   CERRADO:  { label: 'CERRADO',   cls: 'bg-bg-700 text-text-muted border-line',
               tip: 'Jornada cerrada. Solo lectura.' },
 };
@@ -79,7 +77,7 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
 
   const onValidate = () => {
     if (hasWarnings) setConfirmWarnings(true);
-    else mut.mutate({ target: 'LISTO' });
+    else mut.mutate({ target: 'VALIDADO' });
   };
 
   return (
@@ -111,11 +109,7 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
                     {runHours !== null && ` · lleva ${runHours}`}
                   </span>
                 )}
-                {s.state === 'PAUSADO' && s.paused_at && (
-                  <span className="text-[10px] text-text-muted mt-1">
-                    pausado {formatDateTime(s.paused_at)}
-                  </span>
-                )}
+                {/* PAUSADO eliminado en R3 — la pausa la maneja live_gen toggle */}
                 {s.state === 'CERRADO' && s.closed_at && (
                   <span className="text-[10px] text-text-muted mt-1">
                     cerrado {formatDateTime(s.closed_at)}
@@ -137,8 +131,6 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
               loading={mut.isPending}
               onValidate={onValidate}
               onStart={() => setConfirmAction('EN_CURSO')}
-              onPause={() => mut.mutate({ target: 'PAUSADO' })}
-              onResume={() => mut.mutate({ target: 'EN_CURSO' })}
               onGoToOps={() => onJumpToTab('operacion-jump')}
               onViewSummary={() => onJumpToTab('summary-jump')}
             />
@@ -208,7 +200,7 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button onClick={() => setConfirmWarnings(false)} className="btn text-[11px]">Revisar primero</button>
                 <button onClick={() => {
-                  mut.mutate({ target: 'LISTO', allowNonBlocking: true });
+                  mut.mutate({ target: 'VALIDADO', allowNonBlocking: true });
                   setConfirmWarnings(false);
                 }} className="btn-primary text-[11px]">
                   Validar igual
@@ -226,14 +218,15 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
 // Botón contextual
 // ----------------------------------------------------------------------------
 function ContextualButton({
-  state, canValidate, canStart, canPause, canResume, blockedReason, loading,
-  onValidate, onStart, onPause, onResume, onGoToOps, onViewSummary,
+  state, canValidate, canStart, blockedReason, loading,
+  onValidate, onStart, onGoToOps, onViewSummary,
 }: {
   state: DayState | null;
-  canValidate: boolean; canStart: boolean; canPause: boolean; canResume: boolean;
+  canValidate: boolean; canStart: boolean;
+  canPause?: boolean; canResume?: boolean;  // legacy, ignorados
   blockedReason: string | null;
   loading: boolean;
-  onValidate: () => void; onStart: () => void; onPause: () => void; onResume: () => void;
+  onValidate: () => void; onStart: () => void;
   onGoToOps: () => void; onViewSummary: () => void;
 }) {
   if (!state) return null;
@@ -249,7 +242,7 @@ function ContextualButton({
       </button>
     );
   }
-  if (state === 'LISTO') {
+  if (state === 'VALIDADO') {
     return (
       <button onClick={onStart} disabled={!canStart || loading}
               title={!canStart ? blockedReason ?? '' : 'Iniciar el reloj operativo'}
@@ -260,23 +253,9 @@ function ContextualButton({
   }
   if (state === 'EN_CURSO') {
     return (
-      <div className="flex items-center gap-2">
-        <button onClick={onPause} disabled={!canPause || loading}
-                className="btn text-[12px] flex items-center gap-1">
-          {loadingIcon ?? <Pause size={12} />} Pausar
-        </button>
-        <button onClick={onGoToOps}
-                className="btn-primary text-[12px] flex items-center gap-1">
-          Ir a Operación <ChevronRight size={12} />
-        </button>
-      </div>
-    );
-  }
-  if (state === 'PAUSADO') {
-    return (
-      <button onClick={onResume} disabled={!canResume || loading}
-              className="btn-primary text-[12px] flex items-center gap-1 bg-accent-green hover:bg-accent-green/80">
-        {loadingIcon ?? <Play size={12} />} Reanudar
+      <button onClick={onGoToOps}
+              className="btn-primary text-[12px] flex items-center gap-1">
+        Ir a Operación <ChevronRight size={12} />
       </button>
     );
   }

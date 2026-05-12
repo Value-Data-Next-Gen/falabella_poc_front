@@ -28,7 +28,7 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
   const active = sub && SUBS[sub] ? sub : 'comentarios';
   const tabs: SubTabDef[] = [
     { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
-    { key: 'asistente',     label: 'Asistente IA',           icon: Sparkles },
+    { key: 'asistente',     label: 'Copiloto',               icon: Sparkles },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
 

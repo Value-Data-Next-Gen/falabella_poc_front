@@ -804,7 +804,7 @@ export const api = {
     ),
     getDayState: (fecha: string) => get<{
       fecha: string;
-      state: 'BORRADOR' | 'LISTO' | 'EN_CURSO' | 'PAUSADO' | 'CERRADO';
+      state: 'BORRADOR' | 'VALIDADO' | 'EN_CURSO' | 'CERRADO';
       visitas: number;
       imported_at: string | null;
       imported_by_user_id: number | null;
@@ -825,7 +825,7 @@ export const api = {
       can_validate: boolean;
       blocked_reason: string | null;
     }>(`/planificacion/day-state?fecha=${fecha}`),
-    transitionDayState: (req: { fecha: string; target: 'BORRADOR'|'LISTO'|'EN_CURSO'|'PAUSADO'|'CERRADO'; confirm?: boolean; allow_non_blocking?: boolean }) =>
+    transitionDayState: (req: { fecha: string; target: 'BORRADOR'|'VALIDADO'|'EN_CURSO'|'CERRADO'; confirm?: boolean; allow_non_blocking?: boolean }) =>
       post<any>(`/planificacion/day-state/transition`, req),
     getDayConfig: (fecha: string) => get<{
       fecha: string;

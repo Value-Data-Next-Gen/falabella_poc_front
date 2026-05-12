@@ -6,6 +6,7 @@ import { PlanificacionModule } from '../modules/PlanificacionModule';
 import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
 import { AnaliticaModule } from '../modules/AnaliticaModule';
+import { IAModule } from '../modules/IAModule';
 import { ConfiguracionSystemModule } from '../modules/ConfiguracionSystemModule';
 import { DriverDashboardPage } from '../pages/DriverDashboardPage';
 import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
@@ -19,7 +20,8 @@ interface NavState {
 // Redirects de rutas legacy → nuevas. Mantener acá hasta migrar links externos.
 const LEGACY_MODULE_REDIRECTS: Record<string, ModuleKey> = {
   maestros: 'onboarding',
-  seguimiento_ia: 'seguimiento-ia',
+  seguimiento_ia: 'auditoria-ia',
+  'seguimiento-ia': 'auditoria-ia',  // R2 → R3
   analitica: 'control',
 };
 
@@ -106,14 +108,16 @@ export function AppShell() {
     watchlist: 'Watchlist',
     mapa: 'Mapa',
     alertas: 'Alertas en vivo',
-    // Seguimiento IA
+    // Auditoría IA
     comentarios: 'Alertas IA',
-    asistente: 'Asistente IA',
+    asistente: 'Copiloto',
     correcciones: 'Correcciones de motivo',
     // Control
     kpis: 'KPIs',
     'scorecard-drivers': 'Scorecard de drivers',
     'log-notificaciones': 'Log de notificaciones',
+    // IA / Modelo
+    modelo: 'Modelo XGB',
     'modelo-xgb': 'Modelo XGB',
   };
   const subLabel = nav.sub
@@ -137,8 +141,9 @@ export function AppShell() {
           {nav.module === 'onboarding' && <OnboardingModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
-          {nav.module === 'seguimiento-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'auditoria-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'control' && <AnaliticaModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'ia' && <IAModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'configuracion' && <ConfiguracionSystemModule sub={nav.sub} setSub={setSub} />}
         </main>
       </div>
