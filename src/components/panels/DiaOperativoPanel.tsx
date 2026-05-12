@@ -50,10 +50,12 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
   });
 
   const mut = useMutation({
-    mutationFn: (target: DayState) => api.planificacion.transitionDayState({
-      fecha, target,
-      confirm: target === 'EN_CURSO' || target === 'CERRADO',
-    }),
+    mutationFn: (req: { target: DayState; allowNonBlocking?: boolean }) =>
+      api.planificacion.transitionDayState({
+        fecha, target: req.target,
+        confirm: req.target === 'EN_CURSO' || req.target === 'CERRADO',
+        allow_non_blocking: !!req.allowNonBlocking,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['day-state', fecha] });
       qc.invalidateQueries({ queryKey: ['planif-day-status', fecha] });
@@ -67,6 +69,18 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
   const todayClick = () => onChangeFecha(todayISO());
 
   const runHours = s?.started_at ? hoursAgo(s.started_at) : null;
+
+  // Hay warnings (no bloqueantes) que el user debe confirmar al validar
+  const hasWarnings = !!s && (
+    (s.driver_issues_count ?? 0) > 0 ||
+    (s.config_issues_count ?? 0) > 0
+  );
+  const [confirmWarnings, setConfirmWarnings] = useState(false);
+
+  const onValidate = () => {
+    if (hasWarnings) setConfirmWarnings(true);
+    else mut.mutate({ target: 'LISTO' });
+  };
 
   return (
     <div className="flex flex-col gap-4 max-w-5xl mx-auto p-4">
@@ -121,10 +135,10 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
               canResume={s?.can_resume ?? false}
               blockedReason={s?.blocked_reason ?? null}
               loading={mut.isPending}
-              onValidate={() => mut.mutate('LISTO')}
+              onValidate={onValidate}
               onStart={() => setConfirmAction('EN_CURSO')}
-              onPause={() => mut.mutate('PAUSADO')}
-              onResume={() => mut.mutate('EN_CURSO')}
+              onPause={() => mut.mutate({ target: 'PAUSADO' })}
+              onResume={() => mut.mutate({ target: 'EN_CURSO' })}
               onGoToOps={() => onJumpToTab('operacion-jump')}
               onViewSummary={() => onJumpToTab('summary-jump')}
             />
@@ -163,10 +177,46 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
           state={s}
           onCancel={() => setConfirmAction(null)}
           onConfirm={() => {
-            mut.mutate(confirmAction);
+            mut.mutate({ target: confirmAction });
             setConfirmAction(null);
           }}
         />
+      )}
+      {/* Modal de confirmación de warnings al validar */}
+      {confirmWarnings && s && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-800 border border-line rounded-md max-w-md w-full">
+            <div className="px-4 py-3 border-b border-line flex items-center gap-2">
+              <AlertTriangle size={14} className="text-accent-yellow" />
+              <h3 className="text-[13px] font-semibold uppercase tracking-wider">
+                Validar con warnings
+              </h3>
+            </div>
+            <div className="p-4 text-[12px] flex flex-col gap-3">
+              <p>Hay <strong>{(s.driver_issues_count ?? 0) + (s.config_issues_count ?? 0)} warnings</strong> no bloqueantes:</p>
+              <ul className="list-disc list-inside text-text-secondary space-y-1">
+                {(s.driver_issues_count ?? 0) > 0 && (
+                  <li>{s.driver_issues_count} drivers con datos faltantes (sin teléfono, sin licencia administrativa)</li>
+                )}
+                {(s.config_issues_count ?? 0) > 0 && (
+                  <li>{s.config_issues_count} visitas con configuración faltante (sin región, sin comuna, sin CT)</li>
+                )}
+              </ul>
+              <p className="text-text-muted text-[11px]">
+                Estas issues no impiden operar, pero podés revisarlas en "Plan del día" antes de iniciar.
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button onClick={() => setConfirmWarnings(false)} className="btn text-[11px]">Revisar primero</button>
+                <button onClick={() => {
+                  mut.mutate({ target: 'LISTO', allowNonBlocking: true });
+                  setConfirmWarnings(false);
+                }} className="btn-primary text-[11px]">
+                  Validar igual
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

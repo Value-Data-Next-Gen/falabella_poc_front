@@ -56,6 +56,20 @@ export function Topbar({
   const [activeIdx, setActiveIdx] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Atajo global Ctrl/Cmd+K → focus en el buscador
+  useEffect(() => {
+    const onGlobal = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', onGlobal);
+    return () => window.removeEventListener('keydown', onGlobal);
+  }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -185,12 +199,18 @@ export function Topbar({
         <div className="flex items-center gap-2 input py-1.5">
           <Search size={13} className="text-text-muted shrink-0" />
           <input
+            ref={searchInputRef}
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Buscar empresa, contacto, driver, visita, VIP, motivo…"
             className="bg-transparent flex-1 outline-none text-[12px]"
           />
+          {!searchInput && (
+            <kbd className="hidden md:inline-flex text-[9px] font-mono px-1 py-0.5 bg-bg-700 border border-line rounded text-text-muted">
+              Ctrl+K
+            </kbd>
+          )}
           {searchInput && (
             <button
               onClick={closeAndClear}
