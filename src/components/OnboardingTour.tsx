@@ -65,7 +65,7 @@ const STEPS: TourStep[] = [
     target: '[data-tour-id="sidebar-seguimiento_ia"]',
   },
   {
-    title: 'Maestros — empresas con drivers y vehículos',
+    title: 'Onboarding — empresas con drivers y vehículos',
     icon: Building2,
     body: (
       <>
@@ -73,8 +73,8 @@ const STEPS: TourStep[] = [
         <p className="mt-2 text-text-muted">Cada driver tiene su propia página con datos, documentos (Azure Blob) y capacitaciones con vencimiento.</p>
       </>
     ),
-    navigate: { module: 'maestros' },
-    target: '[data-tour-id="sidebar-maestros"]',
+    navigate: { module: 'onboarding' },
+    target: '[data-tour-id="sidebar-onboarding"]',
   },
   {
     title: 'WhatsApp Agent',

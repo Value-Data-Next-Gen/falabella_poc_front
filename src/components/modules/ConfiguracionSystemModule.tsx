@@ -20,7 +20,7 @@ export function ConfiguracionSystemModule({ sub, setSub }: { sub: string | null;
           <PlaceholderCard
             icon={BellRing}
             title="Configuración global de alertas"
-            description="Por ahora se gestiona en cada motivo dentro de Maestros → Catálogo motivos."
+            description="Por ahora se gestiona en cada motivo dentro de Onboarding → Catálogo motivos."
           />
         )}
         {active === 'whatsapp' && (

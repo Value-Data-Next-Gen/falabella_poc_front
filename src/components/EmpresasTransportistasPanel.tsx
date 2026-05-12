@@ -88,7 +88,7 @@ export function EmpresasTransportistasPanel({ onOpen }: { onOpen?: (empresaId: n
 
   const open = (id: number) => {
     if (onOpen) onOpen(id);
-    else window.location.hash = `#/maestros/empresas/${id}`;
+    else window.location.hash = `#/onboarding/empresas/${id}`;
   };
 
   return (

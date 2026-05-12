@@ -213,7 +213,7 @@ export const api = {
     post<{ status: string; today: string; day_seed: number; sim_clock: string; auto_advance: boolean }>(
       '/control/start-day', opts ?? {}),
 
-  // Maestros
+  // Onboarding
   drivers: () => get<Driver[]>('/drivers'),
   fleetVehicles: () => get<VehicleExtended[]>('/fleet/vehicles'),
   clients: (opts?: { limit?: number; offset?: number; only_problem_zone?: boolean; min_fail_rate?: number; search?: string }) => {
@@ -798,6 +798,31 @@ export const api = {
     }) => put<{ ok: boolean; fecha: string; cliente: string; vip_id: number | null }>(
       `/planificacion/client-day-notes`, req,
     ),
+    getDayState: (fecha: string) => get<{
+      fecha: string;
+      state: 'BORRADOR' | 'LISTO' | 'EN_CURSO' | 'PAUSADO' | 'CERRADO';
+      visitas: number;
+      imported_at: string | null;
+      imported_by_user_id: number | null;
+      started_at: string | null;
+      started_by_user_id: number | null;
+      started_by_name: string | null;
+      paused_at: string | null;
+      closed_at: string | null;
+      day_seed: number | null;
+      prep_ok: boolean;
+      conflicts_count: number;
+      config_issues_count: number;
+      driver_issues_count: number;
+      can_start: boolean;
+      can_pause: boolean;
+      can_resume: boolean;
+      can_close: boolean;
+      can_validate: boolean;
+      blocked_reason: string | null;
+    }>(`/planificacion/day-state?fecha=${fecha}`),
+    transitionDayState: (req: { fecha: string; target: 'BORRADOR'|'LISTO'|'EN_CURSO'|'PAUSADO'|'CERRADO'; confirm?: boolean; allow_non_blocking?: boolean }) =>
+      post<any>(`/planificacion/day-state/transition`, req),
     getDayConfig: (fecha: string) => get<{
       fecha: string;
       cutoff_time: string | null;

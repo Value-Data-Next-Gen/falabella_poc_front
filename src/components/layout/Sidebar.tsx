@@ -13,7 +13,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 
 export type ModuleKey =
-  | 'maestros'
+  | 'onboarding'
   | 'planificacion'
   | 'operacion'
   | 'seguimiento_ia'
@@ -29,7 +29,7 @@ export interface ModuleDef {
 }
 
 export const MODULES: ModuleDef[] = [
-  { key: 'maestros',       label: 'Maestros',        hint: 'Empresas, vehículos, drivers, VIPs, usuarios, motivos', icon: Database,     group: 'data' },
+  { key: 'onboarding',       label: 'Onboarding',        hint: 'Empresas, vehículos, drivers, VIPs, usuarios, motivos', icon: Database,     group: 'data' },
   { key: 'planificacion',  label: 'Planificación',   hint: 'Carga de entregas, plan diario, configuración del día', icon: CalendarDays, group: 'ops' },
   { key: 'operacion',      label: 'Operación',       hint: 'Plan en ejecución, watchlist, mapa, alertas en vivo',   icon: Truck,        group: 'ops' },
   { key: 'seguimiento_ia', label: 'Seguimiento IA',  hint: 'Comentarios, asistente, correcciones de motivo',         icon: Bot,          group: 'analytics' },

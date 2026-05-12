@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Sidebar, ModuleKey, MODULES } from './Sidebar';
 import { Topbar } from './Topbar';
-import { MaestrosModule } from '../modules/MaestrosModule';
+import { OnboardingModule } from '../modules/OnboardingModule';
 import { PlanificacionModule } from '../modules/PlanificacionModule';
 import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
@@ -16,15 +16,23 @@ interface NavState {
   sub: string | null;
 }
 
+// Redirects de rutas legacy → nuevas. Mantener acá hasta migrar links externos.
+const LEGACY_MODULE_REDIRECTS: Record<string, ModuleKey> = {
+  maestros: 'onboarding',
+};
+
 function readHash(): NavState {
   const hash = (window.location.hash || '').replace(/^#\/?/, '');
   if (!hash) return { module: 'operacion', sub: null };
   const slash = hash.indexOf('/');
-  const mod = slash === -1 ? hash : hash.slice(0, slash);
-  // Mantenemos TODO lo que viene después del módulo en `sub` para que cada
-  // módulo parsee sus propias sub-rutas (ej: empresas/22/drivers/DRV-001).
+  const modRaw = slash === -1 ? hash : hash.slice(0, slash);
+  const mod = LEGACY_MODULE_REDIRECTS[modRaw] ?? modRaw;
   const sub = slash === -1 ? null : (hash.slice(slash + 1) || null);
   const valid = MODULES.find(m => m.key === mod)?.key ?? 'operacion';
+  if (modRaw !== mod) {
+    const h = sub ? `#/${valid}/${sub}` : `#/${valid}`;
+    window.history.replaceState(null, '', h);
+  }
   return { module: valid, sub };
 }
 
@@ -94,7 +102,7 @@ export function AppShell() {
           onOpenTour={() => setTourOpen(true)}
         />
         <main className="flex-1 overflow-hidden">
-          {nav.module === 'maestros' && <MaestrosModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'onboarding' && <OnboardingModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
           {nav.module === 'seguimiento_ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}

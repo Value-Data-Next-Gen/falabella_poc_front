@@ -16,7 +16,7 @@ import { MotivosConfigPanel } from '../MotivosConfigPanel';
 //   empresas/:id/drivers/:driver_id   → página de driver (datos + docs + capacitaciones)
 const TOP_TABS = ['empresas', 'vips', 'users', 'motivos'] as const;
 
-export function MaestrosModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
+export function OnboardingModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
   const { isFalabella } = useAuth();
 
   // Parse sub: "empresas/22/drivers/DRV-001" → ["empresas", "22", "drivers", "DRV-001"]

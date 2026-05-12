@@ -86,16 +86,16 @@ export function Topbar({
     switch (hit.kind) {
       case 'empresa':
       case 'contacto':
-        onNavigate('maestros', 'empresas');
+        onNavigate('onboarding', 'empresas');
         break;
       case 'driver':
-        onNavigate('maestros', 'drivers');
+        onNavigate('onboarding', 'drivers');
         break;
       case 'vip':
-        onNavigate('maestros', 'vips');
+        onNavigate('onboarding', 'vips');
         break;
       case 'motivo':
-        onNavigate('maestros', 'motivos');
+        onNavigate('onboarding', 'motivos');
         break;
       case 'visita':
         onNavigate('operacion', 'plan');

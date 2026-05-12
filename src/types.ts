@@ -104,7 +104,7 @@ export interface VehicleSummary {
   incident_extra_min: number;
 }
 
-// ---- Maestros ----
+// ---- Onboarding ----
 export interface Driver {
   driver_id: string;
   name: string;
