@@ -19,6 +19,8 @@ interface NavState {
 // Redirects de rutas legacy → nuevas. Mantener acá hasta migrar links externos.
 const LEGACY_MODULE_REDIRECTS: Record<string, ModuleKey> = {
   maestros: 'onboarding',
+  seguimiento_ia: 'seguimiento-ia',
+  analitica: 'control',
 };
 
 function readHash(): NavState {
@@ -83,11 +85,41 @@ export function AppShell() {
 
   const setSub = (sub: string) => setNav(prev => ({ ...prev, sub }));
 
-  // Pretty label for breadcrumb
+  // Pretty label for breadcrumb. Mapeo central de slug → label legible.
+  // Si el slug no está acá, fallback a capitalizar el slug reemplazando '-' y '_'.
+  const SUB_LABELS: Record<string, string> = {
+    // Onboarding
+    empresas: 'Empresas',
+    vips: 'Clientes VIP',
+    usuarios: 'Usuarios',
+    motivos: 'Catálogo de motivos',
+    drivers: 'Drivers',
+    // Planificación
+    dia: 'Día operativo',
+    calendario: 'Calendario',
+    carga: 'Carga de entregas',
+    dotacion: 'Dotación',
+    plan: 'Plan del día',
+    clientes: 'Clientes del día',
+    configdia: 'Config del día',
+    // Operación
+    watchlist: 'Watchlist',
+    mapa: 'Mapa',
+    alertas: 'Alertas en vivo',
+    // Seguimiento IA
+    comentarios: 'Comentarios recientes',
+    asistente: 'Asistente IA',
+    correcciones: 'Correcciones de motivo',
+    // Control
+    kpis: 'KPIs',
+    'scorecard-drivers': 'Scorecard de drivers',
+    'log-notificaciones': 'Log de notificaciones',
+    'modelo-xgb': 'Modelo XGB',
+  };
   const subLabel = nav.sub
-    ? nav.sub
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase())
+    ? (SUB_LABELS[nav.sub] ?? nav.sub
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase()))
     : null;
 
   return (
@@ -105,8 +137,8 @@ export function AppShell() {
           {nav.module === 'onboarding' && <OnboardingModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
-          {nav.module === 'seguimiento_ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
-          {nav.module === 'analitica' && <AnaliticaModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'seguimiento-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'control' && <AnaliticaModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'configuracion' && <ConfiguracionSystemModule sub={nav.sub} setSub={setSub} />}
         </main>
       </div>

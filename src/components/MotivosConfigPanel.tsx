@@ -112,12 +112,12 @@ export function MotivosConfigPanel() {
 
         {isFalabella && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-text-muted">Scope:</span>
+            <span className="text-text-muted">Alcance:</span>
             <button
               className={`btn flex items-center gap-1 ${scope === 'global' ? 'btn-primary' : ''}`}
               onClick={() => setScope('global')}
             >
-              <Globe2 size={12} /> Global (default)
+              <Globe2 size={12} /> Global (por defecto)
             </button>
             <button
               className={`btn flex items-center gap-1 ${scope === 'empresa' ? 'btn-primary' : ''}`}
@@ -369,7 +369,7 @@ function MotivoRow({
               </div>
               {cfg.description_is_custom && (
                 <div className="text-[10px] text-text-muted">
-                  Default catálogo (referencia):{' '}
+                  Predeterminado del catálogo (referencia):{' '}
                   <span className="italic">{cfg.default_description.slice(0, 200)}…</span>
                 </div>
               )}

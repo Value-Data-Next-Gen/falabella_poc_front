@@ -16,8 +16,8 @@ export type ModuleKey =
   | 'onboarding'
   | 'planificacion'
   | 'operacion'
-  | 'seguimiento_ia'
-  | 'analitica'
+  | 'seguimiento-ia'
+  | 'control'
   | 'configuracion';
 
 export interface ModuleDef {
@@ -29,12 +29,12 @@ export interface ModuleDef {
 }
 
 export const MODULES: ModuleDef[] = [
-  { key: 'onboarding',       label: 'Onboarding',        hint: 'Empresas, vehículos, drivers, VIPs, usuarios, motivos', icon: Database,     group: 'data' },
-  { key: 'planificacion',  label: 'Planificación',   hint: 'Carga de entregas, plan diario, configuración del día', icon: CalendarDays, group: 'ops' },
-  { key: 'operacion',      label: 'Operación',       hint: 'Plan en ejecución, watchlist, mapa, alertas en vivo',   icon: Truck,        group: 'ops' },
-  { key: 'seguimiento_ia', label: 'Seguimiento IA',  hint: 'Comentarios, asistente, correcciones de motivo',         icon: Bot,          group: 'analytics' },
-  { key: 'analitica',      label: 'Control / Analítica', hint: 'KPIs, scorecard, notificaciones, modelo XGB',        icon: BarChart3,    group: 'analytics' },
-  { key: 'configuracion',  label: 'Configuración',   hint: 'Alertas, WhatsApp, LLM, integraciones',                  icon: Settings,     group: 'system' },
+  { key: 'onboarding',     label: 'Onboarding',     hint: 'Empresas, vehículos, drivers, clientes VIP, usuarios, motivos', icon: Database,     group: 'data' },
+  { key: 'planificacion',  label: 'Planificación',  hint: 'Carga de entregas, plan del día, dotación',                     icon: CalendarDays, group: 'ops' },
+  { key: 'operacion',      label: 'Operación',      hint: 'Plan en ejecución, watchlist, mapa, alertas en vivo',           icon: Truck,        group: 'ops' },
+  { key: 'seguimiento-ia', label: 'Seguimiento IA', hint: 'Comentarios, asistente, correcciones de motivo',                 icon: Bot,          group: 'analytics' },
+  { key: 'control',        label: 'Control',        hint: 'KPIs, scorecard de drivers, log de notificaciones, modelo XGB',  icon: BarChart3,    group: 'analytics' },
+  { key: 'configuracion',  label: 'Configuración',  hint: 'Alertas, WhatsApp, LLM, integraciones',                          icon: Settings,     group: 'system' },
 ];
 
 const COLLAPSE_KEY = 'fpoc.sidebar.collapsed';

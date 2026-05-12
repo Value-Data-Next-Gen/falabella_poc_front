@@ -94,7 +94,7 @@ function VipSection() {
                 <th className="text-left px-2 py-1">Tipo</th>
                 <th className="text-left px-2 py-1">Valor</th>
                 <th className="text-left px-2 py-1">Empresa</th>
-                <th className="text-left px-2 py-1">Tier</th>
+                <th className="text-left px-2 py-1">Nivel VIP</th>
                 <th className="text-left px-2 py-1">Notas</th>
                 {isAdmin && <th></th>}
               </tr>
@@ -258,7 +258,7 @@ function LogSection() {
               <th className="text-left px-2 py-1">Cuándo</th>
               <th className="text-left px-2 py-1">Dir</th>
               <th className="text-left px-2 py-1">Tel / Persona</th>
-              <th className="text-left px-2 py-1">Trigger</th>
+              <th className="text-left px-2 py-1" title="Quién/qué disparó el mensaje (manual, alerta automática, etc.)">Disparador</th>
               <th className="text-left px-2 py-1">Mensaje</th>
             </tr>
           </thead>

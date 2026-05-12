@@ -304,9 +304,9 @@ export function SeguimientoPanel() {
             onChange={e => { setStatusFilter(e.target.value as any); setPage(0); }}
             className="input"
           >
-            <option value="">Status: todos</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
+            <option value="">Estado: todos</option>
+            <option value="completed">Completadas</option>
+            <option value="failed">Fallidas</option>
           </select>
           <select
             value={anomFilter}

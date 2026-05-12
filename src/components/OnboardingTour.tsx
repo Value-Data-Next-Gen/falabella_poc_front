@@ -61,8 +61,8 @@ const STEPS: TourStep[] = [
         <p className="mt-2 text-text-muted">Las correcciones de drivers entran como dataset de mejora continua.</p>
       </>
     ),
-    navigate: { module: 'seguimiento_ia' },
-    target: '[data-tour-id="sidebar-seguimiento_ia"]',
+    navigate: { module: 'seguimiento-ia' },
+    target: '[data-tour-id="sidebar-seguimiento-ia"]',
   },
   {
     title: 'Onboarding — empresas con drivers y vehículos',
@@ -97,7 +97,7 @@ const STEPS: TourStep[] = [
         <p className="mt-2 text-text-muted">Datos directos de la BD real (~160k visitas histórico).</p>
       </>
     ),
-    navigate: { module: 'analitica' },
+    navigate: { module: 'control' },
     target: '[data-tour-id="sidebar-analitica"]',
   },
   {

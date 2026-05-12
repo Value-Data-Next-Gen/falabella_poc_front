@@ -161,10 +161,10 @@ export function VipTab({ highlightVipId, searchQ }: { highlightVipId?: number | 
           <thead className="border-b border-line">
             <tr className="text-text-muted uppercase tracking-wider text-[10px]">
               <th className="px-3 py-2 text-left">ID</th>
-              <th className="px-3 py-2 text-left">Match</th>
-              <th className="px-3 py-2 text-left">Tier</th>
+              <th className="px-3 py-2 text-left" title="Texto que matchea el título/nombre del cliente">Coincide con</th>
+              <th className="px-3 py-2 text-left">Nivel VIP</th>
               <th className="px-3 py-2 text-left">Empresa</th>
-              <th className="px-3 py-2 text-left">Deadline</th>
+              <th className="px-3 py-2 text-left">Hora límite</th>
               <th className="px-3 py-2 text-right">Antelación</th>
               <th className="px-3 py-2 text-left">Estado</th>
               <th className="px-3 py-2 text-right">Acciones</th>
@@ -739,7 +739,7 @@ export function UsersTab() {
         </Modal>
       )}
       {resetting && (
-        <Modal title={`Resetear password — ${resetting.email}`} onClose={() => setResetting(null)}>
+        <Modal title={`Resetear contraseña — ${resetting.email}`} onClose={() => setResetting(null)}>
           <PasswordResetForm
             onSubmit={async pwd => {
               await api.admin.resetPassword(resetting.user_id, pwd);
@@ -826,8 +826,9 @@ function UserSection({ title, subtitle, users, onEdit, onReset, onDelete }: {
                     <button onClick={() => onEdit(u)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
                       <Pencil size={12} /> Editar
                     </button>
-                    <button onClick={() => onReset(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1">
-                      <KeyRound size={12} /> Pwd
+                    <button onClick={() => onReset(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1"
+                            title="Resetear contraseña del usuario">
+                      <KeyRound size={12} /> Resetear contraseña
                     </button>
                     <ConfirmDelete what={u.email} onConfirm={() => onDelete(u.user_id)} />
                   </div>
@@ -987,7 +988,7 @@ function PasswordResetForm({ onSubmit }: { onSubmit: (pwd: string) => Promise<vo
       setSubmitting(true);
       await onSubmit(pwd);
     }}>
-      <FormRow label="Nuevo password">
+      <FormRow label="Nueva contraseña">
         <input type="text" className="input w-full" value={pwd} onChange={e => setPwd(e.target.value)}
                required minLength={4} />
       </FormRow>
