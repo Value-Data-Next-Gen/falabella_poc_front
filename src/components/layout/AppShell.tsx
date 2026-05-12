@@ -35,9 +35,14 @@ function readHash(): NavState {
   let mod = LEGACY_MODULE_REDIRECTS[modRaw] ?? modRaw;
   let sub = slash === -1 ? null : (hash.slice(slash + 1) || null);
   // R7: Copiloto operativo se movió de Auditoría IA → Operación.
-  if (mod === 'auditoria-ia' && (sub === 'copiloto' || sub === 'asistente')) {
+  if (mod === 'auditoria-ia' && sub === 'copiloto') {
     mod = 'operacion';
     sub = 'copiloto';
+  }
+  // R7: 'asistente' (probador LLM motivos) se queda en Auditoría IA con
+  // slug nuevo 'probador'.
+  if (mod === 'auditoria-ia' && sub === 'asistente') {
+    sub = 'probador';
   }
   const valid = MODULES.find(m => m.key === mod)?.key ?? 'operacion';
   if (modRaw !== mod || (slash !== -1 && sub !== hash.slice(slash + 1))) {
@@ -118,10 +123,11 @@ export function AppShell() {
     alertas: 'Alertas en vivo',
     // Auditoría IA
     comentarios: 'Alertas IA',
+    probador: 'Probador IA',
     correcciones: 'Correcciones de motivo',
     // Operación
     copiloto: 'Copiloto operativo',
-    asistente: 'Copiloto operativo',
+    asistente: 'Probador IA',
     // Control
     kpis: 'KPIs',
     visitas: 'Tabla de visitas',
