@@ -6,13 +6,14 @@ import {
 import { api } from '../../api';
 import { EventType, StreamEvent } from '../../types';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
-// RouteOpsPanel se removió de Auditoría IA en R4 (era operativo).
 import { MotivoCorrectionsPanel } from '../panels/MotivoCorrectionsPanel';
-import { AgentChatPanel } from '../panels/AgentChatPanel';
+import { RouteOpsPanel } from '../RouteOpsPanel';
 
-const SUBS: Record<string, true> = { comentarios: true, asistente: true, correcciones: true };
-// 'asistente' ahora es el chat conversacional (reusa el FSM de WhatsApp).
-const SUB_REDIRECT: Record<string, string> = {};
+// R7: 3 tabs definitivas. 'asistente' (chat conversacional) salió de acá y
+// ahora vive como dock global flotante en AppShell. Slug 'asistente' redirige
+// a 'copiloto' para preservar bookmarks viejos.
+const SUBS: Record<string, true> = { copiloto: true, comentarios: true, correcciones: true, asistente: true };
+const SUB_REDIRECT: Record<string, string> = { asistente: 'copiloto' };
 
 const ALERT_TYPES: EventType[] = [
   'comment_alert',
@@ -28,14 +29,11 @@ const SEV_PILL: Record<string, string> = {
 };
 
 export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
-  const activeRaw = sub && SUBS[sub] ? sub : 'comentarios';
+  const activeRaw = sub && SUBS[sub] ? sub : 'copiloto';
   const active = SUB_REDIRECT[activeRaw] ?? activeRaw;
-  // Ronda 4: 'Copiloto' (RouteOpsPanel) era operativo, no de auditoría —
-  // ya está accesible desde Operación → drawer 'Plan'. Auditoría IA queda
-  // solo con las 2 vistas de revisión IA.
   const tabs: SubTabDef[] = [
+    { key: 'copiloto',      label: 'Copiloto operativo',     icon: Truck },
     { key: 'comentarios',   label: 'Alertas IA',             icon: MessageSquare },
-    { key: 'asistente',     label: 'Asistente',              icon: Sparkles },
     { key: 'correcciones',  label: 'Correcciones de motivo', icon: Bot },
   ];
 
@@ -43,8 +41,8 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
     <div className="h-full flex flex-col">
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
+        {active === 'copiloto' && <RouteOpsPanel />}
         {active === 'comentarios' && <div className="p-4"><RecentCommentsTab /></div>}
-        {active === 'asistente' && <AgentChatPanel />}
         {active === 'correcciones' && <div className="p-4"><MotivoCorrectionsPanel /></div>}
       </div>
     </div>

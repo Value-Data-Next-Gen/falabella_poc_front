@@ -3,6 +3,7 @@ import { CalendarDays, PlayCircle } from 'lucide-react';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { CalendarioOperativoPanel } from '../panels/CalendarioOperativoPanel';
 import { DiaOperativoPanel } from '../panels/DiaOperativoPanel';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 
 // Ronda 3: 2 tabs en Planificación. Las antiguas (Carga / Dotación / Plan /
 // Clientes / Config) se mueven a cards expandibles DENTRO de DiaOperativoPanel.
@@ -34,7 +35,11 @@ export function PlanificacionModule({ sub, setSub }: { sub: string | null; setSu
     <div className="h-full flex flex-col">
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
-        {active === 'dia'        && <DiaOperativoPanel fecha={fecha} onChangeFecha={setFecha} onJumpToTab={setSub} openCard={openCard} />}
+        {active === 'dia'        && (
+          <ErrorBoundary resetKey={fecha}>
+            <DiaOperativoPanel fecha={fecha} onChangeFecha={setFecha} onJumpToTab={setSub} openCard={openCard} />
+          </ErrorBoundary>
+        )}
         {active === 'calendario' && <CalendarioOperativoPanel selectedISO={fecha} onSelect={setFecha} />}
       </div>
     </div>

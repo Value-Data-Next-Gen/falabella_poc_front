@@ -11,6 +11,7 @@ import { ConfiguracionSystemModule } from '../modules/ConfiguracionSystemModule'
 import { DriverDashboardPage } from '../pages/DriverDashboardPage';
 import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
 import { useAuth } from '../../hooks/useAuth';
+import { AgentDock } from '../AgentDock';
 
 interface NavState {
   module: ModuleKey;
@@ -110,13 +111,15 @@ export function AppShell() {
     mapa: 'Mapa',
     alertas: 'Alertas en vivo',
     // Auditoría IA
+    copiloto: 'Copiloto operativo',
     comentarios: 'Alertas IA',
-    asistente: 'Copiloto',
+    asistente: 'Copiloto operativo',
     correcciones: 'Correcciones de motivo',
     // Control
     kpis: 'KPIs',
     'scorecard-drivers': 'Scorecard de drivers',
     'log-notificaciones': 'Log de notificaciones',
+    log: 'Log de notificaciones',
     // IA / Modelo
     modelo: 'Modelo XGB',
     'modelo-xgb': 'Modelo XGB',
@@ -153,6 +156,7 @@ export function AppShell() {
         onClose={() => setTourOpen(false)}
         onNavigate={(module, sub) => navigate(module as ModuleKey, sub)}
       />
+      <AgentDock />
     </div>
   );
 }

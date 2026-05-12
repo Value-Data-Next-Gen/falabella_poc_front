@@ -10,7 +10,7 @@ import { DriverScorecardPanel } from '../panels/DriverScorecardPanel';
 const SUBS: Record<string, true> = {
   kpis: true,
   'scorecard-drivers': true, scorecard: true,
-  'log-notificaciones': true, notifs: true,
+  'log-notificaciones': true, notifs: true, log: true,
 };
 
 export function AnaliticaModule({ sub, setSub }: { sub: string | null; setSub: (s: string) => void }) {
@@ -18,6 +18,7 @@ export function AnaliticaModule({ sub, setSub }: { sub: string | null; setSub: (
   const canonical: Record<string, string> = {
     scorecard: 'scorecard-drivers',
     notifs: 'log-notificaciones',
+    log: 'log-notificaciones',
   };
   // 'modelo' viejo: si llegó acá vía link viejo, fallback a kpis (la ruta
   // canónica nueva es /ia/modelo, manejada por IAModule).
