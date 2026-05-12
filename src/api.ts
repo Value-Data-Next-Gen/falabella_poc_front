@@ -673,6 +673,31 @@ export const api = {
     },
     testBroadcast: (empresaId: number) =>
       post<TestBroadcastResult>(`/empresa-contactos/empresas/${empresaId}/test-broadcast`, {}),
+    /** R5: audiencia unificada de WhatsApp (drivers + contactos + users) */
+    whatsappAudience: (empresaId: number) =>
+      get<{
+        empresa_id: number;
+        empresa_nombre: string | null;
+        total: number;
+        by_tag: Record<string, number>;
+        recipients: Array<{
+          kind: 'driver' | 'contacto' | 'user';
+          id: string;
+          nombre: string;
+          phone_e164: string | null;
+          has_opt_in: boolean;
+          audience_tags: string[];
+          extra: string | null;
+        }>;
+      }>(`/empresa-contactos/empresas/${empresaId}/whatsapp-audience`),
+    /** R5: broadcast a una audiencia segmentada */
+    audienceBroadcast: (empresaId: number, req: {
+      audience: 'todos' | 'drivers' | 'managers' | 'contactos' | 'opted_in';
+      only_opted_in?: boolean;
+      custom_body?: string;
+    }) => post<TestBroadcastResult>(
+      `/empresa-contactos/empresas/${empresaId}/audience-broadcast`, req,
+    ),
   },
 
   // Motivo corrections (Sprint 4.A2)

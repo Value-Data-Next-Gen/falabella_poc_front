@@ -1286,17 +1286,39 @@ export function CSVTab({ empresaId }: { empresaId: number }) {
 // =============================================================================
 // Tab: test broadcast
 // =============================================================================
+type AudienceTag = 'todos' | 'drivers' | 'managers' | 'contactos' | 'opted_in';
+
 export function BroadcastTab({ empresa }: { empresa: EmpresaSummary }) {
   const [result, setResult] = useState<TestBroadcastResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [audience, setAudience] = useState<AudienceTag>('todos');
+  const [onlyOptedIn, setOnlyOptedIn] = useState(true);
+  const [customBody, setCustomBody] = useState('');
 
-  const optInCount = empresa.opted_in_count;
+  const audQ = useQuery({
+    queryKey: ['wa-audience', empresa.empresa_id],
+    queryFn: () => api.empresaContactos.whatsappAudience(empresa.empresa_id),
+    refetchInterval: 30_000,
+  });
+
+  // Filtrar la audiencia según selección
+  const filteredRecipients = useMemo(() => {
+    const all = audQ.data?.recipients ?? [];
+    let out = audience === 'todos' ? all : all.filter(r => r.audience_tags.includes(audience));
+    if (onlyOptedIn) out = out.filter(r => r.has_opt_in && r.phone_e164);
+    else out = out.filter(r => r.phone_e164);
+    return out;
+  }, [audQ.data, audience, onlyOptedIn]);
 
   const send = async () => {
     setSubmitting(true); setErr(null);
     try {
-      const r = await api.empresaContactos.testBroadcast(empresa.empresa_id);
+      const r = await api.empresaContactos.audienceBroadcast(empresa.empresa_id, {
+        audience,
+        only_opted_in: onlyOptedIn,
+        custom_body: customBody.trim() || undefined,
+      });
       setResult(r);
     } catch (e: any) {
       setErr(e?.message ?? 'error');
@@ -1305,21 +1327,103 @@ export function BroadcastTab({ empresa }: { empresa: EmpresaSummary }) {
     }
   };
 
+  const byTag = audQ.data?.by_tag ?? {};
+
+  const audienceOptions: { key: AudienceTag; label: string; count: number; hint: string }[] = [
+    { key: 'todos',     label: 'Todos',          count: byTag.todos ?? 0,
+      hint: 'Drivers + contactos + usuarios con phone' },
+    { key: 'drivers',   label: 'Drivers',        count: byTag.drivers ?? 0,
+      hint: 'Conductores de fpoc.drivers + usuarios role=driver' },
+    { key: 'managers',  label: 'Managers',       count: byTag.managers ?? 0,
+      hint: 'Jefe/coordinador/dispatcher + usuarios role=transport_manager' },
+    { key: 'contactos', label: 'Solo contactos', count: byTag.contactos ?? 0,
+      hint: 'fpoc.empresa_contactos (sin drivers de la flota)' },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <div className="text-xs text-text-secondary leading-relaxed">
-        Esto envía un mensaje real a <span className="text-accent-yellow font-semibold">todos los contactos opt-in</span>{' '}
-        de <span className="font-semibold">{empresa.nombre}</span>. Útil para validar que el
-        join al sandbox funciona y los números están bien.
+        Audiencia consolidada de <span className="font-semibold">{empresa.nombre}</span>:
+        combina drivers, contactos y usuarios con phone. Solo se envían los que
+        ya hicieron <strong>join</strong> al sandbox (opt-in) salvo que desmarques abajo.
       </div>
+
+      {/* Selector audiencia */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {audienceOptions.map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => setAudience(opt.key)}
+            disabled={opt.count === 0}
+            title={opt.hint}
+            className={`p-2 rounded-md border text-left text-[11px] transition-colors ${
+              audience === opt.key
+                ? 'bg-brand/15 border-brand text-text-primary'
+                : 'border-line text-text-secondary hover:bg-bg-700/30'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            <div className="font-semibold flex items-center justify-between">
+              {opt.label}
+              <span className="font-mono tabular-nums">{opt.count}</span>
+            </div>
+            <div className="text-[10px] text-text-muted mt-0.5">{opt.hint}</div>
+          </button>
+        ))}
+      </div>
+
+      <label className="text-[11px] flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" checked={onlyOptedIn} onChange={e => setOnlyOptedIn(e.target.checked)} />
+        Solo con opt-in confirmado <span className="text-text-muted">(recomendado en producción)</span>
+      </label>
+
+      {/* Preview destinatarios */}
+      <div className="border border-line/40 rounded p-2 bg-bg-700/20 max-h-[200px] overflow-y-auto">
+        <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+          {filteredRecipients.length} destinatario{filteredRecipients.length === 1 ? '' : 's'} seleccionado{filteredRecipients.length === 1 ? '' : 's'}
+        </div>
+        {filteredRecipients.length === 0 ? (
+          <div className="text-[11px] text-text-muted italic">
+            {audQ.isLoading ? 'Cargando…' :
+             onlyOptedIn ? 'Sin destinatarios con opt-in para esta audiencia. Probá desmarcar o invitá drivers/contactos al sandbox.'
+             : 'Sin destinatarios con phone para esta audiencia.'}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {filteredRecipients.map(r => (
+              <div key={`${r.kind}-${r.id}`} className="flex items-center gap-2 text-[11px]">
+                <span className={`pill ${
+                  r.kind === 'driver' ? 'pill-blue' : r.kind === 'contacto' ? 'pill-violet' : 'pill-yellow'
+                } !text-[9px]`}>{r.kind}</span>
+                <span className="truncate">{r.nombre}</span>
+                <span className="font-mono text-text-muted">{r.phone_e164}</span>
+                {!r.has_opt_in && (
+                  <span className="text-[9px] text-accent-yellow ml-auto">sin opt-in</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] uppercase tracking-wider text-text-muted">Mensaje custom (opcional)</span>
+        <textarea
+          value={customBody}
+          onChange={e => setCustomBody(e.target.value)}
+          rows={2}
+          maxLength={400}
+          placeholder="Si dejás vacío se usa la plantilla por defecto."
+          className="input text-[12px]"
+        />
+      </label>
+
       <div className="flex items-center gap-2">
         <button
           onClick={send}
-          disabled={submitting || optInCount === 0}
+          disabled={submitting || filteredRecipients.length === 0}
           className="btn-primary text-xs flex items-center gap-1"
-          title={optInCount === 0 ? 'No hay contactos con opt-in' : ''}
         >
-          <Send size={12} /> {submitting ? 'Enviando…' : `Enviar test (${optInCount} destinatarios)`}
+          <Send size={12} /> {submitting ? 'Enviando…' : `Enviar (${filteredRecipients.length})`}
         </button>
       </div>
       {err && <div className="text-accent-red text-xs">{err}</div>}
@@ -1336,8 +1440,8 @@ export function BroadcastTab({ empresa }: { empresa: EmpresaSummary }) {
             {result.body}
           </div>
           <div className="flex flex-col gap-1">
-            {result.results.map(r => (
-              <div key={r.contact_id} className="flex items-center gap-2 text-xs border-b border-line/40 py-1">
+            {result.results.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs border-b border-line/40 py-1">
                 <span className={`pill ${
                   r.status === 'sent' ? 'pill-green' :
                   r.status === 'dry_run' ? 'pill-blue' :
