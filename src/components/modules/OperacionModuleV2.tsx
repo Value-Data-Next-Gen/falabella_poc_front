@@ -15,6 +15,7 @@ import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
 import { MapaFoliosTable } from '../panels/MapaFoliosTable';
 import { RutaDetalleDrawer } from '../panels/RutaDetalleDrawer';
+import { useDiaActivo } from '../../hooks/useDiaActivo';
 
 // R3: solo Mapa + Alertas. Legacy 'plan' / 'watchlist' redirigen a 'mapa' y
 // abren el drawer correspondiente.
@@ -42,16 +43,16 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
     enabled: isFalabella,
   });
 
-  // Día activo del simulador. Las 4 tabs de Operación deben leer del mismo
-  // source (snapshot sintético del simulador), no del XLSX real. Antes este
-  // query usaba source='real' por default y devolvía 0 visitas cuando STATE.today
-  // no coincidía con un XLSX cargado.
+  // R7-P4: la fecha activa la administra el DiaActivoPicker del topbar
+  // (useDiaActivo). Antes leíamos appStateQ.today (fecha del simulador
+  // legacy), lo que producía desincronización entre el selector global y
+  // el plan-diario consultado.
+  const { fecha: activeDate } = useDiaActivo();
   const appStateQ = useQuery({
     queryKey: ['state'],
     queryFn: api.state,
     refetchInterval: 5_000,
   });
-  const activeDate = appStateQ.data?.today ?? null;
 
   const planQ = useQuery({
     queryKey: ['plan-diario-mod-kpi-v2', empresaId, region, onlyVip, activeDate],
@@ -218,6 +219,8 @@ function MapaTab({ region, empresaId, onlyVip }: {
   onlyVip: boolean;
 }) {
   const [drawerRutaId, setDrawerRutaId] = useState<string | null>(null);
+  // R7-P4: la fecha activa global controla el plan-diario consultado.
+  const { fecha: activeDate } = useDiaActivo();
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
   const empresasQ = useQuery({
     queryKey: ['empresas-contactos-empresas-list'],
@@ -226,17 +229,17 @@ function MapaTab({ region, empresaId, onlyVip }: {
   const empresaNombre = empresaId === 'all'
     ? null
     : empresasQ.data?.find(e => e.empresa_id === empresaId)?.nombre ?? null;
-  // Plan diario nos da: rutas con driver_name, vehículos (patente/vehicle_id),
-  // y vip_visitas — lo usamos para filtrar vehículos por driver / ruta / VIP.
   const planQ = useQuery({
-    queryKey: ['plan-diario-map', empresaId, region, onlyVip],
+    queryKey: ['plan-diario-map', empresaId, region, onlyVip, activeDate],
     queryFn: () => api.planDiario({
       empresa_id: empresaId === 'all' ? undefined : empresaId,
       region,
       only_vip: onlyVip,
-      source: 'synthetic',  // mismo source que el header + Plan en ejecución
+      source: 'synthetic',
+      planned_date: activeDate,
     }),
     refetchInterval: 10_000,
+    enabled: !!activeDate,
   });
 
   // R7-P4: filtros granulares (driver + ruta) viven acá y se pasan al mapa.
@@ -297,9 +300,9 @@ function MapaTab({ region, empresaId, onlyVip }: {
         <div className="rounded border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-2 text-[11px] text-accent-yellow flex items-start gap-2">
           <span className="font-semibold shrink-0">⚠ Sin plan operativo</span>
           <span className="flex-1">
-            No hay plan cargado para <span className="font-mono text-text-primary">{stateQ.data?.today ?? '—'}</span>.
-            Los pines que ves vienen del simulador legacy y los dropdowns Driver/Ruta están vacíos porque no hay rutas reales.
-            Para tener data real: <strong>Planificación → Día operativo → Carga del día</strong> (importá XLSX) y luego <strong>"Iniciar día"</strong>.
+            No hay plan cargado para <span className="font-mono text-text-primary">{activeDate}</span>.
+            Cambiá la fecha en el selector del topbar a una con plan EN_CURSO, o cargá un XLSX en
+            <strong> Planificación → Día operativo → Carga del día</strong> y luego <strong>"Iniciar día"</strong>.
           </span>
         </div>
       )}
@@ -411,7 +414,7 @@ function MapaTab({ region, empresaId, onlyVip }: {
       </div>
 
       <MapaFoliosTable
-        fecha={stateQ.data?.today ?? ''}
+        fecha={activeDate}
         empresaId={empresaId === 'all' ? null : empresaId}
         empresaNombre={empresaNombre}
         onlyVip={onlyVip}
