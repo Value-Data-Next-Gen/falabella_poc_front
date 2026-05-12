@@ -239,42 +239,142 @@ function MapaTab({ region, empresaId, onlyVip }: {
     refetchInterval: 10_000,
   });
 
-  // R7-P4: filtros locales eliminados (vivían en MapaTab). El OperationsMap
-  // tiene los filtros propios. Acá solo derivamos selectedVehicles a partir de
-  // empresa+región+onlyVip del header global del módulo, vía plan-diario.
+  // R7-P4: filtros granulares (driver + ruta) viven acá y se pasan al mapa.
+  const [driverFilter, setDriverFilter] = useState<string>('');
+  const [rutaFilter, setRutaFilter] = useState<string>('');
+
+  // Catálogos legibles para los dropdowns: drivers únicos y rutas con label
+  // compuesto. Si hay empresa elegida en el header, la lista se acota.
+  const { driverOptions, rutaOptions } = useMemo(() => {
+    type RutaOpt = { ruta_id: string; driver_name: string; empresa_nombre: string; total: number };
+    const driversSet = new Set<string>();
+    const rutasMap: Record<string, RutaOpt> = {};
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (r.driver_name) driversSet.add(r.driver_name);
+        if (r.ruta_id) {
+          rutasMap[r.ruta_id] = {
+            ruta_id: r.ruta_id,
+            driver_name: r.driver_name ?? '—',
+            empresa_nombre: emp.empresa_nombre ?? '—',
+            total: r.total_visitas ?? 0,
+          };
+        }
+      });
+    });
+    return {
+      driverOptions: Array.from(driversSet).sort(),
+      rutaOptions: Object.values(rutasMap).sort((a, b) => a.ruta_id.localeCompare(b.ruta_id)),
+    };
+  }, [planQ.data]);
+
   const selectedVehicles = useMemo<number[]>(() => {
     const all = stateQ.data?.vehicles ?? [];
-    const anyFilter = onlyVip || empresaId !== 'all';
+    const anyFilter = onlyVip || empresaId !== 'all' || driverFilter || rutaFilter;
     if (!anyFilter) return all;
     if (!planQ.data) return all;
 
     const allowed = new Set<number>();
     planQ.data.empresas.forEach(emp => {
       emp.rutas.forEach(r => {
+        if (driverFilter && r.driver_name !== driverFilter) return;
+        if (rutaFilter && r.ruta_id !== rutaFilter) return;
         const vid = r.visitas?.[0] && (r.visitas[0] as any).vehicle_id;
         if (typeof vid === 'number') allowed.add(vid);
       });
     });
     return all.filter(v => allowed.has(v));
-  }, [stateQ.data, planQ.data, onlyVip, empresaId]);
+  }, [stateQ.data, planQ.data, onlyVip, empresaId, driverFilter, rutaFilter]);
 
   const totalVeh = stateQ.data?.vehicles.length ?? 0;
+  const hayFiltros = onlyVip || empresaId !== 'all' || driverFilter !== '' || rutaFilter !== '' || region !== 'all';
 
   return (
     <div className="p-3 h-full flex flex-col gap-2">
-      {/* R7-P4: filtros locales removidos. Los filtros vivos están dentro
-          del propio OperationsMap (botón "Filtros" arriba a la izquierda
-          del mapa) con dropdowns Empresa/Driver/Ruta/VIP. */}
+      {/* R7-P4: barra única de filtros visibles siempre. Controlan TODO lo
+          que muestra el mapa abajo. */}
+      <div className="panel p-2 flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="text-text-muted uppercase tracking-wider text-[10px] mr-1">Filtros del mapa</span>
+
+        <select
+          value={driverFilter}
+          onChange={e => setDriverFilter(e.target.value)}
+          className="input !py-1 text-[11px] min-w-[160px]"
+          title="Filtrar por driver"
+        >
+          <option value="">Todos los drivers</option>
+          {driverOptions.map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+
+        <select
+          value={rutaFilter}
+          onChange={e => setRutaFilter(e.target.value)}
+          className="input !py-1 text-[11px] min-w-[260px]"
+          title="Filtrar por ruta"
+        >
+          <option value="">Todas las rutas</option>
+          {rutaOptions
+            .filter(r => empresaId === 'all' ? true :
+              r.empresa_nombre === (empresasQ.data?.find(em => em.empresa_id === empresaId)?.nombre ?? ''))
+            .map(r => (
+              <option key={r.ruta_id} value={r.ruta_id}>
+                {r.ruta_id} · {r.driver_name} · {r.empresa_nombre} ({r.total} stops)
+              </option>
+            ))}
+        </select>
+
+        {hayFiltros && (
+          <button
+            onClick={() => { setDriverFilter(''); setRutaFilter(''); }}
+            className="text-text-muted hover:text-accent-red text-[10px] flex items-center gap-1"
+            title="Limpiar filtros del mapa"
+          >
+            limpiar
+          </button>
+        )}
+
+        {rutaFilter && (
+          <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40 font-mono">
+            {rutaFilter}
+          </span>
+        )}
+        {driverFilter && (
+          <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
+            {driverFilter}
+          </span>
+        )}
+        {onlyVip && (
+          <span className="text-[11px] text-cmr bg-cmr/10 px-2 py-0.5 rounded border border-cmr/40">★ VIP</span>
+        )}
+        {empresaId !== 'all' && empresaNombre && (
+          <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
+            {empresaNombre}
+          </span>
+        )}
+
+        <span className="ml-auto text-text-muted">
+          Mostrando <span className="tabular-nums text-text-secondary">{selectedVehicles.length}</span> / {totalVeh} vehículos
+        </span>
+      </div>
+
       <div className="panel flex flex-col">
-        <div className="panel-title flex items-center justify-between">
+        <div className="panel-title">
           <span>Mapa operacional</span>
           <span className="text-text-muted normal-case tracking-normal text-[11px]">
-            Filtros dentro del mapa · color = p(fallo) · borde violeta = alerta VD ·{' '}
-            <span className="tabular-nums text-text-secondary">{selectedVehicles.length}</span>/{totalVeh} vehículos
+            color = p(fallo) · borde violeta = alerta VD
           </span>
         </div>
         <div className="min-h-[440px] h-[440px]">
-          <OperationsMap selectedVehicles={selectedVehicles} />
+          <OperationsMap
+            selectedVehicles={selectedVehicles}
+            externalRegion={region}
+            externalEmpresaId={empresaId === 'all' ? null : empresaId}
+            externalDriverName={driverFilter}
+            externalRutaId={rutaFilter}
+            externalOnlyVip={onlyVip}
+          />
         </div>
       </div>
 

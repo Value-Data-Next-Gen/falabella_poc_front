@@ -176,13 +176,37 @@ function computeDriverMarkers(visits: Visit[], simClock: Date, today: string): D
   return markers;
 }
 
-export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[] }) {
-  const [region, setRegion] = useState<RegionFilter>('all');
-  const [empresaFilter, setEmpresaFilter] = useState<Set<number>>(new Set());
+export function OperationsMap({
+  selectedVehicles,
+  externalRegion,
+  externalEmpresaId,
+  externalDriverName,
+  externalRutaId,
+  externalOnlyVip,
+}: {
+  selectedVehicles: number[];
+  /** Filtros propagados desde el contenedor (MapaTab). Si no vienen, el mapa
+   * usa state local. Sin esto era imposible que los dropdowns del header del
+   * módulo Operación controlaran el mapa. */
+  externalRegion?: RegionFilter;
+  externalEmpresaId?: number | null;
+  externalDriverName?: string;
+  externalRutaId?: string;
+  externalOnlyVip?: boolean;
+}) {
+  const [regionLocal, setRegion] = useState<RegionFilter>('all');
+  const region = externalRegion ?? regionLocal;
+  const [empresaFilterLocal, setEmpresaFilter] = useState<Set<number>>(new Set());
+  const empresaFilter = externalEmpresaId != null
+    ? new Set([externalEmpresaId])
+    : empresaFilterLocal;
   const [plateFilter, setPlateFilter] = useState<Set<string>>(new Set());
-  const [rutaFilter, setRutaFilter] = useState<string>('');
-  const [driverFilter, setDriverFilter] = useState<string>('');
-  const [onlyVip, setOnlyVip] = useState<boolean>(false);
+  const [rutaFilterLocal, setRutaFilter] = useState<string>('');
+  const rutaFilter = externalRutaId ?? rutaFilterLocal;
+  const [driverFilterLocal, setDriverFilter] = useState<string>('');
+  const driverFilter = externalDriverName ?? driverFilterLocal;
+  const [onlyVipLocal, setOnlyVip] = useState<boolean>(false);
+  const onlyVip = externalOnlyVip ?? onlyVipLocal;
   const [filterOpen, setFilterOpen] = useState(false);
 
   const visitsQ = useQuery({
