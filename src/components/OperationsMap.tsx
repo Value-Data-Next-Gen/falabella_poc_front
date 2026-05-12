@@ -45,10 +45,12 @@ const MAP_STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/styl
 
 // Distancia máxima en KM entre dos stops consecutivos para que se permita
 // dibujar una línea entre ellos. Si una ruta planificada tiene dos stops a
-// >150 km de distancia, asumimos que son sub-rutas de regiones distintas
+// más de esta distancia, asumimos que son sub-rutas de regiones distintas
 // pegadas erróneamente bajo el mismo vehicle_id, y partimos el path en lugar
 // de conectarlos con una línea recta cruzando el país.
-const MAX_LEG_KM = 150;
+// 100 km es agresivo a propósito: Santiago↔Valparaíso son ~120 km y son
+// regiones distintas, así que esa diagonal histórica también queda cortada.
+const MAX_LEG_KM = 100;
 
 /** Distancia esférica simple Haversine. lat/lon en grados. Devuelve km. */
 function distanceKm(a: [number, number], b: [number, number]): number {
@@ -336,6 +338,19 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     initialFittedRef.current = true;
     fitToVisits(visits, false);
   }, [visits, fitToVisits]);
+
+  // R7-P4: al elegir una ruta en el dropdown, autofocus al vehículo de esa ruta
+  // (aparecen los números de orden + panel lateral con la secuencia). Y
+  // encuadramos a esos stops.
+  useEffect(() => {
+    if (!rutaFilter) return;
+    const match = Object.entries(rutaByVid).find(([, rid]) => rid === rutaFilter);
+    if (!match) return;
+    const vid = Number(match[0]);
+    setFocusedVehicle(vid);
+    const stops = visits.filter(v => v.vehicle_id === vid);
+    if (stops.length) fitToVisits(stops, true);
+  }, [rutaFilter, rutaByVid, visits, fitToVisits]);
 
   // Driver live positions
   const driverMarkers = useMemo(() => {
@@ -691,51 +706,67 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
         </button>
       </div>
 
-      {/* Panel de conductor enfocado */}
+      {/* Panel de secuencia de entrega del conductor enfocado */}
       {focusedDriver && (
-        <div className="absolute top-16 left-3 w-72 bg-bg-800/95 border border-line rounded-md shadow-lg z-10">
+        <div className="absolute top-16 left-3 w-80 bg-bg-800/95 border border-line rounded-md shadow-lg z-10">
           <div className="flex items-center justify-between px-3 py-2 border-b border-line">
-            <div>
-              <div className="text-xs font-semibold text-brand">🚚 {focusedDriver.vehicle_name}</div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">
+                Secuencia de entrega
+              </div>
+              <div className="text-xs font-semibold text-brand truncate flex items-center gap-1.5">
+                🚚 {focusedDriver.vehicle_name}
+                {rutaByVid[focusedDriver.vehicle_id] && (
+                  <span className="font-mono text-[10px] text-text-muted">
+                    {rutaByVid[focusedDriver.vehicle_id]}
+                  </span>
+                )}
+              </div>
               <div className="text-[10px] text-text-muted">
                 {focusedDriver.completedStops}/{focusedDriver.totalStops} entregas · {focusedDriver.progressPct}% al próximo
               </div>
             </div>
             <button
-              onClick={() => { setFocusedVehicle(null); setDriverPopup(null); }}
+              onClick={() => { setFocusedVehicle(null); setDriverPopup(null); setRutaFilter(''); }}
               className="text-text-muted hover:text-accent-red"
               title="Quitar foco"
             >
               <X size={14} />
             </button>
           </div>
-          <div className="max-h-64 overflow-y-auto text-[11px]">
-            {focusedSequence.map(v => (
-              <div
-                key={v.tracking_id}
-                className={`px-3 py-1.5 border-b border-line/50 flex items-center gap-2 ${
-                  v.status === 'completed' ? 'opacity-60' : ''
-                }`}
-              >
-                <span
-                  className={`w-5 h-5 rounded-full text-[9px] flex items-center justify-center font-semibold ${
-                    v.status === 'completed'
-                      ? 'bg-bg-700 text-text-muted'
-                      : v.alert_valuedata
-                      ? 'bg-accent-violet/20 text-accent-violet'
-                      : v.p_fallo >= 0.5
-                      ? 'bg-accent-red/20 text-accent-red'
-                      : v.p_fallo >= 0.2
-                      ? 'bg-accent-yellow/20 text-accent-yellow'
-                      : 'bg-brand/20 text-brand'
+          <div className="max-h-72 overflow-y-auto text-[11px]">
+            {focusedSequence.map(v => {
+              const isVip = vipTrackingSet.has(v.tracking_id);
+              return (
+                <div
+                  key={v.tracking_id}
+                  className={`px-3 py-1.5 border-b border-line/50 flex items-center gap-2 ${
+                    v.status === 'completed' ? 'opacity-60' : ''
                   }`}
                 >
-                  {v.order}
-                </span>
-                <span className="flex-1 truncate">{v.title}</span>
-                <span className="text-text-muted tabular-nums">{v.estimated_time_arrival.slice(0, 5)}</span>
-              </div>
-            ))}
+                  <span
+                    className={`w-5 h-5 rounded-full text-[9px] flex items-center justify-center font-semibold shrink-0 ${
+                      v.status === 'completed'
+                        ? 'bg-bg-700 text-text-muted'
+                        : isVip
+                        ? 'bg-cmr/20 text-cmr ring-1 ring-cmr/60'
+                        : v.alert_valuedata
+                        ? 'bg-accent-violet/20 text-accent-violet'
+                        : v.p_fallo >= 0.5
+                        ? 'bg-accent-red/20 text-accent-red'
+                        : v.p_fallo >= 0.2
+                        ? 'bg-accent-yellow/20 text-accent-yellow'
+                        : 'bg-brand/20 text-brand'
+                    }`}
+                  >
+                    {v.order}
+                  </span>
+                  {isVip && <Crosshair size={10} className="text-cmr shrink-0" />}
+                  <span className="flex-1 truncate" title={v.title}>{v.title}</span>
+                  <span className="text-text-muted tabular-nums shrink-0">{v.estimated_time_arrival.slice(0, 5)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
