@@ -96,14 +96,15 @@ export function AppShell() {
     usuarios: 'Usuarios',
     motivos: 'Catálogo de motivos',
     drivers: 'Drivers',
-    // Planificación
+    // Planificación. En Ronda 3 todos los slugs legacy (carga/dotacion/plan/
+    // clientes/configdia) caen dentro de la tab 'Día operativo' como cards.
     dia: 'Día operativo',
     calendario: 'Calendario',
-    carga: 'Carga de entregas',
-    dotacion: 'Dotación',
-    plan: 'Plan del día',
-    clientes: 'Clientes del día',
-    configdia: 'Config del día',
+    carga: 'Día operativo',
+    dotacion: 'Día operativo',
+    plan: 'Día operativo',
+    clientes: 'Día operativo',
+    configdia: 'Día operativo',
     // Operación
     watchlist: 'Watchlist',
     mapa: 'Mapa',

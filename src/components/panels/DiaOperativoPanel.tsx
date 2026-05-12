@@ -1,16 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, ChevronRight, CircleAlert, Clock, Crown, ExternalLink,
-  Loader2, MoreVertical, Pause, Play, ShieldAlert, Square, Truck,
-  Upload, Users, X,
+  AlertTriangle, ChevronDown, ChevronRight, CircleAlert, Clock, Crown,
+  ExternalLink, Loader2, MoreVertical, Pause, Play, ShieldAlert, Sliders,
+  Square, Truck, Upload, Users, UsersRound, X, ClipboardList,
 } from 'lucide-react';
 import { api } from '../../api';
+import { CargaEntregasPanel } from './CargaEntregasPanel';
+import { DotacionPanel } from './DotacionPanel';
+import { PlanDelDiaSimplePanel } from './PlanDelDiaSimplePanel';
+import { ClientesDelDiaPanel } from './ClientesDelDiaPanel';
+import { ConfigDelDiaPanel } from './ConfigDelDiaPanel';
 
 interface Props {
   fecha: string;
   onChangeFecha: (f: string) => void;
   onJumpToTab: (key: string) => void;
+  /** Slug de card a abrir por default (viene de slugs legacy /carga, /plan, etc.). */
+  openCard?: string | null;
 }
 
 type DayState = 'BORRADOR' | 'VALIDADO' | 'EN_CURSO' | 'CERRADO';
@@ -31,7 +38,7 @@ const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) {
+export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard }: Props) {
   const qc = useQueryClient();
   const [kebabOpen, setKebabOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | 'EN_CURSO' | 'CERRADO'>(null);
@@ -151,15 +158,69 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab }: Props) 
         )}
       </div>
 
-      {/* 3 cards */}
-      <CardCarga fecha={fecha} state={s} loading={stateQ.isLoading} onDetail={() => onJumpToTab('carga')} />
-      <CardDotacion fecha={fecha} state={s} loading={stateQ.isLoading} onDetail={() => onJumpToTab('dotacion')} />
-      <CardCasosEspeciales
-        fecha={fecha}
-        prep={prepQ.data}
-        loading={prepQ.isLoading}
-        onDetail={() => onJumpToTab('plan')}
-      />
+      {/* 5 cards expandibles — todo lo que antes era tab separada */}
+      <ExpandableCard
+        cardKey="carga"
+        title="Carga del día"
+        icon={Upload}
+        defaultOpen={openCard === 'carga'}
+        summary={!s ? '—' : s.visitas === 0 ? 'Sin visitas cargadas' :
+          `${s.visitas.toLocaleString()} visitas · última carga ${s.imported_at ? formatDateTime(s.imported_at) : '—'}`}
+        summaryTone={s && s.visitas > 0 ? 'green' : 'gray'}
+      >
+        <CargaEntregasPanel initialFecha={fecha} onFechaChange={onChangeFecha} />
+      </ExpandableCard>
+
+      <ExpandableCard
+        cardKey="dotacion"
+        title="Dotación"
+        icon={Users}
+        defaultOpen={openCard === 'dotacion'}
+        summary={!s ? '—' :
+          s.conflicts_count > 0 ? `${s.conflicts_count} conflictos de dotación` :
+          s.driver_issues_count > 0 ? `${s.driver_issues_count} drivers con datos faltantes (warnings)` :
+          'Sin conflictos · drivers OK'}
+        summaryTone={!s ? 'gray' :
+          s.conflicts_count > 0 ? 'red' :
+          s.driver_issues_count > 0 ? 'yellow' : 'green'}
+      >
+        <DotacionPanel initialFecha={fecha} />
+      </ExpandableCard>
+
+      <ExpandableCard
+        cardKey="plan"
+        title="Plan del día"
+        icon={ClipboardList}
+        defaultOpen={openCard === 'plan'}
+        summary={!prepQ.data ? '—' :
+          prepQ.data.all_ok ? `${prepQ.data.vips.length} VIPs · sin issues` :
+          `${prepQ.data.vips.length} VIPs · ${prepQ.data.config_issues.length + prepQ.data.driver_issues.length} issues`}
+        summaryTone={!prepQ.data ? 'gray' : prepQ.data.all_ok ? 'green' : 'yellow'}
+      >
+        <PlanDelDiaSimplePanel fecha={fecha} />
+      </ExpandableCard>
+
+      <ExpandableCard
+        cardKey="clientes"
+        title="Clientes del día"
+        icon={UsersRound}
+        defaultOpen={openCard === 'clientes'}
+        summary={!s ? '—' : `${s.visitas.toLocaleString()} visitas · ${prepQ.data?.vips.length ?? 0} VIPs`}
+        summaryTone={!s ? 'gray' : 'green'}
+      >
+        <ClientesDelDiaPanel fecha={fecha} />
+      </ExpandableCard>
+
+      <ExpandableCard
+        cardKey="config"
+        title="Configuración del día"
+        icon={Sliders}
+        defaultOpen={openCard === 'configdia'}
+        summary="Cutoff, mensaje a drivers, overrides, restricciones"
+        summaryTone="gray"
+      >
+        <ConfigDelDiaPanel fecha={fecha} />
+      </ExpandableCard>
 
       {/* Confirmation modal */}
       {confirmAction && s && (
@@ -525,6 +586,63 @@ function hoursAgo(iso: string): string {
 
 function formatDateTime(iso: string): string {
   return iso.replace('T', ' ').slice(0, 16);
+}
+
+// ----------------------------------------------------------------------------
+// ExpandableCard — para las 5 secciones expandibles dentro de Día operativo
+// ----------------------------------------------------------------------------
+type Tone = 'green' | 'red' | 'yellow' | 'gray';
+
+const TONE_DOT: Record<Tone, string> = {
+  green: 'bg-accent-green',
+  red: 'bg-accent-red',
+  yellow: 'bg-accent-yellow',
+  gray: 'bg-bg-700 border border-line',
+};
+
+function ExpandableCard({
+  cardKey, title, icon: Icon, summary, summaryTone, defaultOpen, children,
+}: {
+  cardKey: string;
+  title: string;
+  icon: any;
+  summary: string;
+  summaryTone?: Tone;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  // Si defaultOpen cambia (por openCard del query string), forzamos apertura.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
+  return (
+    <div className="panel">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-bg-700/30 transition-colors text-left"
+        data-card={cardKey}
+      >
+        <Icon size={14} className="text-text-secondary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold">{title}</div>
+          <div className="text-[11px] text-text-muted flex items-center gap-1.5 mt-0.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${TONE_DOT[summaryTone ?? 'gray']}`} />
+            {summary}
+          </div>
+        </div>
+        {open
+          ? <ChevronDown size={14} className="text-text-muted shrink-0" />
+          : <ChevronRight size={14} className="text-text-muted shrink-0" />}
+      </button>
+      {open && (
+        <div className="border-t border-line/40">
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
