@@ -43,6 +43,44 @@ const INITIAL_VIEW: ViewState = {
 const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const MAP_STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+// Distancia máxima en KM entre dos stops consecutivos para que se permita
+// dibujar una línea entre ellos. Si una ruta planificada tiene dos stops a
+// >150 km de distancia, asumimos que son sub-rutas de regiones distintas
+// pegadas erróneamente bajo el mismo vehicle_id, y partimos el path en lugar
+// de conectarlos con una línea recta cruzando el país.
+const MAX_LEG_KM = 150;
+
+/** Distancia esférica simple Haversine. lat/lon en grados. Devuelve km. */
+function distanceKm(a: [number, number], b: [number, number]): number {
+  const toRad = (d: number) => d * Math.PI / 180;
+  const [lonA, latA] = a;
+  const [lonB, latB] = b;
+  const R = 6371;
+  const dLat = toRad(latB - latA);
+  const dLon = toRad(lonB - lonA);
+  const s = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/** Parte un array de puntos en sub-paths cuando hay un salto > MAX_LEG_KM. */
+function splitPathByLongJumps(points: [number, number][]): [number, number][][] {
+  if (points.length < 2) return points.length ? [points] : [];
+  const out: [number, number][][] = [];
+  let current: [number, number][] = [points[0]];
+  for (let i = 1; i < points.length; i++) {
+    const jump = distanceKm(points[i - 1], points[i]);
+    if (jump > MAX_LEG_KM) {
+      if (current.length >= 2) out.push(current);
+      current = [points[i]];
+    } else {
+      current.push(points[i]);
+    }
+  }
+  if (current.length >= 2) out.push(current);
+  return out;
+}
+
 function colorByP(p: number): [number, number, number, number] {
   if (p >= 0.5) return [204, 34, 34, 230];
   if (p >= 0.2) return [230, 150, 0, 220];
@@ -294,18 +332,23 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
       if (!byVehicle[v.vehicle_id]) byVehicle[v.vehicle_id] = [];
       byVehicle[v.vehicle_id].push(v);
     });
-    return Object.entries(byVehicle).map(([vid, vs]) => {
+    // R7-P4: para cada vehículo, generamos UNA O VARIAS sub-rutas. Cada
+    // sub-ruta es una secuencia de stops contiguos (saltos < MAX_LEG_KM
+    // entre uno y el siguiente). Si dos stops consecutivos están a >150 km,
+    // partimos el path en lugar de conectarlos con una línea cruzando el
+    // país (esto pasaba con rutas que tenían un stop "fantasma" en RM por
+    // datos sucios y el resto en Antofagasta/Biobío, etc.).
+    const routesOut: { vehicle_id: number; path: [number, number][]; isFocused: boolean }[] = [];
+    Object.entries(byVehicle).forEach(([vid, vs]) => {
       const sorted = [...vs].sort((a, b) => a.order - b.order);
-      // R7-P4: la ruta SOLO conecta los stops planificados. Antes el path
-      // empezaba y terminaba en DEPOT (Santiago), produciendo líneas largas
-      // hacia Santiago para rutas regionales (Antofagasta, Biobío, etc.).
-      const path: [number, number][] = sorted.map(v => [v.longitude, v.latitude] as [number, number]);
-      return {
-        vehicle_id: Number(vid),
-        path,
-        isFocused: focusedVehicle === Number(vid),
-      };
+      const points: [number, number][] = sorted.map(v => [v.longitude, v.latitude]);
+      const segments = splitPathByLongJumps(points);
+      const focused = focusedVehicle === Number(vid);
+      segments.forEach(seg => {
+        routesOut.push({ vehicle_id: Number(vid), path: seg, isFocused: focused });
+      });
     });
+    return routesOut;
   }, [visibleVisits, focusedVehicle]);
 
   const layers = [
