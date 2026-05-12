@@ -179,6 +179,7 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
   const [empresaFilter, setEmpresaFilter] = useState<Set<number>>(new Set());
   const [plateFilter, setPlateFilter] = useState<Set<string>>(new Set());
   const [rutaFilter, setRutaFilter] = useState<string>('');
+  const [driverFilter, setDriverFilter] = useState<string>('');
   const [onlyVip, setOnlyVip] = useState<boolean>(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -228,24 +229,43 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
   }, [fleetQ.data]);
 
   // R7-P4: derivamos del plan-diario el mapping vehicle_id → {empresa_id, ruta_id}
-  // y el set de tracking_ids VIP. Sin esto los filtros de empresa/ruta/VIP no
-  // pueden discriminar (Visit del endpoint legacy no trae esas dimensiones).
-  const { empresaByVid, rutaByVid, vipTrackingSet, rutaOptions } = useMemo(() => {
+  // y el set de tracking_ids VIP. Y armamos catálogos legibles (con nombres) para
+  // los dropdowns: rutas y drivers con etiquetas.
+  const {
+    empresaByVid, rutaByVid, driverByVid, vipTrackingSet,
+    rutaOptions, driverOptions,
+  } = useMemo(() => {
     const empresaByVid: Record<number, number> = {};
     const rutaByVid: Record<number, string> = {};
+    const driverByVid: Record<number, string> = {};
     const vipTrackingSet = new Set<string>();
-    const rutas = new Set<string>();
+    type RutaOpt = { ruta_id: string; driver_name: string; empresa_nombre: string; total: number };
+    const rutasMap: Record<string, RutaOpt> = {};
+    const driversSet = new Set<string>();
     (planQ.data?.empresas ?? []).forEach(emp => {
       emp.rutas.forEach(r => {
         if (r.vehicle_id != null) {
           empresaByVid[r.vehicle_id] = emp.empresa_id;
           if (r.ruta_id) rutaByVid[r.vehicle_id] = r.ruta_id;
+          if (r.driver_name) driverByVid[r.vehicle_id] = r.driver_name;
         }
-        if (r.ruta_id) rutas.add(r.ruta_id);
+        if (r.ruta_id) {
+          rutasMap[r.ruta_id] = {
+            ruta_id: r.ruta_id,
+            driver_name: r.driver_name ?? '—',
+            empresa_nombre: emp.empresa_nombre ?? '—',
+            total: r.total_visitas ?? 0,
+          };
+        }
+        if (r.driver_name) driversSet.add(r.driver_name);
         r.visitas?.forEach(v => { if (v.is_vip) vipTrackingSet.add(v.tracking_id); });
       });
     });
-    return { empresaByVid, rutaByVid, vipTrackingSet, rutaOptions: Array.from(rutas).sort() };
+    return {
+      empresaByVid, rutaByVid, driverByVid, vipTrackingSet,
+      rutaOptions: Object.values(rutasMap).sort((a, b) => a.ruta_id.localeCompare(b.ruta_id)),
+      driverOptions: Array.from(driversSet).sort(),
+    };
   }, [planQ.data]);
 
   // Filtros del mapa. Aplicación:
@@ -265,6 +285,9 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
     if (rutaFilter) {
       out = out.filter(v => rutaByVid[v.vehicle_id] === rutaFilter);
     }
+    if (driverFilter) {
+      out = out.filter(v => driverByVid[v.vehicle_id] === driverFilter);
+    }
     if (plateFilter.size > 0) {
       out = out.filter(v => plateByVid[v.vehicle_id] && plateFilter.has(plateByVid[v.vehicle_id]));
     }
@@ -272,13 +295,14 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
       out = out.filter(v => vipTrackingSet.has(v.tracking_id));
     }
     return out;
-  }, [allVisits, plateFilter, empresaFilter, rutaFilter, onlyVip, plateByVid, empresaByVid, rutaByVid, vipTrackingSet]);
+  }, [allVisits, plateFilter, empresaFilter, rutaFilter, driverFilter, onlyVip, plateByVid, empresaByVid, rutaByVid, driverByVid, vipTrackingSet]);
 
   const activeFilterCount =
     (region !== 'all' ? 1 : 0) +
     (plateFilter.size > 0 ? 1 : 0) +
     (empresaFilter.size > 0 ? 1 : 0) +
     (rutaFilter ? 1 : 0) +
+    (driverFilter ? 1 : 0) +
     (onlyVip ? 1 : 0);
 
   const fitToVisits = useCallback((pts: Visit[], animate = true) => {
@@ -514,6 +538,11 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
               {rutaFilter}
             </span>
           )}
+          {driverFilter && (
+            <span className="text-[11px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/40">
+              {driverFilter}
+            </span>
+          )}
           {onlyVip && (
             <span className="text-[11px] text-cmr bg-cmr/10 px-2 py-0.5 rounded border border-cmr/40 flex items-center gap-1">
               <Crosshair size={9} /> VIP
@@ -524,7 +553,7 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
             <button
               onClick={() => {
                 setPlateFilter(new Set()); setEmpresaFilter(new Set());
-                setRegion('all'); setRutaFilter(''); setOnlyVip(false);
+                setRegion('all'); setRutaFilter(''); setDriverFilter(''); setOnlyVip(false);
               }}
               className="text-[10px] text-text-muted hover:text-accent-red"
               title="Limpiar filtros"
@@ -535,19 +564,18 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
         </div>
 
         {filterOpen && (
-          <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-3 grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl text-[11px] mt-1 w-full md:w-auto">
+          <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl text-[11px] mt-1 w-full md:w-auto">
             <div>
               <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Empresa transportista</div>
               <select
-                multiple
-                size={5}
                 className="input w-full text-[11px]"
-                value={Array.from(empresaFilter).map(String)}
+                value={empresaFilter.size === 1 ? Array.from(empresaFilter)[0] : ''}
                 onChange={e => {
-                  const sel = Array.from(e.target.selectedOptions).map(o => Number(o.value));
-                  setEmpresaFilter(new Set(sel));
+                  const v = e.target.value;
+                  setEmpresaFilter(v === '' ? new Set() : new Set([Number(v)]));
                 }}
               >
+                <option value="">Todas las empresas</option>
                 {empresasQ.data?.map(em => (
                   <option key={em.empresa_id} value={em.empresa_id}>
                     {em.nombre}
@@ -556,45 +584,69 @@ export function OperationsMap({ selectedVehicles }: { selectedVehicles: number[]
               </select>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Ruta</div>
-              <input
-                list="map-ruta-list"
-                value={rutaFilter}
-                onChange={e => setRutaFilter(e.target.value)}
-                placeholder="R-YYYYMMDD-NNN"
-                className="input w-full text-[11px] font-mono"
-              />
-              <datalist id="map-ruta-list">
-                {rutaOptions.map(r => <option key={r} value={r} />)}
-              </datalist>
-              <label className="flex items-center gap-1.5 cursor-pointer mt-3">
-                <input
-                  type="checkbox"
-                  checked={onlyVip}
-                  onChange={e => setOnlyVip(e.target.checked)}
-                  className="accent-cmr"
-                />
-                <Crosshair size={11} className="text-cmr" />
-                <span>Solo visitas VIP</span>
-              </label>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Patente</div>
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Driver</div>
               <select
-                multiple
-                size={5}
-                className="input w-full text-[11px] font-mono"
-                value={Array.from(plateFilter)}
-                onChange={e => {
-                  const sel = Array.from(e.target.selectedOptions).map(o => o.value);
-                  setPlateFilter(new Set(sel));
-                }}
+                className="input w-full text-[11px]"
+                value={driverFilter}
+                onChange={e => setDriverFilter(e.target.value)}
               >
-                {Array.from(new Set(allVisits.map(v => plateByVid[v.vehicle_id]).filter(Boolean))).sort().map(p => (
-                  <option key={p} value={p}>{p}</option>
+                <option value="">Todos los drivers</option>
+                {driverOptions.map(d => (
+                  <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>
+            <div className="md:col-span-2">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Ruta</div>
+              <select
+                className="input w-full text-[11px]"
+                value={rutaFilter}
+                onChange={e => setRutaFilter(e.target.value)}
+              >
+                <option value="">Todas las rutas</option>
+                {rutaOptions
+                  .filter(r =>
+                    empresaFilter.size === 0
+                      ? true
+                      : empresaFilter.has(
+                          empresasQ.data?.find(em => em.nombre === r.empresa_nombre)?.empresa_id ?? -1
+                        )
+                  )
+                  .map(r => (
+                    <option key={r.ruta_id} value={r.ruta_id}>
+                      {r.ruta_id} · {r.driver_name} · {r.empresa_nombre} ({r.total} stops)
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={onlyVip}
+                onChange={e => setOnlyVip(e.target.checked)}
+                className="accent-cmr"
+              />
+              <Crosshair size={11} className="text-cmr" />
+              <span>Solo visitas VIP</span>
+            </label>
+            {plateByVid && Object.keys(plateByVid).length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Patente (avanzado)</div>
+                <select
+                  className="input w-full text-[11px] font-mono"
+                  value={plateFilter.size === 1 ? Array.from(plateFilter)[0] : ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setPlateFilter(v === '' ? new Set() : new Set([v]));
+                  }}
+                >
+                  <option value="">Todas</option>
+                  {Array.from(new Set(allVisits.map(v => plateByVid[v.vehicle_id]).filter(Boolean))).sort().map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
