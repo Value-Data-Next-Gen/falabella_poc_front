@@ -420,7 +420,7 @@ export interface PlanRuta {
   vehicle_name: string;
   plate: string | null;
   patente: string | null;             // Sprint 6: alias visible
-  driver_name: string;
+  driver_name: string | null;         // puede ser null si la dotación no asigna chofer
   dotacion_estado: string | null;
   dotacion_motivo: string | null;
   operable: boolean;

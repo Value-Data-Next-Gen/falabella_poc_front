@@ -7,7 +7,7 @@ import { api } from '../../api';
 import { EventType, StreamEvent } from '../../types';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { MotivoCorrectionsPanel } from '../panels/MotivoCorrectionsPanel';
-import { AsistenteIAPanel } from '../AsistenteIAPanel';
+import { ProbadorIAPanel } from '../panels/ProbadorIAPanel';
 
 // Auditoría IA: vistas de revisión + probador del clasificador LLM.
 // El Copiloto operativo se movió a Operación. Los slugs 'copiloto' y
@@ -42,7 +42,7 @@ export function SeguimientoIAModule({ sub, setSub }: { sub: string | null; setSu
       <SubTabs tabs={tabs} active={active} onChange={setSub} />
       <div className="flex-1 overflow-auto">
         {active === 'comentarios' && <div className="p-4"><RecentCommentsTab /></div>}
-        {active === 'probador' && <div className="p-4"><AsistenteIAPanel driver={null} /></div>}
+        {active === 'probador' && <ProbadorIAPanel />}
         {active === 'correcciones' && <div className="p-4"><MotivoCorrectionsPanel /></div>}
       </div>
     </div>

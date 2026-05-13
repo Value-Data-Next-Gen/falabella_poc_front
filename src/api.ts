@@ -884,6 +884,15 @@ export const api = {
     }>(`/planificacion/day-state?fecha=${fecha}`),
     transitionDayState: (req: { fecha: string; target: 'BORRADOR'|'VALIDADO'|'EN_CURSO'|'CERRADO'; confirm?: boolean; allow_non_blocking?: boolean }) =>
       post<any>(`/planificacion/day-state/transition`, req),
+    regenerateDay: (fecha: string) =>
+      post<any>(`/planificacion/day-state/regenerate?fecha=${encodeURIComponent(fecha)}`, {}),
+    resetDay: (fecha: string) =>
+      post<any>(`/planificacion/day-state/reset?fecha=${encodeURIComponent(fecha)}`, {}),
+    cleanAndRegenerate: (fecha: string, rows: number = 1800, mode: 'default' | 'minimal' = 'default') =>
+      post<{ fecha: string; deleted_visits: number; inserted_visits: number; state: string }>(
+        `/planificacion/day-state/clean-and-regenerate?fecha=${encodeURIComponent(fecha)}&rows=${rows}&mode=${mode}`,
+        {}
+      ),
     extendDay: (fecha: string, minutes: number = 60) =>
       post<{ fecha: string; previous_cutoff: string | null; new_cutoff: string; pending_visits: number }>(
         `/planificacion/day-state/extend?fecha=${encodeURIComponent(fecha)}&minutes=${minutes}`, {}),
@@ -1054,6 +1063,22 @@ export const api = {
       if (opts?.planned_date) p.push(`planned_date=${opts.planned_date}`);
       const q = p.length ? '?' + p.join('&') : '';
       return get<FpocVisitsPage>(`/seguimiento/visits${q}`);
+    },
+  },
+
+  // CDs por región — listado con coords para el mapa
+  centrosDistribucion: {
+    list: (region?: string) => {
+      const q = region ? `?region=${encodeURIComponent(region)}` : '';
+      return get<Array<{
+        cd_id: number;
+        region: string;
+        nombre: string;
+        ciudad: string | null;
+        lat: number;
+        lon: number;
+        activo: boolean;
+      }>>(`/centros-distribucion${q}`);
     },
   },
 };

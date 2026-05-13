@@ -68,6 +68,54 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard 
     },
   });
 
+  // Rebobinar simulación del día EN_CURSO sin destruir plan.
+  const regenMut = useMutation({
+    mutationFn: () => api.planificacion.regenerateDay(fecha),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['day-state', fecha] });
+      qc.invalidateQueries({ queryKey: ['state'] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
+      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
+    },
+  });
+
+  // Reset destructivo → vuelve a BORRADOR.
+  const resetMut = useMutation({
+    mutationFn: () => api.planificacion.resetDay(fecha),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['day-state', fecha] });
+      qc.invalidateQueries({ queryKey: ['state'] });
+    },
+  });
+
+  // Limpia todas las visitas del día y regenera con rutas regionalmente
+  // coherentes (live_generator con region determinística por driver).
+  const cleanRegenMut = useMutation({
+    mutationFn: () => api.planificacion.cleanAndRegenerate(fecha, 1800, 'default'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['day-state', fecha] });
+      qc.invalidateQueries({ queryKey: ['state'] });
+      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-panel', fecha] });
+    },
+  });
+
+  // Modo demo limpio: 1 empresa / 1 driver / 5 visitas RM, ETAs cronológicas.
+  const cleanRegenMinimalMut = useMutation({
+    mutationFn: () => api.planificacion.cleanAndRegenerate(fecha, 5, 'minimal'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['day-state', fecha] });
+      qc.invalidateQueries({ queryKey: ['state'] });
+      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
+      qc.invalidateQueries({ queryKey: ['driver-positions-panel', fecha] });
+    },
+  });
+
   const s = stateQ.data;
   const meta = useMemo(() => s ? STATE_META[s.state] : null, [s]);
   const isToday = fecha === todayISO();
@@ -146,8 +194,51 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard 
               onToggle={() => setKebabOpen(o => !o)}
               state={s?.state ?? null}
               canClose={s?.can_close ?? false}
+              regenLoading={regenMut.isPending}
+              resetLoading={resetMut.isPending}
+              cleanRegenLoading={cleanRegenMut.isPending}
               onClose={() => { setKebabOpen(false); setConfirmAction('CERRADO'); }}
-              onRegenerate={() => { setKebabOpen(false); /* TODO regenerate */ }}
+              onRegenerate={() => {
+                setKebabOpen(false);
+                if (!window.confirm(
+                  `¿Rebobinar la simulación del día ${fecha} a 09:00?\n\n` +
+                  `Las visitas vuelven a 'pending' y el camión vuelve al inicio. ` +
+                  `El plan (rutas y drivers) NO se toca.`
+                )) return;
+                regenMut.mutate();
+              }}
+              onReset={() => {
+                setKebabOpen(false);
+                if (!window.confirm(
+                  `¿Volver el día ${fecha} a BORRADOR?\n\n` +
+                  `Esto descarta el progreso de la simulación. Vas a tener que ` +
+                  `validar e iniciar de nuevo. El plan cargado se conserva.`
+                )) return;
+                resetMut.mutate();
+              }}
+              onCleanRegen={() => {
+                setKebabOpen(false);
+                if (!window.confirm(
+                  `¿Limpiar el día ${fecha} y regenerar con rutas regionales?\n\n` +
+                  `Esto BORRA todas las visitas del día y genera ~1800 nuevas, ` +
+                  `con cada ruta agrupada en una región (rutas en RM, Valparaíso, ` +
+                  `Biobío, etc.). Los drivers arrancan desde el CD de su región.\n\n` +
+                  `El día queda en BORRADOR.`
+                )) return;
+                cleanRegenMut.mutate();
+              }}
+              cleanRegenMinimalLoading={cleanRegenMinimalMut.isPending}
+              onCleanRegenMinimal={() => {
+                setKebabOpen(false);
+                if (!window.confirm(
+                  `¿Generar plan MÍNIMO para ${fecha}?\n\n` +
+                  `1 empresa · 1 driver · 5 visitas en RM con ETAs ` +
+                  `cronológicas (09:00, 09:30, 10:00, 10:30, 11:00).\n\n` +
+                  `Ideal para demos limpios y debugging. Borra todo lo previo. ` +
+                  `El día queda en BORRADOR.`
+                )) return;
+                cleanRegenMinimalMut.mutate();
+              }}
             />
           </div>
         </div>
@@ -331,24 +422,60 @@ function ContextualButton({
 // ----------------------------------------------------------------------------
 // Kebab menu
 // ----------------------------------------------------------------------------
-function KebabMenu({ open, onToggle, state, canClose, onClose, onRegenerate }: {
+function KebabMenu({ open, onToggle, state, canClose, regenLoading, resetLoading, cleanRegenLoading, cleanRegenMinimalLoading, onClose, onRegenerate, onReset, onCleanRegen, onCleanRegenMinimal }: {
   open: boolean; onToggle: () => void; state: DayState | null;
   canClose: boolean;
-  onClose: () => void; onRegenerate: () => void;
+  regenLoading?: boolean; resetLoading?: boolean; cleanRegenLoading?: boolean; cleanRegenMinimalLoading?: boolean;
+  onClose: () => void; onRegenerate: () => void; onReset: () => void; onCleanRegen: () => void; onCleanRegenMinimal: () => void;
 }) {
+  const isEnCurso = state === 'EN_CURSO';
+  const canReset = state === 'EN_CURSO' || state === 'CERRADO';
   return (
     <div className="relative">
       <button onClick={onToggle} className="btn !p-1.5" title="Acciones avanzadas">
         <MoreVertical size={14} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 panel min-w-[200px] z-20 text-[11px]">
-          <button onClick={onRegenerate} className="w-full px-3 py-2 hover:bg-bg-700/50 text-left flex items-center gap-2">
-            🔁 Regenerar plan (nuevo seed)
+        <div className="absolute right-0 top-full mt-1 panel min-w-[260px] z-20 text-[11px]">
+          {/* Rebobinar — solo aplica en EN_CURSO */}
+          <button
+            onClick={onRegenerate}
+            disabled={!isEnCurso || regenLoading}
+            className="w-full px-3 py-2 hover:bg-bg-700/50 text-left flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isEnCurso ? 'Vuelve sim_clock a 09:00, plan intacto' : 'Solo disponible si el día está EN_CURSO'}
+          >
+            🔁 {regenLoading ? 'Rebobinando…' : 'Rebobinar simulación (09:00)'}
+          </button>
+          {/* Plan mínimo — 5 visitas RM determinísticas para demos y tests */}
+          <button
+            onClick={onCleanRegenMinimal}
+            disabled={cleanRegenMinimalLoading}
+            className="w-full px-3 py-2 hover:bg-accent-green/10 text-left flex items-center gap-2 border-t border-line/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="1 empresa · 1 driver · 5 visitas RM cronológicas. Para demos limpios y tests"
+          >
+            ✨ {cleanRegenMinimalLoading ? 'Generando…' : 'Plan mínimo (5 visitas RM)'}
+          </button>
+          {/* Limpiar y regenerar plan — borra visitas y crea coherentes por región */}
+          <button
+            onClick={onCleanRegen}
+            disabled={cleanRegenLoading}
+            className="w-full px-3 py-2 hover:bg-accent-blue/10 text-left flex items-center gap-2 border-t border-line/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Borra visitas del día y regenera con rutas regionales (arrancando desde CDs)"
+          >
+            🧹 {cleanRegenLoading ? 'Regenerando…' : 'Limpiar + regenerar plan (regional)'}
+          </button>
+          {/* Reset destructivo → BORRADOR */}
+          <button
+            onClick={onReset}
+            disabled={!canReset || resetLoading}
+            className="w-full px-3 py-2 hover:bg-accent-yellow/10 text-left flex items-center gap-2 border-t border-line/40 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={canReset ? 'Volver a BORRADOR (descarta progreso de simulación)' : 'Solo en EN_CURSO o CERRADO'}
+          >
+            ↺ {resetLoading ? 'Reseteando…' : 'Volver a BORRADOR'}
           </button>
           {canClose && (
             <button onClick={onClose} className="w-full px-3 py-2 hover:bg-accent-red/10 text-accent-red text-left flex items-center gap-2 border-t border-line/40">
-              <Square size={11} /> Cerrar día
+              <Square size={11} /> Cerrar día antes
             </button>
           )}
           {state && (

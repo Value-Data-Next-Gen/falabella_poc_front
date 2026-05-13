@@ -2,13 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
-import { Map } from 'react-map-gl/maplibre';
+import { Map, NavigationControl, FullscreenControl, GeolocateControl } from 'react-map-gl/maplibre';
 import { Crosshair, Home, Maximize2, Minus, Plus, X, Filter, ChevronDown } from 'lucide-react';
 import { api } from '../api';
 import { RegionFilter, Visit } from '../types';
 import { useTheme } from '../hooks/useTheme';
+import { isLatLonInRegion, routeColorByVehicle } from '../lib/regiones';
+import { useOperacionStore } from '../stores/useOperacionStore';
 
-const DEPOT: [number, number] = [-70.66, -33.45]; // [lon, lat]
+// Centro Santiago. Mantenemos este punto como "home" del mapa y fallback del
+// driver_sim cuando no hay CD asignado. Los CDs reales por región vienen del
+// endpoint /api/centros-distribucion (CR-002).
+const DEPOT: [number, number] = [-70.6483, -33.4569]; // [lon, lat]
 
 // Bounding box de Chile continental + insular para filtrar coords inválidas
 // que aparecen sobre el océano. Cualquier visita con (lat,lon) fuera de este
@@ -40,8 +45,15 @@ const INITIAL_VIEW: ViewState = {
   bearing: 0,
 };
 
-const MAP_STYLE_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const MAP_STYLE_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+// Tiles MapTiler. Si VITE_MAPTILER_KEY no está seteada, caemos a CartoDB
+// (sin auth, calidad menor). Default style: bright-v2 (claro) y streets-v2-dark.
+const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY as string | undefined;
+const MAP_STYLE_DARK = MAPTILER_KEY
+  ? `https://api.maptiler.com/maps/streets-v2-dark/style.json?key=${MAPTILER_KEY}`
+  : 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const MAP_STYLE_LIGHT = MAPTILER_KEY
+  ? `https://api.maptiler.com/maps/bright-v2/style.json?key=${MAPTILER_KEY}`
+  : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
 // Distancia máxima en KM entre dos stops consecutivos para que se permita
 // dibujar una línea entre ellos. Si una ruta planificada tiene dos stops a
@@ -93,8 +105,16 @@ function parseHHMMSS(date: string, hms: string): Date {
   return new Date(`${date}T${hms}`);
 }
 
+// Visit extendido para el mapa: preserva el status 'failed' del backend
+// (el Visit canónico solo tiene 'pending'|'completed') y agrega flag `vip`
+// para los pins. Solo se usa en este componente.
+type VisitMap = Omit<Visit, 'status'> & {
+  status: 'pending' | 'completed' | 'failed';
+  vip: boolean;
+};
+
 interface TooltipState {
-  visit: Visit | null;
+  visit: VisitMap | null;
   x: number;
   y: number;
 }
@@ -103,15 +123,15 @@ interface DriverMarker {
   vehicle_id: number;
   vehicle_name: string;
   position: [number, number];
-  lastCompleted: Visit | null;
-  nextPending: Visit | null;
+  lastCompleted: VisitMap | null;
+  nextPending: VisitMap | null;
   progressPct: number;
   totalStops: number;
   completedStops: number;
 }
 
-function computeDriverMarkers(visits: Visit[], simClock: Date, today: string): DriverMarker[] {
-  const byVehicle: Record<number, Visit[]> = {};
+function computeDriverMarkers(visits: VisitMap[], simClock: Date, today: string): DriverMarker[] {
+  const byVehicle: Record<number, VisitMap[]> = {};
   visits.forEach(v => {
     if (!byVehicle[v.vehicle_id]) byVehicle[v.vehicle_id] = [];
     byVehicle[v.vehicle_id].push(v);
@@ -183,6 +203,7 @@ export function OperationsMap({
   externalDriverName,
   externalRutaId,
   externalOnlyVip,
+  plannedDate,
 }: {
   selectedVehicles: number[];
   /** Filtros propagados desde el contenedor (MapaTab). Si no vienen, el mapa
@@ -193,6 +214,10 @@ export function OperationsMap({
   externalDriverName?: string;
   externalRutaId?: string;
   externalOnlyVip?: boolean;
+  /** Día operativo activo. Si viene, el mapa lee plan-diario REAL para esa
+   * fecha (rutas del XLSX cargado por el usuario). Si no viene, cae al
+   * snapshot sintético del simulador legacy. */
+  plannedDate?: string | null;
 }) {
   const [regionLocal, setRegion] = useState<RegionFilter>('all');
   const region = externalRegion ?? regionLocal;
@@ -209,11 +234,19 @@ export function OperationsMap({
   const onlyVip = externalOnlyVip ?? onlyVipLocal;
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const visitsQ = useQuery({
-    queryKey: ['visits-map', selectedVehicles, region],
-    queryFn: () => api.visits({ vehicle_ids: selectedVehicles, region }),
-    refetchInterval: 5000,
-  });
+  // P2: el panel duplicado de filtros que renderizaba este componente confundía
+  // al usuario cuando el contenedor (MapaTab) ya pasaba sus propios filtros
+  // por props external*. Los selects internos llamaban a setLocal* pero `value`
+  // se computa con `external ?? local`, así que el cambio se ignoraba (los
+  // dropdowns parecían rotos). Si llega cualquier external*, asumimos que el
+  // contenedor ya tiene UI de filtros y ocultamos la flotante del mapa.
+  const hasExternalFilters =
+    externalRegion !== undefined ||
+    externalEmpresaId !== undefined ||
+    externalDriverName !== undefined ||
+    externalRutaId !== undefined ||
+    externalOnlyVip !== undefined;
+
   const stateQ = useQuery({
     queryKey: ['state-map'],
     queryFn: api.state,
@@ -226,13 +259,39 @@ export function OperationsMap({
     queryFn: api.empresaContactos.listEmpresas,
   });
   const fleetQ = useQuery({ queryKey: ['fleet-vehicles-map'], queryFn: api.fleetVehicles });
-  // R7-P4: cruce vehicle_id → empresa_id, ruta_id, is_vip via plan-diario.
-  // Sin esto no podemos filtrar empresa/ruta/VIP en el mapa (la entidad Visit
-  // del endpoint legacy /api/visits no expone esas dimensiones).
+  // Plan-diario real: fuente única para stops + metadata de filtros. Antes
+  // teníamos /api/visits (synthetic legacy) renderizando los pines y plan-diario
+  // (synthetic) para filtros — los vehicle_id no se cruzaban con el plan REAL
+  // del XLSX cargado por el usuario, por eso el mapa mostraba 0 pines cuando
+  // se elegía una ruta real. Ahora la fuente es la misma para todo el módulo.
   const planQ = useQuery({
-    queryKey: ['plan-diario-map-filters'],
-    queryFn: () => api.planDiario({ source: 'synthetic' }),
-    refetchInterval: 30000,
+    queryKey: ['plan-diario-map', plannedDate],
+    queryFn: () => api.planDiario({
+      source: plannedDate ? 'real' : 'synthetic',
+      planned_date: plannedDate ?? undefined,
+    }),
+    refetchInterval: 10_000,
+  });
+
+  // Posiciones reales de los drivers (driver_sim). Devuelve {vehicle_id, lat,
+  // lon, ruta_id, status, stops_total/completed/failed}. Sustituye la
+  // interpolación cliente-side (computeDriverMarkers) que dependía de
+  // sim_clock + estimated_time_arrival de visits sintéticos.
+  const driverPositionsQ = useQuery({
+    queryKey: ['driver-positions-map', plannedDate],
+    queryFn: () => plannedDate
+      ? api.operacion.driverPositions(plannedDate)
+      : Promise.resolve({ sim_active: false, sim_clock: null, tick_sec: 0, minutes_per_tick: 0, drivers: [] }),
+    refetchInterval: 5_000,
+    enabled: !!plannedDate,
+  });
+
+  // Centros de distribución regionales (donde arrancan las rutas). Sustituyen
+  // el DEPOT único hardcodeado en Santiago. Cache largo: rara vez cambian.
+  const cdsQ = useQuery({
+    queryKey: ['centros-distribucion'],
+    queryFn: () => api.centrosDistribucion.list(),
+    staleTime: 5 * 60_000,
   });
 
   const { theme } = useTheme();
@@ -244,7 +303,58 @@ export function OperationsMap({
   const [driverPopup, setDriverPopup] = useState<DriverMarker | null>(null);
   const initialFittedRef = useRef(false);
 
-  const allVisits = visitsQ.data ?? [];
+  // [Tarea 5] Sync con sidebar via zustand. hover y selected vienen del store
+  // para que el mapa atenúe rutas no relacionadas. Click en pin actualiza
+  // selectedDriver y pide scrollIntoView en el sidebar.
+  const hoveredDriverId = useOperacionStore(s => s.hoveredDriverId);
+  const selectedDriverId = useOperacionStore(s => s.selectedDriverId);
+  const setSelectedDriver = useOperacionStore(s => s.setSelectedDriver);
+  const setHoveredDriver = useOperacionStore(s => s.setHoveredDriver);
+  const requestScrollToDriver = useOperacionStore(s => s.requestScrollToDriver);
+
+  // allVisits: derivado del plan-diario REAL (Sprint 6). Cada PlanVisit hereda
+  // vehicle_id/vehicle_name de su PlanRuta, y latitude/longitude del centroide
+  // de comuna (jitter determinístico por tracking_id en backend). Antes esto
+  // venía de /api/visits (synthetic legacy) con IDs que NO matcheaban el plan
+  // real cargado por XLSX, por eso el mapa se veía vacío al filtrar por ruta.
+  const allVisits: VisitMap[] = useMemo(() => {
+    const out: VisitMap[] = [];
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (r.vehicle_id == null) return;
+        const driverLabel = r.driver_name ?? r.vehicle_name ?? `Vehículo ${r.vehicle_id}`;
+        r.visitas?.forEach(v => {
+          // status preserva 'failed' (Tarea 2: necesario para color del pin).
+          const status: 'pending' | 'completed' | 'failed' =
+            v.status === 'failed' ? 'failed' :
+            v.status === 'pending' ? 'pending' : 'completed';
+          out.push({
+            tracking_id: v.tracking_id,
+            vehicle_id: r.vehicle_id,
+            vehicle_name: driverLabel,
+            order: v.order,
+            title: v.title,
+            address: v.address ?? '',
+            latitude: v.latitude ?? 0,
+            longitude: v.longitude ?? 0,
+            load: 0,
+            window_start: v.window_start ?? '',
+            window_end: v.window_end ?? '',
+            planned_arrival_time: v.planned_arrival_time ?? '',
+            estimated_time_arrival: v.estimated_time_arrival ?? '',
+            slack_min: v.slack_min ?? 0,
+            alert_slack: (v.alert_slack ?? 'GREEN') as 'GREEN' | 'YELLOW' | 'RED',
+            p_fallo: v.p_fallo ?? 0,
+            alert_valuedata: v.alert_valuedata ?? false,
+            status,
+            vip: !!v.is_vip,
+            horas_hasta_window_end: 0,
+          });
+        });
+      });
+    });
+    return out;
+  }, [planQ.data]);
   const appState = stateQ.data;
 
   // Mapping vehicle_id -> plate (para filtrar por patente)
@@ -258,12 +368,13 @@ export function OperationsMap({
   // y el set de tracking_ids VIP. Y armamos catálogos legibles (con nombres) para
   // los dropdowns: rutas y drivers con etiquetas.
   const {
-    empresaByVid, rutaByVid, driverByVid, vipTrackingSet,
+    empresaByVid, rutaByVid, driverByVid, regionByVid, vipTrackingSet,
     rutaOptions, driverOptions,
   } = useMemo(() => {
     const empresaByVid: Record<number, number> = {};
     const rutaByVid: Record<number, string> = {};
     const driverByVid: Record<number, string> = {};
+    const regionByVid: Record<number, string> = {};
     const vipTrackingSet = new Set<string>();
     type RutaOpt = { ruta_id: string; driver_name: string; empresa_nombre: string; total: number };
     const rutasMap: Record<string, RutaOpt> = {};
@@ -274,6 +385,7 @@ export function OperationsMap({
           empresaByVid[r.vehicle_id] = emp.empresa_id;
           if (r.ruta_id) rutaByVid[r.vehicle_id] = r.ruta_id;
           if (r.driver_name) driverByVid[r.vehicle_id] = r.driver_name;
+          if (r.region) regionByVid[r.vehicle_id] = r.region;
         }
         if (r.ruta_id) {
           rutasMap[r.ruta_id] = {
@@ -288,7 +400,7 @@ export function OperationsMap({
       });
     });
     return {
-      empresaByVid, rutaByVid, driverByVid, vipTrackingSet,
+      empresaByVid, rutaByVid, driverByVid, regionByVid, vipTrackingSet,
       rutaOptions: Object.values(rutasMap).sort((a, b) => a.ruta_id.localeCompare(b.ruta_id)),
       driverOptions: Array.from(driversSet).sort(),
     };
@@ -302,6 +414,24 @@ export function OperationsMap({
   //  5. onlyVip → solo visitas marcadas VIP en plan-diario.
   const visits = useMemo(() => {
     let out = allVisits.filter(v => isValidLatLon(v.latitude, v.longitude));
+    // Filtros que antes hacía el server vía /api/visits — ahora client-side
+    // porque allVisits viene del plan-diario completo.
+    if (selectedVehicles.length > 0) {
+      const allowed = new Set(selectedVehicles);
+      out = out.filter(v => allowed.has(v.vehicle_id));
+    }
+    if (region === 'RM') {
+      out = out.filter(v => isLatLonInRegion(v.latitude, v.longitude, 'RM'));
+    } else if (region === 'regiones') {
+      out = out.filter(v => !isLatLonInRegion(v.latitude, v.longitude, 'RM'));
+    } else if (region !== 'all') {
+      out = out.filter(v => isLatLonInRegion(v.latitude, v.longitude, region));
+    }
+    // [CR-001] Sacado el filtro R8 (descartar stops cuya región no matchee la
+    // dominante de la ruta). Era contraproducente con el plan REAL: si una
+    // ruta legítimamente tenía stops mezclados en RM + Valparaíso, descartaba
+    // la mitad. Para los saltos largos confiamos en splitPathByLongJumps que
+    // corta el dibujo del path (no oculta los pines).
     if (empresaFilter.size > 0) {
       out = out.filter(v => {
         const eid = empresaByVid[v.vehicle_id];
@@ -321,7 +451,7 @@ export function OperationsMap({
       out = out.filter(v => vipTrackingSet.has(v.tracking_id));
     }
     return out;
-  }, [allVisits, plateFilter, empresaFilter, rutaFilter, driverFilter, onlyVip, plateByVid, empresaByVid, rutaByVid, driverByVid, vipTrackingSet]);
+  }, [allVisits, selectedVehicles, region, plateFilter, empresaFilter, rutaFilter, driverFilter, onlyVip, plateByVid, empresaByVid, rutaByVid, driverByVid, regionByVid, vipTrackingSet]);
 
   const activeFilterCount =
     (region !== 'all' ? 1 : 0) +
@@ -331,7 +461,7 @@ export function OperationsMap({
     (driverFilter ? 1 : 0) +
     (onlyVip ? 1 : 0);
 
-  const fitToVisits = useCallback((pts: Visit[], animate = true) => {
+  const fitToVisits = useCallback((pts: VisitMap[], animate = true) => {
     if (!pts.length) return;
     const lons = pts.map(v => v.longitude).concat(DEPOT[0]);
     const lats = pts.map(v => v.latitude).concat(DEPOT[1]);
@@ -366,22 +496,64 @@ export function OperationsMap({
   // R7-P4: al elegir una ruta en el dropdown, autofocus al vehículo de esa ruta
   // (aparecen los números de orden + panel lateral con la secuencia). Y
   // encuadramos a esos stops.
+  // FIX re-render: usamos un ref con el último rutaFilter para el que ya
+  // hicimos fit. Sin esto, cada poll de planQ (10s) recomputa `visits` →
+  // dispara el efecto → reencuadra → "el mapa se recarga al filtrar".
+  const lastFittedRutaRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!rutaFilter) return;
+    if (!rutaFilter) {
+      lastFittedRutaRef.current = null;
+      return;
+    }
+    if (lastFittedRutaRef.current === rutaFilter) return;
     const match = Object.entries(rutaByVid).find(([, rid]) => rid === rutaFilter);
     if (!match) return;
     const vid = Number(match[0]);
     setFocusedVehicle(vid);
     const stops = visits.filter(v => v.vehicle_id === vid);
-    if (stops.length) fitToVisits(stops, true);
+    if (stops.length) {
+      fitToVisits(stops, true);
+      lastFittedRutaRef.current = rutaFilter;
+    }
   }, [rutaFilter, rutaByVid, visits, fitToVisits]);
 
-  // Driver live positions
+  // Driver live positions — fuente real (driver_sim) cuando hay plannedDate.
+  // Cae a la interpolación legacy si no hay data real (modo sintético).
   const driverMarkers = useMemo(() => {
+    // Si hay posiciones reales del driver_sim, las usamos directo
+    const realDrivers = driverPositionsQ.data?.drivers ?? [];
+    if (realDrivers.length > 0) {
+      // Filtrar por selectedVehicles para que la cascada de filtros aplique al camión
+      const allowed = new Set(selectedVehicles);
+      return realDrivers
+        .filter(d => d.lat != null && d.lon != null
+          && (selectedVehicles.length === 0 || allowed.has(d.vehicle_id)))
+        .map(d => {
+          // Próximo stop pendiente desde las visits del plan para este vehicle
+          const vehVisits = visits
+            .filter(v => v.vehicle_id === d.vehicle_id)
+            .sort((a, b) => a.order - b.order);
+          const completed = vehVisits.filter(v => v.status === 'completed');
+          const pending = vehVisits.filter(v => v.status === 'pending');
+          return {
+            vehicle_id: d.vehicle_id,
+            vehicle_name: d.driver_name ?? `Vehículo ${d.vehicle_id}`,
+            position: [d.lon!, d.lat!] as [number, number],
+            lastCompleted: completed[completed.length - 1] ?? null,
+            nextPending: pending[0] ?? null,
+            progressPct: d.stops_total > 0
+              ? Math.round((d.stops_completed / d.stops_total) * 100)
+              : 0,
+            totalStops: d.stops_total,
+            completedStops: d.stops_completed,
+          };
+        });
+    }
+    // Fallback: interpolación legacy desde sim_clock (modo sintético)
     if (!appState?.sim_clock || !visits.length) return [];
     const simClock = new Date(appState.sim_clock);
     return computeDriverMarkers(visits, simClock, appState.today);
-  }, [visits, appState?.sim_clock, appState?.today]);
+  }, [driverPositionsQ.data, selectedVehicles, visits, appState?.sim_clock, appState?.today]);
 
   // Visible vehicles (si hay focus, solo ese)
   const visibleVisits = useMemo(() => {
@@ -390,7 +562,7 @@ export function OperationsMap({
   }, [visits, focusedVehicle]);
 
   const routes = useMemo(() => {
-    const byVehicle: Record<number, Visit[]> = {};
+    const byVehicle: Record<number, VisitMap[]> = {};
     visibleVisits.forEach(v => {
       if (!byVehicle[v.vehicle_id]) byVehicle[v.vehicle_id] = [];
       byVehicle[v.vehicle_id].push(v);
@@ -419,52 +591,151 @@ export function OperationsMap({
       id: 'routes',
       data: routes,
       getPath: (d: any) => d.path,
-      getColor: (d: any) => (d.isFocused ? [21, 147, 73, 200] : [96, 165, 250, focusedVehicle != null ? 30 : 80]),
-      getWidth: (d: any) => (d.isFocused ? 4 : 2),
+      // [Tarea 5] Color/ancho según hover+select+focus. Prioridad:
+      //   1. selected: opacidad llena + width 4
+      //   2. hovered: opacidad llena + width 5 (un toque más grueso para ver)
+      //   3. focus filter activo en otra ruta: atenuar al 25%
+      //   4. default: opacidad media
+      getColor: (d: any) => {
+        const vid = d.vehicle_id;
+        const isSel = selectedDriverId === vid || focusedVehicle === vid;
+        const isHov = hoveredDriverId === vid;
+        const anyDriverActive = selectedDriverId != null || focusedVehicle != null;
+        const alpha = isSel ? 240 : isHov ? 230 : anyDriverActive ? 50 : 180;
+        return routeColorByVehicle(vid, alpha);
+      },
+      getWidth: (d: any) => {
+        const isSel = selectedDriverId === d.vehicle_id || focusedVehicle === d.vehicle_id;
+        const isHov = hoveredDriverId === d.vehicle_id;
+        if (isHov) return 5;
+        if (isSel) return 4;
+        return 2;
+      },
       widthMinPixels: 1,
-    }),
-    new ScatterplotLayer({
-      id: 'visits',
-      data: visibleVisits,
-      getPosition: (d: Visit) => [d.longitude, d.latitude],
-      getFillColor: (d: Visit) => colorByP(d.p_fallo),
-      getRadius: (d: Visit) => 4 + d.p_fallo * 8,
-      radiusUnits: 'pixels',
-      radiusMinPixels: 4,
-      radiusMaxPixels: 16,
-      stroked: true,
-      getLineColor: (d: Visit) => (d.alert_valuedata ? [167, 139, 250, 255] : [40, 40, 40, 160]),
-      getLineWidth: (d: Visit) => (d.alert_valuedata ? 3 : 1),
-      lineWidthUnits: 'pixels',
-      lineWidthMinPixels: 1,
-      pickable: true,
-      onHover: (info: any) => {
-        if (info.object) setTooltip({ visit: info.object, x: info.x, y: info.y });
-        else setTooltip({ visit: null, x: 0, y: 0 });
+      updateTriggers: {
+        getColor: [hoveredDriverId, selectedDriverId, focusedVehicle],
+        getWidth: [hoveredDriverId, selectedDriverId, focusedVehicle],
       },
     }),
-    // Números de orden SOLO cuando hay un vehículo enfocado
-    ...(focusedVehicle != null
-      ? [
-          new TextLayer({
-            id: 'order-labels',
-            data: visibleVisits,
-            getPosition: (d: Visit) => [d.longitude, d.latitude],
-            getText: (d: Visit) => String(d.order),
-            getColor: (d: Visit) =>
-              d.status === 'completed' ? [139, 152, 169, 255] : [21, 147, 73, 255],
-            getSize: 11,
-            getPixelOffset: [0, -14],
-            fontFamily: 'JetBrains Mono, monospace',
-            fontWeight: 700,
-            background: true,
-            backgroundPadding: [2, 1],
-            getBackgroundColor: [255, 255, 255, 220],
-            getBorderColor: [218, 218, 218, 255],
-            getBorderWidth: 1,
-          }),
-        ]
-      : []),
+    // [Tarea 2] Capa 1: Halo P(fallo). Radio + color interpolados por p_fallo
+    // según el brief. Es la capa MÁS BAJA — los pins quedan encima nítidos.
+    // Pulse animado para p_fallo>=0.5 → TODO(animation): requiere setInterval
+    // que dispare re-render; lo dejo plano por ahora para no agregar overhead.
+    new ScatterplotLayer({
+      id: 'visit-halos',
+      data: visibleVisits,
+      getPosition: (d: VisitMap) => [d.longitude, d.latitude],
+      getRadius: (d: VisitMap) => {
+        const p = d.p_fallo;
+        if (p <= 0) return 6;
+        if (p <= 0.2) return 6 + (p / 0.2) * 4;        // 6→10
+        if (p <= 0.5) return 10 + ((p - 0.2) / 0.3) * 6; // 10→16
+        return 16 + Math.min(1, (p - 0.5) / 0.5) * 4;    // 16→20
+      },
+      getFillColor: (d: VisitMap): [number, number, number, number] => {
+        const p = d.p_fallo;
+        // Stops: 0=verde, 0.2=amber, 0.5=red, 1=dark-red. Alpha 64 (~0.25).
+        if (p <= 0.2) {
+          const t = p / 0.2;
+          return [Math.round(16 + (245 - 16) * t), Math.round(185 + (158 - 185) * t),
+                  Math.round(129 + (11 - 129) * t), 64];
+        }
+        if (p <= 0.5) {
+          const t = (p - 0.2) / 0.3;
+          return [Math.round(245 + (239 - 245) * t), Math.round(158 + (68 - 158) * t),
+                  Math.round(11 + (68 - 11) * t), 64];
+        }
+        const t = Math.min(1, (p - 0.5) / 0.5);
+        return [Math.round(239 + (220 - 239) * t), Math.round(68 + (38 - 68) * t),
+                Math.round(68 + (38 - 68) * t), 64];
+      },
+      radiusUnits: 'pixels',
+      stroked: false,
+      filled: true,
+      pickable: false,
+    }),
+    // [Tarea 2] Capa 2: Borde VIP. Anillo violeta sobre visitas marcadas
+    // VIP, sin relleno, sin halo. Filter por d.vip.
+    new ScatterplotLayer({
+      id: 'visit-vip-ring',
+      data: visibleVisits.filter(v => v.vip),
+      getPosition: (d: VisitMap) => [d.longitude, d.latitude],
+      getRadius: 12,
+      radiusUnits: 'pixels',
+      stroked: true,
+      filled: false,
+      getLineColor: [139, 92, 246, 255],
+      getLineWidth: 2,
+      lineWidthUnits: 'pixels',
+      pickable: false,
+    }),
+    // [Tarea 2] Capa 3: Pin de la visita, coloreado por ESTADO.
+    // pendiente=slate-400 / en_curso=blue-500 / ok=emerald-500 / fallida=red-500.
+    // Para 'en_curso' usamos un proxy: la visita es 'pending' y es el next_pending
+    // de un driver activo. Como no tenemos esa info acá, marcamos solo
+    // pendiente/ok/fallida; el "en_curso" se ve por el camión arriba.
+    new ScatterplotLayer({
+      id: 'visit-pins',
+      data: visibleVisits,
+      getPosition: (d: VisitMap) => [d.longitude, d.latitude],
+      getFillColor: (d: VisitMap): [number, number, number, number] => {
+        if (d.status === 'failed') return [239, 68, 68, 255];        // red-500
+        if (d.status === 'completed') return [16, 185, 129, 255];    // emerald-500
+        return [148, 163, 184, 255];                                 // slate-400 (pending)
+      },
+      // [Tarea 5] Radio crece cuando el pin pertenece al driver hovered/selected.
+      getRadius: (d: VisitMap) => {
+        const isFocusedDriver = focusedVehicle === d.vehicle_id ||
+          selectedDriverId === d.vehicle_id || hoveredDriverId === d.vehicle_id;
+        return isFocusedDriver ? 10 : 7;
+      },
+      radiusUnits: 'pixels',
+      stroked: true,
+      getLineColor: [255, 255, 255, 230],
+      getLineWidth: 1.5,
+      lineWidthUnits: 'pixels',
+      pickable: true,
+      onHover: (info: any) => {
+        if (info.object) {
+          setTooltip({ visit: info.object, x: info.x, y: info.y });
+          // Resaltar el driver de esta visita en el sidebar
+          if (info.object.vehicle_id) setHoveredDriver(info.object.vehicle_id);
+        } else {
+          setTooltip({ visit: null, x: 0, y: 0 });
+          setHoveredDriver(null);
+        }
+      },
+      onClick: (info: any) => {
+        // [Tarea 5] Click en pin → enfocar ese driver en mapa, fit a sus
+        // stops, marcar selected en el store y pedir scrollIntoView en sidebar.
+        if (info.object?.vehicle_id) {
+          const vid = info.object.vehicle_id as number;
+          setFocusedVehicle(vid);
+          setSelectedDriver(vid);
+          requestScrollToDriver(vid);
+          const stops = visits.filter(v => v.vehicle_id === vid);
+          if (stops.length) fitToVisits(stops, true);
+        }
+      },
+      updateTriggers: {
+        getRadius: [hoveredDriverId, selectedDriverId, focusedVehicle],
+      },
+    }),
+    // [Tarea 2] Capa 4: Número de secuencia SIEMPRE visible (antes solo con
+    // foco/filtro). Tamaño chico para no saturar; al hacer focus crece.
+    new TextLayer({
+      id: 'visit-order-labels',
+      data: visibleVisits,
+      getPosition: (d: VisitMap) => [d.longitude, d.latitude],
+      getText: (d: VisitMap) => String(d.order),
+      getColor: [255, 255, 255, 255],
+      getSize: (d: VisitMap) => (focusedVehicle === d.vehicle_id ? 11 : 8),
+      sizeUnits: 'pixels',
+      fontFamily: 'JetBrains Mono, monospace',
+      fontWeight: 700,
+      background: false,
+      pickable: false,
+    }),
     // Camión en vivo
     new IconLayer({
       id: 'drivers',
@@ -495,19 +766,58 @@ export function OperationsMap({
         if (info.object) setDriverPopup(info.object);
       },
     }),
+    // Centros de distribución (CDs) por región — origen de las rutas.
+    // Cuadrado verde con "CD" en blanco, distinguible del camión circular.
     new IconLayer({
-      id: 'depot',
-      data: [{ position: DEPOT }],
-      getPosition: (d: any) => d.position,
-      getIcon: () => 'depot',
+      id: 'centros-distribucion',
+      data: cdsQ.data ?? [],
+      getPosition: (d: any) => [d.lon, d.lat] as [number, number],
+      getIcon: () => 'cd',
       iconAtlas:
         'data:image/svg+xml;base64,' +
         btoa(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><circle cx="32" cy="32" r="20" fill="#159349" stroke="#ffffff" stroke-width="3"/><text x="32" y="38" text-anchor="middle" font-family="monospace" font-size="14" font-weight="bold" fill="#ffffff">D</text></svg>`,
+          `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+<rect x="10" y="10" width="44" height="44" rx="4" fill="#159349" stroke="#ffffff" stroke-width="3"/>
+<text x="32" y="40" text-anchor="middle" font-family="monospace" font-size="16" font-weight="bold" fill="#ffffff">CD</text>
+</svg>`,
         ),
-      iconMapping: { depot: { x: 0, y: 0, width: 64, height: 64, anchorY: 32 } },
+      iconMapping: { cd: { x: 0, y: 0, width: 64, height: 64, anchorY: 32 } },
       sizeScale: 1,
-      getSize: 30,
+      getSize: 28,
+      pickable: true,
+      onHover: (info: any) => {
+        // Reusamos el tooltip de visits a costa de mock — más simple que un layer nuevo.
+        if (info.object) {
+          const cd = info.object;
+          setTooltip({
+            visit: {
+              tracking_id: `CD-${cd.cd_id}`,
+              vehicle_id: 0,
+              vehicle_name: cd.nombre,
+              order: 0,
+              title: `${cd.nombre} · ${cd.region}`,
+              address: cd.ciudad ?? '',
+              latitude: cd.lat,
+              longitude: cd.lon,
+              load: 0,
+              window_start: '',
+              window_end: cd.ciudad ?? '',
+              planned_arrival_time: '',
+              estimated_time_arrival: '',
+              slack_min: 0,
+              alert_slack: 'GREEN',
+              p_fallo: 0,
+              alert_valuedata: false,
+              status: 'completed',
+              vip: false,
+              horas_hasta_window_end: 0,
+            } as VisitMap,
+            x: info.x, y: info.y,
+          });
+        } else {
+          setTooltip({ visit: null, x: 0, y: 0 });
+        }
+      },
     }),
   ];
 
@@ -530,10 +840,18 @@ export function OperationsMap({
         controller={{ dragRotate: false, touchRotate: false } as any}
         layers={layers}
       >
-        <Map mapStyle={mapStyle} attributionControl={false} />
+        <Map mapStyle={mapStyle} attributionControl={false}>
+          <NavigationControl position="top-right" showCompass={false} />
+          <FullscreenControl position="top-right" />
+          <GeolocateControl position="top-right" trackUserLocation={false} />
+        </Map>
       </DeckGL>
 
-      {/* Header de filtros (top-left, sobre el mapa) */}
+      {/* Header de filtros (top-left, sobre el mapa). Solo se muestra cuando
+          el componente se usa standalone (sin contenedor que pase external*).
+          Cuando MapaTab pasa filtros externos, este header duplicaba la UI y
+          sus selects no propagaban cambios al padre. */}
+      {!hasExternalFilters && (
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center gap-2 z-10 pointer-events-none">
         <div className="pointer-events-auto bg-bg-800/95 border border-line rounded-md shadow-lg p-1.5 flex flex-wrap items-center gap-2">
           <button
@@ -689,6 +1007,7 @@ export function OperationsMap({
           </div>
         )}
       </div>
+      )}
 
       {/* Controles de cámara */}
       <div className="absolute top-3 right-3 flex flex-col gap-1 bg-bg-800/95 border border-line rounded-md shadow-lg overflow-hidden">
@@ -751,7 +1070,7 @@ export function OperationsMap({
               </div>
             </div>
             <button
-              onClick={() => { setFocusedVehicle(null); setDriverPopup(null); setRutaFilter(''); }}
+              onClick={() => { setFocusedVehicle(null); setDriverPopup(null); setRutaFilter(''); setSelectedDriver(null); }}
               className="text-text-muted hover:text-accent-red"
               title="Quitar foco"
             >

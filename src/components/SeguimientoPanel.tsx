@@ -10,6 +10,7 @@ import {
 import { api } from '../api';
 import { FpocVisitRow, SeguimientoKPIs } from '../types';
 import { formatMotivoLabel } from '../lib/formatMotivoLabel';
+import { useDiaActivo } from '../hooks/useDiaActivo';
 
 const FLAG_LABELS: Record<string, string> = {
   ruta_eta_futuro: 'ETA a > 24h',
@@ -67,12 +68,11 @@ function computeDates(base: string, preset: PeriodPreset, custom: string) {
 
 export function SeguimientoPanel() {
   const datesQ = useQuery({ queryKey: ['seg-dates'], queryFn: api.seg.availableDates });
-  // Día operativo del simulador (STATE.today). Si tiene datos, lo preferimos
-  // sobre max_date (que devuelve la última fecha con visitas reales — útil
-  // para histórico pero confuso si el día operativo es otro).
-  const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 30_000 });
-  const operationalDate = stateQ.data?.today ?? '';
-  const baseDate = operationalDate || (datesQ.data?.max_date ?? '');
+  // R8: la fecha base la administra useDiaActivo (DiaActivoPicker del topbar).
+  // Antes leíamos state.today que era el singleton del simulador legacy y se
+  // desincronizaba con la fecha elegida (bug del "Control en 23-05 vs 12-05").
+  const { fecha: activeDate } = useDiaActivo();
+  const baseDate = activeDate || (datesQ.data?.max_date ?? '');
 
   const [preset, setPreset] = useState<PeriodPreset>('latest');
   const [custom, setCustom] = useState<string>('');
@@ -150,8 +150,8 @@ export function SeguimientoPanel() {
           <span className="ml-auto text-text-muted flex items-center gap-3">
             <span title="Día sobre el que se calculan los KPIs. Por defecto coincide con el día operativo activo del simulador; cambia con los presets o con la fecha custom.">
               Fecha activa: <span className="text-brand font-mono">{primary || '—'}</span>
-              {operationalDate && primary === operationalDate && (
-                <span className="ml-1 text-[10px] uppercase tracking-wider text-accent-blue">· día operativo</span>
+              {activeDate && primary === activeDate && (
+                <span className="ml-1 text-[10px] uppercase tracking-wider text-accent-blue">· día activo</span>
               )}
             </span>
             {compareTo && (

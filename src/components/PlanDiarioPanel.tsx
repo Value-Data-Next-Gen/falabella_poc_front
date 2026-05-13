@@ -297,7 +297,7 @@ function RutaRow({ ruta, canMarkVip, notifMap, simClock, mode }: {
             <span className="font-mono text-text-secondary">{ruta.patente ?? ruta.plate ?? ruta.vehicle_name}</span>
             <span className="text-text-muted">·</span>
             <User size={10} className="text-text-muted" />
-            <span className="text-text-secondary truncate max-w-[180px]" title={ruta.driver_name}>{ruta.driver_name}</span>
+            <span className="text-text-secondary truncate max-w-[180px]" title={ruta.driver_name ?? '—'}>{ruta.driver_name ?? '—'}</span>
             {ruta.ct && (
               <>
                 <span className="text-text-muted">·</span>

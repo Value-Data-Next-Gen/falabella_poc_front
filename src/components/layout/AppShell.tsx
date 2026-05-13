@@ -159,7 +159,7 @@ export function AppShell() {
         />
         <main className="flex-1 overflow-hidden">
           {nav.module === 'onboarding' && <OnboardingModule sub={nav.sub} setSub={setSub} />}
-          {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} onNavigate={(m, s) => navigate(m as ModuleKey, s)} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
           {nav.module === 'auditoria-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'control' && <AnaliticaModule sub={nav.sub} setSub={setSub} />}

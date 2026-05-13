@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   Bot,
@@ -12,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../api';
 
 export type ModuleKey =
   | 'onboarding'
@@ -58,6 +60,21 @@ export function Sidebar({
     try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'); } catch {}
   }, [collapsed]);
 
+  // P4: badge de correcciones LLM pendientes. Polling cada 15s. Incluye las
+  // sugerencias creadas vía WhatsApp por drivers, así el ops ve en el sidebar
+  // que hay revisión sin tener que abrir el panel. Si la query falla, no
+  // mostramos badge (no bloquea la nav).
+  const pendingCorrectionsQ = useQuery({
+    queryKey: ['sidebar-pending-corrections-count'],
+    queryFn: () => api.motivoCorrections.list({ status: 'pending', limit: 100 }),
+    refetchInterval: 15_000,
+    retry: false,
+  });
+  const pendingCount = pendingCorrectionsQ.data?.length ?? 0;
+  const badgeByModule: Partial<Record<ModuleKey, number>> = {
+    'auditoria-ia': pendingCount,
+  };
+
   const widthCls = collapsed ? 'w-16' : 'w-60';
 
   // Group separators: data | ops | analytics | system
@@ -95,7 +112,7 @@ export function Sidebar({
                 onClick={() => onChange(m.key)}
                 title={m.hint}
                 data-tour-id={`sidebar-${m.key}`}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors rounded-md mx-2 my-0.5 ${
+                className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] transition-colors rounded-md mx-2 my-0.5 relative ${
                   active
                     ? 'bg-brand/15 text-brand font-medium'
                     : 'text-text-secondary hover:bg-bg-700/50 hover:text-text-primary'
@@ -103,6 +120,17 @@ export function Sidebar({
               >
                 <Icon size={16} className="shrink-0" />
                 {!collapsed && <span className="truncate">{m.label}</span>}
+                {(badgeByModule[m.key] ?? 0) > 0 && (
+                  <span
+                    className={`${collapsed
+                      ? 'absolute top-1 right-1 w-2 h-2'
+                      : 'ml-auto px-1.5 py-0.5 min-w-[18px] text-center'} `
+                      + 'rounded-full bg-accent-red text-white text-[10px] font-bold shrink-0'}
+                    title={`${badgeByModule[m.key]} correcciones pendientes`}
+                  >
+                    {collapsed ? '' : (badgeByModule[m.key]! > 99 ? '99+' : badgeByModule[m.key])}
+                  </span>
+                )}
               </button>
             </div>
           );

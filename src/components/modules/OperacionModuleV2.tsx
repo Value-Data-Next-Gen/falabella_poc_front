@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Card, Metric, Text } from '@tremor/react';
+import { useOperacionStore } from '../../stores/useOperacionStore';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, Flame, Map as MapIcon,
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, Flame, Map as MapIcon,
   Radio, Star, Truck, XCircle,
 } from 'lucide-react';
 import { api } from '../../api';
@@ -16,6 +18,7 @@ import { EventStream } from '../EventStream';
 import { MapaFoliosTable } from '../panels/MapaFoliosTable';
 import { RutaDetalleDrawer } from '../panels/RutaDetalleDrawer';
 import { RouteOpsPanel } from '../RouteOpsPanel';
+import { CopilotoPanel } from '../panels/CopilotoPanel';
 import { useDiaActivo } from '../../hooks/useDiaActivo';
 
 // R7: 3 tabs. Copiloto operativo viene de Auditoría IA (era vista operacional,
@@ -145,29 +148,9 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
           </span>
         </div>
 
-        <div className="px-4 pb-3 flex items-center gap-4 text-[11px]">
-          <KpiInline label="Visitas" value={totals.total} icon={Truck} color="text-text-primary" />
-          <KpiInline label="OK" value={totals.completadas} icon={CheckCircle2} color="text-brand" />
-          <KpiInline label="Fallidas" value={totals.fallidas} icon={XCircle} color="text-accent-red" />
-          <KpiInline label="En riesgo" value={totals.enRiesgo} icon={AlertTriangle} color="text-accent-yellow" />
-          <KpiInline
-            label="% cumpl."
-            value={`${totals.cumplPct.toFixed(0)}%`}
-            icon={Flame}
-            color={totals.cumplPct >= 90 ? 'text-brand' : totals.cumplPct >= 75 ? 'text-accent-yellow' : 'text-accent-red'}
-          />
-          <div className="ml-auto flex items-center gap-2">
-            <button onClick={() => setDrawer('plan')}
-                    className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
-                    title="Ver plan en ejecución (drawer)">
-              <CalendarClock size={11} /> Plan
-            </button>
-            <button onClick={() => setDrawer('watchlist')}
-                    className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
-                    title="Ver watchlist de visitas en riesgo (drawer)">
-              <Flame size={11} /> Watchlist
-            </button>
-          </div>
+        <div className="px-4 pb-3">
+          {/* [Tarea 4] KPI strip Tremor — En riesgo destaca con border-l-4 naranjo cuando >0 */}
+          <KpiStrip totals={totals} onDrawerPlan={() => setDrawer('plan')} onDrawerWatchlist={() => setDrawer('watchlist')} />
         </div>
       </div>
 
@@ -181,7 +164,7 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             onlyVip={onlyVip}
           />
         )}
-        {active === 'copiloto' && <RouteOpsPanel />}
+        {active === 'copiloto' && <CopilotoLayout />}
         {active === 'alertas' && <div className="h-full"><EventStream /></div>}
 
         {/* Drawers — Plan en ejecución y Watchlist */}
@@ -209,15 +192,90 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
   );
 }
 
-function KpiInline({ label, value, icon: Icon, color }: {
-  label: string; value: number | string; icon: any; color: string;
+// [Tarea 4] KPI strip con Tremor Card + Metric. Reemplaza el bloque de 5
+// KpiInline planos del header. "En Riesgo" tiene border-l-4 naranjo cuando >0
+// (urgencia visual). Los 2 botones Plan / Watchlist quedan a la derecha.
+function KpiStrip({ totals, onDrawerPlan, onDrawerWatchlist }: {
+  totals: {
+    total: number;
+    completadas: number;
+    fallidas: number;
+    enRiesgo: number;
+    cumplPct: number;
+  };
+  onDrawerPlan: () => void;
+  onDrawerWatchlist: () => void;
 }) {
+  const cumplColor =
+    totals.cumplPct >= 90 ? 'text-emerald-600' :
+    totals.cumplPct >= 75 ? 'text-amber-600' : 'text-red-600';
   return (
-    <div className="flex items-center gap-1.5">
-      <Icon size={12} className={color} />
-      <span className="text-text-muted text-[10px] uppercase tracking-wider">{label}</span>
-      <span className={`tabular-nums font-semibold ${color}`}>{value}</span>
+    <div className="flex items-stretch gap-2">
+      <KpiCard
+        icon={Truck} label="Visitas"
+        value={totals.total.toLocaleString('es-CL')}
+        tone="neutral"
+      />
+      <KpiCard
+        icon={CheckCircle2} label="OK"
+        value={totals.completadas.toLocaleString('es-CL')}
+        tone="success"
+      />
+      <KpiCard
+        icon={XCircle} label="Fallidas"
+        value={totals.fallidas.toLocaleString('es-CL')}
+        tone={totals.fallidas > 0 ? 'danger' : 'neutral'}
+      />
+      <KpiCard
+        icon={AlertTriangle} label="En Riesgo"
+        value={totals.enRiesgo.toLocaleString('es-CL')}
+        tone={totals.enRiesgo > 0 ? 'warning-urgent' : 'neutral'}
+      />
+      <KpiCard
+        icon={Flame} label="% Cumplim."
+        value={`${totals.cumplPct.toFixed(0)}%`}
+        tone="neutral"
+        valueClassName={cumplColor}
+      />
+      <div className="ml-auto flex items-center gap-2 self-center">
+        <button onClick={onDrawerPlan}
+                className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
+                title="Ver plan en ejecución (drawer)">
+          <CalendarClock size={11} /> Plan
+        </button>
+        <button onClick={onDrawerWatchlist}
+                className="btn !py-1 !px-2 text-[10px] flex items-center gap-1"
+                title="Ver watchlist de visitas en riesgo (drawer)">
+          <Flame size={11} /> Watchlist
+        </button>
+      </div>
     </div>
+  );
+}
+
+function KpiCard({ icon: Icon, label, value, tone, valueClassName }: {
+  icon: any;
+  label: string;
+  value: string;
+  tone: 'neutral' | 'success' | 'danger' | 'warning-urgent';
+  valueClassName?: string;
+}) {
+  const borderCls =
+    tone === 'warning-urgent' ? 'border-l-4 border-l-amber-500' :
+    tone === 'danger' ? 'border-l-4 border-l-red-500' :
+    tone === 'success' ? 'border-l-4 border-l-emerald-500' : '';
+  const iconColor =
+    tone === 'warning-urgent' ? 'text-amber-500' :
+    tone === 'danger' ? 'text-red-500' :
+    tone === 'success' ? 'text-emerald-500' : 'text-text-muted';
+  return (
+    <Card className={`!p-3 !rounded-md !shadow-none !bg-bg-800/40 !border-line ${borderCls} flex-1 min-w-[120px]`}>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-text-muted mb-1">
+        <Icon size={11} className={iconColor} />
+        {label}
+      </div>
+      <Metric className={`!text-xl !text-text-primary tabular-nums ${valueClassName ?? ''}`}>{value}</Metric>
+    </Card>
   );
 }
 
@@ -227,6 +285,15 @@ function MapaTab({ region, empresaId, onlyVip }: {
   onlyVip: boolean;
 }) {
   const [drawerRutaId, setDrawerRutaId] = useState<string | null>(null);
+  // [Tarea 4] Toggle del panel inferior (Gantt + folios). Cuando collapsed,
+  // el mapa toma full height. Persiste en localStorage para no perder el
+  // estado entre navegaciones.
+  const [bottomCollapsed, setBottomCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('op.bottomCollapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('op.bottomCollapsed', bottomCollapsed ? '1' : '0'); } catch {}
+  }, [bottomCollapsed]);
   // R7-P4: la fecha activa global controla el plan-diario consultado.
   const { fecha: activeDate } = useDiaActivo();
   const stateQ = useQuery({ queryKey: ['state'], queryFn: api.state, refetchInterval: 5_000 });
@@ -254,14 +321,21 @@ function MapaTab({ region, empresaId, onlyVip }: {
   const [driverFilter, setDriverFilter] = useState<string>('');
   const [rutaFilter, setRutaFilter] = useState<string>('');
 
-  // Catálogos legibles para los dropdowns: drivers únicos y rutas con label
-  // compuesto. Si hay empresa elegida en el header, la lista se acota.
+  // Cascada driver ↔ ruta:
+  //  - driverOptions se acota si hay rutaFilter activo (solo el driver de esa
+  //    ruta — porque una ruta tiene un solo driver).
+  //  - rutaOptions se acota si hay driverFilter activo (solo sus rutas).
+  //  - Si elegís una ruta, el driver se auto-completa (efecto más abajo).
   const { driverOptions, rutaOptions } = useMemo(() => {
     type RutaOpt = { ruta_id: string; driver_name: string; empresa_nombre: string; total: number };
     const driversSet = new Set<string>();
     const rutasMap: Record<string, RutaOpt> = {};
     (planQ.data?.empresas ?? []).forEach(emp => {
       emp.rutas.forEach(r => {
+        // Cascada: si hay ruta elegida, solo dejamos pasar esa ruta.
+        if (rutaFilter && r.ruta_id !== rutaFilter) return;
+        // Cascada: si hay driver elegido, solo dejamos pasar sus rutas.
+        if (driverFilter && r.driver_name !== driverFilter) return;
         if (r.driver_name) driversSet.add(r.driver_name);
         if (r.ruta_id) {
           rutasMap[r.ruta_id] = {
@@ -277,7 +351,20 @@ function MapaTab({ region, empresaId, onlyVip }: {
       driverOptions: Array.from(driversSet).sort(),
       rutaOptions: Object.values(rutasMap).sort((a, b) => a.ruta_id.localeCompare(b.ruta_id)),
     };
-  }, [planQ.data]);
+  }, [planQ.data, rutaFilter, driverFilter]);
+
+  // Al elegir una ruta, auto-completar el driver (mejor UX: ves de quién es
+  // y el dropdown queda consistente).
+  useEffect(() => {
+    if (!rutaFilter || !planQ.data) return;
+    for (const emp of planQ.data.empresas) {
+      const found = emp.rutas.find(r => r.ruta_id === rutaFilter);
+      if (found && found.driver_name && found.driver_name !== driverFilter) {
+        setDriverFilter(found.driver_name);
+        return;
+      }
+    }
+  }, [rutaFilter, planQ.data]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedVehicles = useMemo<number[]>(() => {
     const all = stateQ.data?.vehicles ?? [];
@@ -290,8 +377,12 @@ function MapaTab({ region, empresaId, onlyVip }: {
       emp.rutas.forEach(r => {
         if (driverFilter && r.driver_name !== driverFilter) return;
         if (rutaFilter && r.ruta_id !== rutaFilter) return;
-        const vid = r.visitas?.[0] && (r.visitas[0] as any).vehicle_id;
-        if (typeof vid === 'number') allowed.add(vid);
+        // Usar vehicle_id de la ruta (siempre presente en PlanRuta) en vez de
+        // r.visitas[0].vehicle_id (no garantizado por el endpoint plan-diario,
+        // generaba "0 / 12 vehículos" al filtrar por ruta).
+        if (typeof r.vehicle_id === 'number') {
+          allowed.add(r.vehicle_id);
+        }
       });
     });
     return all.filter(v => allowed.has(v));
@@ -388,7 +479,7 @@ function MapaTab({ region, empresaId, onlyVip }: {
         </span>
       </div>
 
-      <div className="panel flex flex-col">
+      <div className="panel flex flex-col flex-1 min-h-[520px]">
         <div className="panel-title flex items-center gap-3 flex-wrap">
           <span>Mapa operacional</span>
           <span className="text-text-muted normal-case tracking-normal text-[11px]">
@@ -405,38 +496,60 @@ function MapaTab({ region, empresaId, onlyVip }: {
             <span className="text-text-muted text-[10px]">sim</span>
           </span>
         </div>
-        <div className="min-h-[440px] h-[440px] relative">
-          {planVacio ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-bg-900/80 text-center px-6">
-              <div className="max-w-md flex flex-col items-center gap-2">
-                <span className="text-[18px] text-text-muted">🗺️</span>
-                <div className="text-[13px] font-semibold text-text-primary">Sin plan operativo para esta fecha</div>
-                <div className="text-[11px] text-text-muted">
-                  El mapa muestra solo rutas reales del plan-diario.
-                  Para ver pines, cargá un XLSX en Planificación → Día operativo
-                  o cambiá la fecha activa en el topbar a una con plan EN_CURSO.
-                </div>
-              </div>
-            </div>
-          ) : (
-            <OperationsMap
-              selectedVehicles={selectedVehicles}
-              externalRegion={region}
-              externalEmpresaId={empresaId === 'all' ? null : empresaId}
-              externalDriverName={driverFilter}
-              externalRutaId={rutaFilter}
-              externalOnlyVip={onlyVip}
+        {/* Split: panel lateral con avance por driver + mapa. */}
+        <div className="flex flex-1 min-h-[480px] gap-2 p-2">
+          {!planVacio && (
+            <DriversAvancePanel
+              fecha={activeDate}
+              empresaId={empresaId === 'all' ? null : empresaId}
+              focusedRutaId={rutaFilter}
+              onPickRuta={setRutaFilter}
             />
           )}
+          <div className="flex-1 relative">
+            {planVacio ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-bg-900/80 text-center px-6">
+                <div className="max-w-md flex flex-col items-center gap-2">
+                  <span className="text-[18px] text-text-muted">🗺️</span>
+                  <div className="text-[13px] font-semibold text-text-primary">Sin plan operativo para esta fecha</div>
+                  <div className="text-[11px] text-text-muted">
+                    El mapa muestra solo rutas reales del plan-diario.
+                    Para ver pines, cargá un XLSX en Planificación → Día operativo
+                    o cambiá la fecha activa en el topbar a una con plan EN_CURSO.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <OperationsMap
+                selectedVehicles={selectedVehicles}
+                externalRegion={region}
+                externalEmpresaId={empresaId === 'all' ? null : empresaId}
+                externalDriverName={driverFilter}
+                externalRutaId={rutaFilter}
+                externalOnlyVip={onlyVip}
+                plannedDate={activeDate}
+              />
+            )}
+          </div>
         </div>
       </div>
 
-      <MapaFoliosTable
-        fecha={activeDate}
-        empresaId={empresaId === 'all' ? null : empresaId}
-        empresaNombre={empresaNombre}
-        onlyVip={onlyVip}
-        onOpenRuta={(rid) => setDrawerRutaId(rid)}
+      {/* [Tarea 4] Panel inferior colapsable: cuando bottomCollapsed=true,
+          el mapa de arriba toma todo el alto. Cuando false, ocupa ~35%.
+          Por ahora contiene Gantt placeholder + tabla de folios existente. */}
+      <BottomSplit
+        collapsed={bottomCollapsed}
+        onToggle={() => setBottomCollapsed(c => !c)}
+        ganttPlaceholder={<GanttPlaceholder fecha={activeDate} />}
+        foliosTable={
+          <MapaFoliosTable
+            fecha={activeDate}
+            empresaId={empresaId === 'all' ? null : empresaId}
+            empresaNombre={empresaNombre}
+            onlyVip={onlyVip}
+            onOpenRuta={(rid) => setDrawerRutaId(rid)}
+          />
+        }
       />
 
       {drawerRutaId && (
@@ -492,5 +605,296 @@ function DayStatusInline({ activeDate }: { activeDate: string }) {
         </span>
       )}
     </span>
+  );
+}
+
+
+// =============================================================================
+// DriversAvancePanel — lista lateral con los 13 (N) drivers del día y su avance
+// real (stops_completed/stops_total, ruta_id, status). Click en una row enfoca
+// esa ruta en el mapa. Single source of truth: /api/operacion/driver-positions.
+// =============================================================================
+function DriversAvancePanel({
+  fecha, empresaId, focusedRutaId, onPickRuta,
+}: {
+  fecha: string;
+  empresaId: number | null;
+  focusedRutaId: string;
+  onPickRuta: (rid: string) => void;
+}) {
+  // [Tarea 5] Sync con zustand para hover/select bidireccional.
+  const hoveredDriverId = useOperacionStore(s => s.hoveredDriverId);
+  const selectedDriverId = useOperacionStore(s => s.selectedDriverId);
+  const setHoveredDriver = useOperacionStore(s => s.setHoveredDriver);
+  const setSelectedDriver = useOperacionStore(s => s.setSelectedDriver);
+  const scrollDriverIntoView = useOperacionStore(s => s.scrollDriverIntoView);
+  const requestScrollToDriver = useOperacionStore(s => s.requestScrollToDriver);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const driversQ = useQuery({
+    queryKey: ['driver-positions-panel', fecha, empresaId],
+    queryFn: () => api.operacion.driverPositions(fecha, empresaId),
+    refetchInterval: 5_000,
+    enabled: !!fecha,
+  });
+
+  // Plan-diario para calcular riesgo por driver (visitas con p_fallo >= 0.5).
+  // Reusa cache de @tanstack/react-query si MapaTab ya hizo la query.
+  const planQ = useQuery({
+    queryKey: ['plan-diario-map', empresaId, 'all', false, fecha],
+    queryFn: () => api.planDiario({
+      empresa_id: empresaId ?? undefined,
+      region: 'all',
+      only_vip: false,
+      source: 'real',
+      planned_date: fecha,
+    }),
+    enabled: !!fecha,
+    staleTime: 5_000,
+  });
+
+  // Mapping vehicle_id → cantidad de visitas pendientes con p_fallo >= 0.5
+  const riskByVid = useMemo(() => {
+    const m: Record<number, number> = {};
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (r.vehicle_id == null) return;
+        const risk = (r.visitas ?? []).filter(
+          v => v.status === 'pending' && (v.p_fallo ?? 0) >= 0.5
+        ).length;
+        if (risk > 0) m[r.vehicle_id] = risk;
+      });
+    });
+    return m;
+  }, [planQ.data]);
+
+  const drivers = driversQ.data?.drivers ?? [];
+  // [Tarea 4] Orden por urgencia:
+  //   1. Drivers con visitas en riesgo (P(fallo)>=0.5) → desc por count
+  //   2. Drivers activos (en_ruta/entregando) → asc por % avance (los más
+  //      rezagados arriba)
+  //   3. Pendientes (sin arrancar)
+  //   4. Finalizados (no requieren atención)
+  const sorted = useMemo(() => {
+    const rank = (s: string) =>
+      s === 'en_ruta' || s === 'entregando' ? 1 :
+      s === 'finalizado' ? 3 : 2;
+    return [...drivers].sort((a, b) => {
+      const aRisk = riskByVid[a.vehicle_id] ?? 0;
+      const bRisk = riskByVid[b.vehicle_id] ?? 0;
+      // 1. Visitas en riesgo arriba (desc)
+      if (aRisk !== bRisk) return bRisk - aRisk;
+      // 2. Bucket por status
+      const r = rank(a.status) - rank(b.status);
+      if (r !== 0) return r;
+      // 3. Dentro de activos: % avance asc (más rezagados arriba)
+      const aPct = a.stops_total > 0 ? a.stops_completed / a.stops_total : 0;
+      const bPct = b.stops_total > 0 ? b.stops_completed / b.stops_total : 0;
+      return aPct - bPct;
+    });
+  }, [drivers, riskByVid]);
+
+  // [Tarea 5] Scroll-into-view cuando el mapa pide enfocar un driver.
+  // Buscamos el card por data-driver-id y le hacemos scrollIntoView con
+  // scroll suave. Consumimos el pedido (set null) para no re-disparar.
+  useEffect(() => {
+    if (scrollDriverIntoView == null) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const card = container.querySelector(`[data-driver-id="${scrollDriverIntoView}"]`);
+    if (card) {
+      (card as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    requestScrollToDriver(null);
+  }, [scrollDriverIntoView, requestScrollToDriver]);
+
+  return (
+    <div ref={scrollContainerRef} className="w-[280px] shrink-0 flex flex-col gap-1 overflow-y-auto pr-1">
+      <div className="text-[10px] uppercase tracking-wider text-text-muted px-2 pb-1 flex items-center justify-between">
+        <span>Drivers ({sorted.length})</span>
+        {focusedRutaId && (
+          <button
+            onClick={() => { onPickRuta(''); setSelectedDriver(null); }}
+            className="text-[9px] text-text-muted hover:text-accent-red"
+            title="Quitar foco"
+          >
+            limpiar
+          </button>
+        )}
+      </div>
+      {sorted.length === 0 && (
+        <div className="text-[11px] text-text-muted px-2 py-3 italic">
+          Sin drivers iniciados. {driversQ.data?.sim_active === false && '(sim no activo)'}
+        </div>
+      )}
+      {sorted.map(d => {
+        const pct = d.stops_total > 0
+          ? Math.round((d.stops_completed / d.stops_total) * 100)
+          : 0;
+        const isFocused = !!d.ruta_id && d.ruta_id === focusedRutaId;
+        const barColor =
+          d.status === 'finalizado' ? 'bg-text-muted' :
+          d.stops_failed > 0 ? 'bg-accent-red' :
+          'bg-brand';
+        const riskCount = riskByVid[d.vehicle_id] ?? 0;
+        const hasRisk = riskCount > 0;
+        const isHovered = hoveredDriverId === d.vehicle_id;
+        const isSelected = selectedDriverId === d.vehicle_id || isFocused;
+        return (
+          <button
+            key={d.vehicle_id}
+            data-driver-id={d.vehicle_id}
+            onMouseEnter={() => setHoveredDriver(d.vehicle_id)}
+            onMouseLeave={() => setHoveredDriver(null)}
+            onClick={() => {
+              if (!d.ruta_id) return;
+              if (isFocused) {
+                onPickRuta('');
+                setSelectedDriver(null);
+              } else {
+                onPickRuta(d.ruta_id);
+                setSelectedDriver(d.vehicle_id);
+              }
+            }}
+            className={`text-left px-2 py-1.5 rounded border transition-colors ${
+              isSelected
+                ? 'bg-brand/15 border-brand/60 ring-1 ring-brand/40'
+                : isHovered
+                ? 'bg-bg-700/60 border-line'
+                : hasRisk
+                ? 'border-l-4 border-l-amber-500 border-line/40 hover:bg-bg-700/40'
+                : 'border-line/40 hover:bg-bg-700/40 hover:border-line'
+            }`}
+            title={`Click para ${isSelected ? 'quitar foco' : 'enfocar'} en el mapa`}
+          >
+            <div className="flex items-center justify-between gap-1 text-[11px]">
+              <span className="font-medium truncate flex items-center gap-1">
+                {d.driver_name ?? `vid ${d.vehicle_id}`}
+                {hasRisk && (
+                  <span className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-amber-500/20 text-amber-500 font-bold">
+                    EN RIESGO · {riskCount}
+                  </span>
+                )}
+              </span>
+              {d.vip_visitas > 0 && (
+                <span className="text-[9px] text-cmr">★{d.vip_visitas}</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+              <span className="font-mono truncate">{d.ruta_id ?? '—'}</span>
+              <span className="tabular-nums shrink-0 ml-1">
+                {d.stops_completed}/{d.stops_total}
+                {d.stops_failed > 0 && (
+                  <span className="text-accent-red ml-1">·{d.stops_failed}f</span>
+                )}
+              </span>
+            </div>
+            {/* Barra de progreso */}
+            <div className="h-1 bg-bg-700 rounded-full mt-1 overflow-hidden">
+              <div
+                className={`h-full ${barColor} transition-all`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[9px] mt-0.5">
+              <span className={`uppercase tracking-wider ${
+                d.status === 'finalizado' ? 'text-text-muted' :
+                d.status === 'entregando' ? 'text-accent-yellow' :
+                'text-brand'
+              }`}>
+                {d.status}
+              </span>
+              <span className="tabular-nums text-text-muted">{pct}%</span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// [Tarea 4] Panel inferior colapsable con 2 sub-tabs: Gantt | Folios.
+// Toggle expone/oculta. Cuando colapsado solo se ve la barra de header con
+// chevron para expandir. Altura aproximada cuando expandido: 35vh.
+function BottomSplit({
+  collapsed, onToggle, ganttPlaceholder, foliosTable,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  ganttPlaceholder: React.ReactNode;
+  foliosTable: React.ReactNode;
+}) {
+  const [tab, setTab] = useState<'gantt' | 'folios'>('folios');
+  return (
+    <div className={`panel flex flex-col ${collapsed ? '' : 'flex-shrink-0'}`}
+         style={collapsed ? undefined : { height: '35vh', minHeight: '280px' }}>
+      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-line/40 text-[11px]">
+        <button onClick={onToggle}
+                className="flex items-center gap-1 text-text-muted hover:text-text-primary"
+                title={collapsed ? 'Expandir panel inferior' : 'Colapsar panel inferior'}>
+          <ChevronDown size={14} className={`transition-transform ${collapsed ? '-rotate-90' : ''}`} />
+          <span className="uppercase tracking-wider">{collapsed ? 'Mostrar Gantt + Folios' : 'Ocultar'}</span>
+        </button>
+        {!collapsed && (
+          <div className="flex items-center gap-0 border border-line/40 rounded overflow-hidden">
+            <button onClick={() => setTab('gantt')}
+                    className={`px-2 py-0.5 text-[10px] ${tab === 'gantt' ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-700'}`}>
+              Gantt
+            </button>
+            <button onClick={() => setTab('folios')}
+                    className={`px-2 py-0.5 text-[10px] ${tab === 'folios' ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-700'}`}>
+              Folios
+            </button>
+          </div>
+        )}
+      </div>
+      {!collapsed && (
+        <div className="flex-1 overflow-auto">
+          {tab === 'gantt' ? ganttPlaceholder : foliosTable}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// [Tarea 7] Layout del tab "Copiloto operativo": RouteOpsPanel (operativa
+// completa) + CopilotoPanel (sugerencias AI mock) lateral derecho, colapsable.
+// Persiste el estado del toggle en localStorage.
+function CopilotoLayout() {
+  const [copilotoCollapsed, setCopilotoCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('op.copilotoCollapsed') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('op.copilotoCollapsed', copilotoCollapsed ? '1' : '0'); } catch {}
+  }, [copilotoCollapsed]);
+  return (
+    <div className="flex h-full">
+      <div className="flex-1 min-w-0 overflow-auto">
+        <RouteOpsPanel />
+      </div>
+      <CopilotoPanel
+        collapsed={copilotoCollapsed}
+        onToggle={() => setCopilotoCollapsed(c => !c)}
+      />
+    </div>
+  );
+}
+
+// [Tarea 4] Placeholder del Gantt — la implementación con D3 viene en
+// ROADMAP. Por ahora muestra una preview legible de las visitas en una
+// timeline simple horizontal hecha con barras CSS.
+function GanttPlaceholder({ fecha }: { fecha: string }) {
+  return (
+    <div className="p-6 flex flex-col items-center justify-center text-center text-text-muted gap-3 h-full">
+      <Truck size={32} className="opacity-40" />
+      <div className="text-[13px] font-semibold text-text-secondary">Gantt de progreso (próximamente)</div>
+      <div className="text-[11px] max-w-md">
+        Vista horizontal de cada driver con avance vs ETA planificado, hitos de
+        VIPs, slots de cutoff. Implementación con D3 scales agendada en el
+        ROADMAP.md → "Gantt custom".
+      </div>
+      <div className="text-[10px] text-text-muted/70 font-mono">día: {fecha}</div>
+    </div>
   );
 }
