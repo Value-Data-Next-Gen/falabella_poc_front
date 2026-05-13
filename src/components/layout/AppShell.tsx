@@ -12,6 +12,7 @@ import { DriverDashboardPage } from '../pages/DriverDashboardPage';
 import { OnboardingTour, shouldShowTour } from '../OnboardingTour';
 import { useAuth } from '../../hooks/useAuth';
 import { AgentDock } from '../AgentDock';
+import { CutoffReachedModal } from '../CutoffReachedModal';
 import { DiaActivoProvider } from '../../hooks/useDiaActivo';
 
 interface NavState {
@@ -172,6 +173,7 @@ export function AppShell() {
         onNavigate={(module, sub) => navigate(module as ModuleKey, sub)}
       />
       <AgentDock />
+      <CutoffReachedModal />
     </div>
     </DiaActivoProvider>
   );

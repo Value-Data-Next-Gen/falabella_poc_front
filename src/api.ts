@@ -884,6 +884,9 @@ export const api = {
     }>(`/planificacion/day-state?fecha=${fecha}`),
     transitionDayState: (req: { fecha: string; target: 'BORRADOR'|'VALIDADO'|'EN_CURSO'|'CERRADO'; confirm?: boolean; allow_non_blocking?: boolean }) =>
       post<any>(`/planificacion/day-state/transition`, req),
+    extendDay: (fecha: string, minutes: number = 60) =>
+      post<{ fecha: string; previous_cutoff: string | null; new_cutoff: string; pending_visits: number }>(
+        `/planificacion/day-state/extend?fecha=${encodeURIComponent(fecha)}&minutes=${minutes}`, {}),
     getDayConfig: (fecha: string) => get<{
       fecha: string;
       cutoff_time: string | null;
