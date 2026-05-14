@@ -71,6 +71,26 @@ import {
   DriverWhatsAppUpdate,
   SearchResults,
 } from './types';
+import type { components } from './types/api';
+
+// CR-013: tipos auto-generados desde openapi.json
+type CopilotoDecisionIn = components['schemas']['CopilotoDecisionIn'];
+type CopilotoDecisionOut = components['schemas']['CopilotoDecisionOut'];
+type EscalateSupervisorIn = components['schemas']['EscalateSupervisorIn'];
+type EscalateSupervisorOut = components['schemas']['EscalateSupervisorOut'];
+
+/** Error tipado para escalamiento — incluye status y body parseado para que
+ *  el modal pueda discriminar 409/429/5xx y leer headers (Retry-After). */
+export class EscalateSupervisorError extends Error {
+  constructor(
+    public status: number,
+    public body: unknown,
+    public retryAfterSec: number | null,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api';
 const TOKEN_KEY = 'fpoc.token';
@@ -1063,6 +1083,47 @@ export const api = {
       if (opts?.planned_date) p.push(`planned_date=${opts.planned_date}`);
       const q = p.length ? '?' + p.join('&') : '';
       return get<FpocVisitsPage>(`/seguimiento/visits${q}`);
+    },
+  },
+
+  // CR-013: persistencia de decisiones del copiloto operativo + escalamientos
+  // a supervisor vía Twilio WhatsApp. Body/response shape de openapi.json.
+  copiloto: {
+    logDecision: (req: CopilotoDecisionIn) =>
+      post<CopilotoDecisionOut>('/copiloto/decisions', req),
+  },
+
+  whatsapp: {
+    /**
+     * Dispara un escalamiento a supervisor vía Twilio WhatsApp.
+     * Propaga errores estructurados (EscalateSupervisorError) ante 4xx/5xx
+     * para que el modal renderice mensajes específicos (409 supervisor no
+     * configurado, 429 cooldown con Retry-After, 5xx genérico).
+     */
+    escalateSupervisor: async (req: EscalateSupervisorIn): Promise<EscalateSupervisorOut> => {
+      const res = await fetch(`${BASE}/whatsapp/escalate-supervisor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify(req),
+      });
+      if (res.status === 401) {
+        setToken(null);
+        throw new AuthError(401, 'sesión expirada');
+      }
+      if (!res.ok) {
+        let body: unknown = null;
+        try { body = await res.json(); } catch { /* no body */ }
+        const retryHeader = res.headers.get('Retry-After');
+        const retryAfterSec = retryHeader != null ? parseInt(retryHeader, 10) : null;
+        const msg = `escalate-supervisor -> ${res.status}`;
+        throw new EscalateSupervisorError(
+          res.status,
+          body,
+          Number.isFinite(retryAfterSec) ? retryAfterSec : null,
+          msg,
+        );
+      }
+      return res.json() as Promise<EscalateSupervisorOut>;
     },
   },
 

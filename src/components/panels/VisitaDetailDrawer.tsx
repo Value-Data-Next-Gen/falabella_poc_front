@@ -289,6 +289,7 @@ export function VisitaDetailDrawer({ fecha, empresaId, region, onlyVip }: Props)
           visit={ctx.visit}
           ruta={ctx.ruta}
           empresa={ctx.empresa}
+          fecha={fecha ?? undefined}
           onClose={() => setShowEscalation(false)}
         />
       )}

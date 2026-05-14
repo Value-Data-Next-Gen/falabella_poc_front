@@ -2609,6 +2609,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/copiloto/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log Decision */
+        post: operations["log_decision_api_copiloto_decisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/whatsapp/escalate-supervisor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Escalate Supervisor */
+        post: operations["escalate_supervisor_api_whatsapp_escalate_supervisor_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -3655,6 +3689,30 @@ export interface components {
             /** Active */
             active?: boolean | null;
         };
+        /** CopilotoDecisionIn */
+        CopilotoDecisionIn: {
+            /** Suggestion Id */
+            suggestion_id: string;
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "escalate_supervisor" | "retry_driver_alert" | "review_visits" | "mark_incident" | "ignore";
+            /** Tracking Id */
+            tracking_id?: string | null;
+            /** Payload */
+            payload?: Record<string, never> | null;
+        };
+        /** CopilotoDecisionOut */
+        CopilotoDecisionOut: {
+            /** Decision Id */
+            decision_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** DayClient */
         DayClient: {
             /** Tracking Id */
@@ -4501,6 +4559,23 @@ export interface components {
             expires_at?: string | null;
             /** Notes */
             notes?: string | null;
+        };
+        /** EscalateSupervisorIn */
+        EscalateSupervisorIn: {
+            /** Tracking Id */
+            tracking_id: string;
+        };
+        /** EscalateSupervisorOut */
+        EscalateSupervisorOut: {
+            /** Dispatch Id */
+            dispatch_id: number;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /** Dry Run */
+            dry_run: boolean;
         };
         /** ExtendDayResponse */
         ExtendDayResponse: {
@@ -11800,6 +11875,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CentroDistribucion"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    log_decision_api_copiloto_decisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CopilotoDecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CopilotoDecisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    escalate_supervisor_api_whatsapp_escalate_supervisor_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EscalateSupervisorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EscalateSupervisorOut"];
                 };
             };
             /** @description Validation Error */

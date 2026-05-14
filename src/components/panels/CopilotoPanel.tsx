@@ -17,6 +17,7 @@
  */
 import { useState } from 'react';
 import { Sparkles, ChevronRight, X } from 'lucide-react';
+import { api } from '../../api';
 
 interface Suggestion {
   id: string;
@@ -162,15 +163,42 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
     { label: 'Ignorar', intent: 'ignore' as const },
   ];
 
-  const handleAction = (a: SuggestionAction) => {
-    // TODO(ai-integration): POST /api/copiloto/decisions { suggestion_id, intent }
+  const handleAction = async (a: SuggestionAction) => {
+    // CR-013: persistimos SIEMPRE la decisión del ops para fine-tuning.
+    // Optimistic UI: dismiss / warn inmediato, log en background (catch silencioso).
+    // Las sugerencias son mock por ahora — no hacemos rollback si la persistencia
+    // falla, el card sigue siendo hardcoded del frontend.
+    //
+    // `tracking_id` — las mocks no tienen un campo formal. Lo extraemos del
+    // description con regex /#(\d+)/ (ej. "Folio #14246780 ..."). null si no.
+    const trackingMatch = suggestion.description.match(/#(\d+)/);
+    const tracking_id = trackingMatch ? trackingMatch[1] : null;
+
     if (a.intent === 'ignore') {
       setDismissed(true);
-      return;
+    } else {
+      // Para escalamiento real va T11 (modal con confirmación). Para
+      // retry_driver_alert / review_visits / mark_incident sigue siendo
+      // placeholder visual — el log basta para empezar a recolectar señal.
+      console.warn(`[copiloto] intent=${a.intent} suggestion=${suggestion.id} (mock UI; backend log enviado)`);
     }
-    // Las acciones reales se manejan en T8 (escalamiento) y T11 (modal).
-    // Por ahora warn — el usuario ve el flujo en el slide-over y modal.
-    console.warn(`[copiloto] intent=${a.intent} suggestion=${suggestion.id} (mock)`);
+
+    api.copiloto
+      .logDecision({
+        suggestion_id: suggestion.id,
+        intent: a.intent,
+        tracking_id,
+        payload: {
+          severity: suggestion.severity,
+          title: suggestion.title,
+          features: suggestion.features,
+        } as never,
+      })
+      .catch(err => {
+        // No bloqueamos UI ni hacemos rollback — el card es mock.
+        // eslint-disable-next-line no-console
+        console.warn('[copiloto] logDecision failed', err);
+      });
   };
 
   return (
