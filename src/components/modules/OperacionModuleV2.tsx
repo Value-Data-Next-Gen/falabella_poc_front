@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card, Metric, Text } from '@tremor/react';
 import { useOperacionStore } from '../../stores/useOperacionStore';
 import {
@@ -13,6 +14,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { SubTabs, SubTabDef } from '../layout/SubTabs';
 import { PlanDiarioPanel } from '../PlanDiarioPanel';
 import { WatchlistPanel } from '../WatchlistPanel';
+import { VisitaDetailDrawer } from '../panels/VisitaDetailDrawer';
+import { GanttPorParada } from '../panels/GanttPorParada';
 import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
 import { MapaFoliosTable } from '../panels/MapaFoliosTable';
@@ -58,20 +61,24 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
     refetchInterval: 5_000,
   });
 
+  // CR-012 Fix V2: queryKey UNIFICADO con MapaTab/DriversAvancePanel/etc.
+  // Normalizamos 'all' → null para que el queryKey sea estable entre
+  // consumidores (algunos reciben empresaId: number|null, otros number|'all').
+  // Convención canónica: ['plan-diario', fecha, empresaIdOrNull, region, onlyVip].
+  const empresaIdKey = empresaId === 'all' ? null : empresaId;
   const planQ = useQuery({
-    queryKey: ['plan-diario-mod-kpi-v2', empresaId, region, onlyVip, activeDate],
+    queryKey: ['plan-diario', activeDate, empresaIdKey, region, onlyVip],
     queryFn: () => api.planDiario({
-      empresa_id: empresaId === 'all' ? undefined : empresaId,
+      empresa_id: empresaIdKey ?? undefined,
       region,
       only_vip: onlyVip,
       // R7: leemos del XLSX real importado en fpoc.simpli_visits.
-      // 'synthetic' devolvía siempre el snapshot del simulador legacy
-      // ignorando planned_date — por eso al iniciar el día con XLSX
-      // cargado el módulo seguía vacío.
       source: 'real',
       planned_date: activeDate ?? undefined,
     }),
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!activeDate,
   });
 
@@ -80,9 +87,20 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
     const total = empresas.reduce((s, e) => s + e.total_visitas, 0);
     const completadas = empresas.reduce((s, e) => s + e.completadas, 0);
     const fallidas = empresas.reduce((s, e) => s + e.fallidas, 0);
-    const enRiesgo = empresas.reduce((s, e) => s + e.en_riesgo, 0);
+    // CR-012 T5: "En riesgo" = count(alert_slack === "RED"), NO mixto con
+    // p_fallo>=0.5. Backend ya pre-computa esto en empresa.red_visitas.
+    const enRiesgo = empresas.reduce((s, e) => s + (e.red_visitas ?? 0), 0);
+    // Banner crítico: existe al menos una visita VIP con alert_slack RED, o
+    // un driver "sin respuesta" (last_alert_acknowledged_at >10min). Solo
+    // chequeamos VIP+RED acá (sin_respuesta requiere T7+ con alert_history).
+    let vipEnRiesgo = 0;
+    empresas.forEach(e => e.rutas?.forEach(r =>
+      r.visitas?.forEach(v => {
+        if (v.is_vip && v.alert_slack === 'RED') vipEnRiesgo += 1;
+      })
+    ));
     const cumplPct = total ? (completadas / total) * 100 : 0;
-    return { total, completadas, fallidas, enRiesgo, cumplPct };
+    return { total, completadas, fallidas, enRiesgo, cumplPct, vipEnRiesgo };
   })();
 
   // Ronda 3: 2 tabs. Plan en ejecución y Watchlist se accesan como drawer
@@ -147,6 +165,25 @@ export function OperacionModuleV2({ sub, setSub }: { sub: string | null; setSub:
             {planQ.data?.planned_date && <>Día <span className="text-text-secondary tabular-nums">{planQ.data.planned_date}</span></>}
           </span>
         </div>
+
+        {/* CR-012 T5: Banner crítico — visible si hay VIPs en riesgo (slack RED).
+            Reemplaza toasts y modales. Persistente, no parpadea. */}
+        {totals.vipEnRiesgo > 0 && (
+          <div className="mx-4 mb-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 flex items-center gap-2 text-[12px]">
+            <AlertTriangle size={14} className="text-red-500 shrink-0" />
+            <span className="text-text-primary">
+              <strong className="font-semibold text-red-500">{totals.vipEnRiesgo}</strong>
+              {' '}{totals.vipEnRiesgo === 1 ? 'alerta crítica' : 'alertas críticas'}
+              <span className="text-text-muted"> · {totals.vipEnRiesgo === 1 ? 'Cliente VIP con ventana de entrega vencida' : 'Clientes VIP con ventana de entrega vencida'}</span>
+            </span>
+            <button
+              onClick={() => setDrawer('watchlist')}
+              className="ml-auto text-[11px] text-red-500 hover:text-red-400 underline underline-offset-2"
+            >
+              Ver detalle →
+            </button>
+          </div>
+        )}
 
         <div className="px-4 pb-3">
           {/* [Tarea 4] KPI strip Tremor — En riesgo destaca con border-l-4 naranjo cuando >0 */}
@@ -304,16 +341,21 @@ function MapaTab({ region, empresaId, onlyVip }: {
   const empresaNombre = empresaId === 'all'
     ? null
     : empresasQ.data?.find(e => e.empresa_id === empresaId)?.nombre ?? null;
+  // CR-012 Fix V2: queryKey CANÓNICO compartido con KpiStrip y DriversAvancePanel.
+  // Normalización 'all'→null para estabilidad entre consumidores.
+  const empresaIdKey = empresaId === 'all' ? null : empresaId;
   const planQ = useQuery({
-    queryKey: ['plan-diario-map', empresaId, region, onlyVip, activeDate],
+    queryKey: ['plan-diario', activeDate, empresaIdKey, region, onlyVip],
     queryFn: () => api.planDiario({
-      empresa_id: empresaId === 'all' ? undefined : empresaId,
+      empresa_id: empresaIdKey ?? undefined,
       region,
       only_vip: onlyVip,
       source: 'real',
       planned_date: activeDate,
     }),
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!activeDate,
   });
 
@@ -502,6 +544,8 @@ function MapaTab({ region, empresaId, onlyVip }: {
             <DriversAvancePanel
               fecha={activeDate}
               empresaId={empresaId === 'all' ? null : empresaId}
+              region={region}
+              onlyVip={onlyVip}
               focusedRutaId={rutaFilter}
               onPickRuta={setRutaFilter}
             />
@@ -520,15 +564,25 @@ function MapaTab({ region, empresaId, onlyVip }: {
                 </div>
               </div>
             ) : (
-              <OperationsMap
-                selectedVehicles={selectedVehicles}
-                externalRegion={region}
-                externalEmpresaId={empresaId === 'all' ? null : empresaId}
-                externalDriverName={driverFilter}
-                externalRutaId={rutaFilter}
-                externalOnlyVip={onlyVip}
-                plannedDate={activeDate}
-              />
+              <>
+                <OperationsMap
+                  selectedVehicles={selectedVehicles}
+                  externalRegion={region}
+                  externalEmpresaId={empresaId === 'all' ? null : empresaId}
+                  externalDriverName={driverFilter}
+                  externalRutaId={rutaFilter}
+                  externalOnlyVip={onlyVip}
+                  plannedDate={activeDate}
+                />
+                {/* CR-012 T8: slide-over drill-down (consume selectedVisitaId).
+                    region/onlyVip propagados para deduplicación queryKey (Fix V2). */}
+                <VisitaDetailDrawer
+                  fecha={activeDate}
+                  empresaId={empresaId === 'all' ? null : empresaId}
+                  region={region}
+                  onlyVip={onlyVip}
+                />
+              </>
             )}
           </div>
         </div>
@@ -540,7 +594,14 @@ function MapaTab({ region, empresaId, onlyVip }: {
       <BottomSplit
         collapsed={bottomCollapsed}
         onToggle={() => setBottomCollapsed(c => !c)}
-        ganttPlaceholder={<GanttPlaceholder fecha={activeDate} />}
+        ganttPlaceholder={
+          <GanttPorParada
+            fecha={activeDate}
+            empresaId={empresaId === 'all' ? null : empresaId}
+            region={region}
+            onlyVip={onlyVip}
+          />
+        }
         foliosTable={
           <MapaFoliosTable
             fecha={activeDate}
@@ -615,10 +676,16 @@ function DayStatusInline({ activeDate }: { activeDate: string }) {
 // esa ruta en el mapa. Single source of truth: /api/operacion/driver-positions.
 // =============================================================================
 function DriversAvancePanel({
-  fecha, empresaId, focusedRutaId, onPickRuta,
+  fecha, empresaId, region, onlyVip, focusedRutaId, onPickRuta,
 }: {
   fecha: string;
   empresaId: number | null;
+  /** CR-012 Fix V2: region/onlyVip se reciben del módulo padre para que
+   *  el plan-diario que pidamos comparta queryKey con el del mapa y se
+   *  dedupee. Resultado: sidebar y mapa filtran juntos por region/onlyVip
+   *  (UX coherente) y se hace 1 fetch en vez de 2. */
+  region: RegionFilter;
+  onlyVip: boolean;
   focusedRutaId: string;
   onPickRuta: (rid: string) => void;
 }) {
@@ -631,68 +698,104 @@ function DriversAvancePanel({
   const requestScrollToDriver = useOperacionStore(s => s.requestScrollToDriver);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+  // CR-012 Fix V2: queryKey CANÓNICO compartido con OperationsMap y MapaFoliosTable.
+  // Convención: ['driver-positions', fecha, empresaId].
   const driversQ = useQuery({
-    queryKey: ['driver-positions-panel', fecha, empresaId],
+    queryKey: ['driver-positions', fecha, empresaId],
     queryFn: () => api.operacion.driverPositions(fecha, empresaId),
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!fecha,
   });
 
-  // Plan-diario para calcular riesgo por driver (visitas con p_fallo >= 0.5).
-  // Reusa cache de @tanstack/react-query si MapaTab ya hizo la query.
+  // CR-012 Fix V2: queryKey CANÓNICO ['plan-diario', fecha, empresaId, region, onlyVip].
+  // Compartido con KpiStrip y MapaTab → 1 solo fetch para los 3 consumidores.
   const planQ = useQuery({
-    queryKey: ['plan-diario-map', empresaId, 'all', false, fecha],
+    queryKey: ['plan-diario', fecha, empresaId, region, onlyVip],
     queryFn: () => api.planDiario({
       empresa_id: empresaId ?? undefined,
-      region: 'all',
-      only_vip: false,
+      region,
+      only_vip: onlyVip,
       source: 'real',
       planned_date: fecha,
     }),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!fecha,
-    staleTime: 5_000,
   });
 
-  // Mapping vehicle_id → cantidad de visitas pendientes con p_fallo >= 0.5
-  const riskByVid = useMemo(() => {
-    const m: Record<number, number> = {};
+  // CR-012 T6: derivamos por vehicle_id:
+  //   - riskByVid: count(alert_slack==RED && status==pending) — oficial
+  //   - vipRiskByVid: count(is_vip && alert_slack==RED && status==pending)
+  //   - peorSlackByVid: min(slack_min) entre pendientes — para urgencyScore
+  //   - peorPFalloByVid: max(p_fallo) entre pendientes — para "P XX%" en el card
+  const { riskByVid, vipRiskByVid, peorSlackByVid, peorPFalloByVid } = useMemo(() => {
+    const risk: Record<number, number> = {};
+    const vipRisk: Record<number, number> = {};
+    const peorSlack: Record<number, number> = {};
+    const peorPFallo: Record<number, number> = {};
     (planQ.data?.empresas ?? []).forEach(emp => {
       emp.rutas.forEach(r => {
         if (r.vehicle_id == null) return;
-        const risk = (r.visitas ?? []).filter(
-          v => v.status === 'pending' && (v.p_fallo ?? 0) >= 0.5
-        ).length;
-        if (risk > 0) m[r.vehicle_id] = risk;
+        let rk = 0, vr = 0, sl = Infinity, pf = 0;
+        (r.visitas ?? []).forEach(v => {
+          if (v.status !== 'pending') return;
+          if (v.alert_slack === 'RED') {
+            rk += 1;
+            if (v.is_vip) vr += 1;
+          }
+          const s = v.slack_min ?? 0;
+          if (s < sl) sl = s;
+          const p = v.p_fallo ?? 0;
+          if (p > pf) pf = p;
+        });
+        if (rk > 0) risk[r.vehicle_id] = rk;
+        if (vr > 0) vipRisk[r.vehicle_id] = vr;
+        if (sl !== Infinity) peorSlack[r.vehicle_id] = sl;
+        if (pf > 0) peorPFallo[r.vehicle_id] = pf;
       });
     });
-    return m;
+    return {
+      riskByVid: risk,
+      vipRiskByVid: vipRisk,
+      peorSlackByVid: peorSlack,
+      peorPFalloByVid: peorPFallo,
+    };
   }, [planQ.data]);
 
   const drivers = driversQ.data?.drivers ?? [];
-  // [Tarea 4] Orden por urgencia:
-  //   1. Drivers con visitas en riesgo (P(fallo)>=0.5) → desc por count
-  //   2. Drivers activos (en_ruta/entregando) → asc por % avance (los más
-  //      rezagados arriba)
-  //   3. Pendientes (sin arrancar)
-  //   4. Finalizados (no requieren atención)
+  // CR-012 T6: urgencyScore (brief). Más alto = más urgente.
+  //   2000  → driver sin respuesta hace ≥10 min (TODO: requiere alert_history
+  //           per-driver; hoy no derivado → siempre 0)
+  //   1000  → al menos un VIP con alert_slack === 'RED'
+  //    500  → al menos un RED no-VIP
+  //    100+ → peor slack_min < -10 (más negativo = mayor urgencia)
+  //   otros → -slack (atraso leve, slack negativo chico arriba)
+  const urgencyScore = (vid: number, status: string): number => {
+    // TODO(CR-013): SIN_RESPUESTA score 2000 cuando alert_history per-driver
+    // permita derivar last_acknowledged_at >10min.
+    if ((vipRiskByVid[vid] ?? 0) > 0) return 1000;
+    if ((riskByVid[vid] ?? 0) > 0) return 500;
+    const sl = peorSlackByVid[vid] ?? 0;
+    if (sl < -10) return 100 + Math.abs(sl);
+    // Finalizados al fondo
+    if (status === 'finalizado') return -1000;
+    return -sl;
+  };
   const sorted = useMemo(() => {
-    const rank = (s: string) =>
-      s === 'en_ruta' || s === 'entregando' ? 1 :
-      s === 'finalizado' ? 3 : 2;
     return [...drivers].sort((a, b) => {
-      const aRisk = riskByVid[a.vehicle_id] ?? 0;
-      const bRisk = riskByVid[b.vehicle_id] ?? 0;
-      // 1. Visitas en riesgo arriba (desc)
-      if (aRisk !== bRisk) return bRisk - aRisk;
-      // 2. Bucket por status
-      const r = rank(a.status) - rank(b.status);
-      if (r !== 0) return r;
-      // 3. Dentro de activos: % avance asc (más rezagados arriba)
+      const sa = urgencyScore(a.vehicle_id, a.status);
+      const sb = urgencyScore(b.vehicle_id, b.status);
+      if (sa !== sb) return sb - sa;
+      // Empate: % avance asc (rezagados arriba)
       const aPct = a.stops_total > 0 ? a.stops_completed / a.stops_total : 0;
       const bPct = b.stops_total > 0 ? b.stops_completed / b.stops_total : 0;
       return aPct - bPct;
     });
-  }, [drivers, riskByVid]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivers, riskByVid, vipRiskByVid, peorSlackByVid]);
 
   // [Tarea 5] Scroll-into-view cuando el mapa pide enfocar un driver.
   // Buscamos el card por data-driver-id y le hacemos scrollIntoView con
@@ -708,9 +811,18 @@ function DriversAvancePanel({
     requestScrollToDriver(null);
   }, [scrollDriverIntoView, requestScrollToDriver]);
 
+  // CR-012 T6: virtualización con @tanstack/react-virtual.
+  // Card promedio = 84px (con línea "VIP/P%" abajo). Overscan 5 según brief.
+  const rowVirtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 84,
+    overscan: 5,
+  });
+
   return (
-    <div ref={scrollContainerRef} className="w-[280px] shrink-0 flex flex-col gap-1 overflow-y-auto pr-1">
-      <div className="text-[10px] uppercase tracking-wider text-text-muted px-2 pb-1 flex items-center justify-between">
+    <div className="w-[280px] shrink-0 flex flex-col">
+      <div className="text-[10px] uppercase tracking-wider text-text-muted px-2 pb-1 flex items-center justify-between shrink-0">
         <span>Drivers ({sorted.length})</span>
         {focusedRutaId && (
           <button
@@ -722,93 +834,130 @@ function DriversAvancePanel({
           </button>
         )}
       </div>
-      {sorted.length === 0 && (
-        <div className="text-[11px] text-text-muted px-2 py-3 italic">
-          Sin drivers iniciados. {driversQ.data?.sim_active === false && '(sim no activo)'}
+      {sorted.length === 0 ? (
+        // CR-012 T6: estado vacío con CTA cuando sim_active === false.
+        // POST /api/sim/start no existe — el flujo correcto en este POC es
+        // iniciar el día desde el panel "Día Operativo" (BORRADOR→VALIDADO→
+        // EN_CURSO). Mostramos texto guía en ese caso.
+        driversQ.data?.sim_active === false ? (
+          <div className="text-[11px] text-text-muted px-2 py-3">
+            <div className="font-medium mb-1">Simulador inactivo</div>
+            <div className="text-text-muted">
+              Iniciá el día operativo desde el panel "Día Operativo" para ver drivers en vivo.
+            </div>
+          </div>
+        ) : (
+          <div className="text-[11px] text-text-muted px-2 py-3 italic">
+            Sin drivers iniciados.
+          </div>
+        )
+      ) : (
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto pr-1"
+          style={{ contain: 'strict' }}
+        >
+          <div
+            style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}
+          >
+            {rowVirtualizer.getVirtualItems().map(virtualRow => {
+              const d = sorted[virtualRow.index];
+              const pct = d.stops_total > 0
+                ? Math.round((d.stops_completed / d.stops_total) * 100)
+                : 0;
+              const isFocused = !!d.ruta_id && d.ruta_id === focusedRutaId;
+              const barColor =
+                d.status === 'finalizado' ? 'bg-text-muted' :
+                d.stops_failed > 0 ? 'bg-accent-red' :
+                'bg-brand';
+              const riskCount = riskByVid[d.vehicle_id] ?? 0;
+              const vipRiskCount = vipRiskByVid[d.vehicle_id] ?? 0;
+              const maxP = peorPFalloByVid[d.vehicle_id] ?? 0;
+              const hasVipRisk = vipRiskCount > 0;
+              const hasRisk = riskCount > 0;
+              const isHovered = hoveredDriverId === d.vehicle_id;
+              const isSelected = selectedDriverId === d.vehicle_id || isFocused;
+              // Etiqueta de estado según prioridad (brief T6).
+              const stateLabel =
+                d.status === 'finalizado' ? { txt: 'FINALIZADO', cls: 'bg-text-muted/20 text-text-muted' } :
+                hasVipRisk ? { txt: 'EN RIESGO', cls: 'bg-red-500/20 text-red-500' } :
+                hasRisk ? { txt: 'ATRASO', cls: 'bg-amber-500/20 text-amber-500' } :
+                d.stops_completed > 0 ? { txt: 'OK', cls: 'bg-emerald-500/15 text-emerald-500' } :
+                { txt: '—', cls: 'bg-bg-700 text-text-muted' };
+              return (
+                <button
+                  key={d.vehicle_id}
+                  data-driver-id={d.vehicle_id}
+                  onMouseEnter={() => setHoveredDriver(d.vehicle_id)}
+                  onMouseLeave={() => setHoveredDriver(null)}
+                  onClick={() => {
+                    if (!d.ruta_id) return;
+                    if (isFocused) {
+                      onPickRuta('');
+                      setSelectedDriver(null);
+                    } else {
+                      onPickRuta(d.ruta_id);
+                      setSelectedDriver(d.vehicle_id);
+                    }
+                  }}
+                  className={`absolute left-0 right-0 text-left px-2 py-1.5 rounded border transition-colors ${
+                    isSelected
+                      ? 'bg-brand/15 border-brand/60 ring-1 ring-brand/40'
+                      : isHovered
+                      ? 'bg-bg-700/60 border-line'
+                      : hasVipRisk
+                      ? 'border-l-4 border-l-red-500 border-line/40 hover:bg-bg-700/40'
+                      : hasRisk
+                      ? 'border-l-4 border-l-amber-500 border-line/40 hover:bg-bg-700/40'
+                      : 'border-line/40 hover:bg-bg-700/40 hover:border-line'
+                  }`}
+                  style={{
+                    transform: `translateY(${virtualRow.start}px)`,
+                    height: virtualRow.size - 4,
+                    marginBottom: 4,
+                  }}
+                  title={`Click para ${isSelected ? 'quitar foco' : 'enfocar'} en el mapa`}
+                >
+                  <div className="flex items-center justify-between gap-1 text-[11px]">
+                    <span className="font-medium truncate flex items-center gap-1">
+                      {d.driver_name ?? `vid ${d.vehicle_id}`}
+                    </span>
+                    <span className={`text-[8px] uppercase tracking-wider px-1 py-0.5 rounded font-bold ${stateLabel.cls}`}>
+                      {stateLabel.txt}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+                    <span className="font-mono truncate">{d.ruta_id ?? '—'}</span>
+                    <span className="tabular-nums shrink-0 ml-1">
+                      {d.stops_completed}/{d.stops_total}
+                      {d.stops_failed > 0 && (
+                        <span className="text-accent-red ml-1">·{d.stops_failed}f</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-bg-700 rounded-full mt-1 overflow-hidden">
+                    <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] mt-0.5">
+                    {hasVipRisk ? (
+                      <span className="text-red-500">★ {vipRiskCount} VIP en riesgo</span>
+                    ) : maxP > 0 ? (
+                      <span className={maxP >= 0.5 ? 'text-red-500' : maxP >= 0.2 ? 'text-amber-500' : 'text-text-muted'}>
+                        P {(maxP * 100).toFixed(0)}%
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">{pct}%</span>
+                    )}
+                    {d.vip_visitas > 0 && !hasVipRisk && (
+                      <span className="text-cmr">★{d.vip_visitas}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
-      {sorted.map(d => {
-        const pct = d.stops_total > 0
-          ? Math.round((d.stops_completed / d.stops_total) * 100)
-          : 0;
-        const isFocused = !!d.ruta_id && d.ruta_id === focusedRutaId;
-        const barColor =
-          d.status === 'finalizado' ? 'bg-text-muted' :
-          d.stops_failed > 0 ? 'bg-accent-red' :
-          'bg-brand';
-        const riskCount = riskByVid[d.vehicle_id] ?? 0;
-        const hasRisk = riskCount > 0;
-        const isHovered = hoveredDriverId === d.vehicle_id;
-        const isSelected = selectedDriverId === d.vehicle_id || isFocused;
-        return (
-          <button
-            key={d.vehicle_id}
-            data-driver-id={d.vehicle_id}
-            onMouseEnter={() => setHoveredDriver(d.vehicle_id)}
-            onMouseLeave={() => setHoveredDriver(null)}
-            onClick={() => {
-              if (!d.ruta_id) return;
-              if (isFocused) {
-                onPickRuta('');
-                setSelectedDriver(null);
-              } else {
-                onPickRuta(d.ruta_id);
-                setSelectedDriver(d.vehicle_id);
-              }
-            }}
-            className={`text-left px-2 py-1.5 rounded border transition-colors ${
-              isSelected
-                ? 'bg-brand/15 border-brand/60 ring-1 ring-brand/40'
-                : isHovered
-                ? 'bg-bg-700/60 border-line'
-                : hasRisk
-                ? 'border-l-4 border-l-amber-500 border-line/40 hover:bg-bg-700/40'
-                : 'border-line/40 hover:bg-bg-700/40 hover:border-line'
-            }`}
-            title={`Click para ${isSelected ? 'quitar foco' : 'enfocar'} en el mapa`}
-          >
-            <div className="flex items-center justify-between gap-1 text-[11px]">
-              <span className="font-medium truncate flex items-center gap-1">
-                {d.driver_name ?? `vid ${d.vehicle_id}`}
-                {hasRisk && (
-                  <span className="text-[8px] uppercase tracking-wider px-1 py-0.5 rounded bg-amber-500/20 text-amber-500 font-bold">
-                    EN RIESGO · {riskCount}
-                  </span>
-                )}
-              </span>
-              {d.vip_visitas > 0 && (
-                <span className="text-[9px] text-cmr">★{d.vip_visitas}</span>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-              <span className="font-mono truncate">{d.ruta_id ?? '—'}</span>
-              <span className="tabular-nums shrink-0 ml-1">
-                {d.stops_completed}/{d.stops_total}
-                {d.stops_failed > 0 && (
-                  <span className="text-accent-red ml-1">·{d.stops_failed}f</span>
-                )}
-              </span>
-            </div>
-            {/* Barra de progreso */}
-            <div className="h-1 bg-bg-700 rounded-full mt-1 overflow-hidden">
-              <div
-                className={`h-full ${barColor} transition-all`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[9px] mt-0.5">
-              <span className={`uppercase tracking-wider ${
-                d.status === 'finalizado' ? 'text-text-muted' :
-                d.status === 'entregando' ? 'text-accent-yellow' :
-                'text-brand'
-              }`}>
-                {d.status}
-              </span>
-              <span className="tabular-nums text-text-muted">{pct}%</span>
-            </div>
-          </button>
-        );
-      })}
     </div>
   );
 }

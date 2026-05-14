@@ -97,7 +97,9 @@ export function RouteOpsPanel() {
       planned_date: activeDate,
     }) as any,
     enabled: !!activeDate && dayEnCurso,
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
   });
 
   const drivers: (PlanDriver & { empresa_nombre: string; empresa_id: number })[] = useMemo(() => {

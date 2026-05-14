@@ -21,10 +21,14 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
   const [q, setQ] = useState('');
   const [expandedRutas, setExpandedRutas] = useState<Set<string>>(new Set());
 
+  // CR-012 Fix V2: queryKey CANÓNICO ['driver-positions', fecha, empresaId]
+  // compartido con OperationsMap y DriversAvancePanel → 1 fetch dedupado.
   const driversQ = useQuery({
-    queryKey: ['driver-positions-table', fecha, empresaId],
+    queryKey: ['driver-positions', fecha, empresaId],
     queryFn: () => api.operacion.driverPositions(fecha, empresaId),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!fecha,
   });
 

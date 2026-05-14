@@ -27,44 +27,78 @@ interface Suggestion {
   features: { label: string; value: string }[];
 }
 
+// CR-012 T10: 3 sugerencias mock alineadas al scope v1 (SOLO alertas a
+// personas — NO re-routing, NO reasignación, NO reordenamiento). Decisión
+// usuario CR-012 §4: tampoco se notifica directo al cliente.
+// TODO(ai-integration): cuando exista /api/copiloto/suggestions, reemplazar
+// el MOCK por useQuery del endpoint. Las acciones se loggean en backend
+// para fine-tuning.
 const MOCK_SUGGESTIONS: Suggestion[] = [
   {
-    id: 'reasignar-1245',
+    id: 'retraso-vip-platinum',
     emoji: '🔴',
     severity: 'critical',
-    title: 'Reasignar visita #1245',
-    description: 'VIP, P(fallo)=68%. Driver más cercano: Pérez (15 min)',
+    title: 'Retraso crítico — VIP Platinum',
+    description: 'Folio #14246780 (VIP Platinum, P=68%). Ventana cierra 16:00, ETA 15:18 (slack −48 min). Driver no respondió alerta de las 14:30.',
     features: [
-      { label: 'Ventana horaria', value: 'cerrando en 42 min' },
-      { label: 'P(fallo) histórico cliente', value: '45%' },
-      { label: 'Driver actual', value: '4 visitas pendientes (sobrecarga)' },
+      { label: 'Cliente', value: 'VIP Platinum · SLA 4h' },
+      { label: 'P(fallo)', value: '68% (top decil del modelo)' },
+      { label: 'Slack actual', value: '−48 min' },
+      { label: 'Última alerta driver', value: '14:30 · sin ack hace 12 min' },
     ],
   },
   {
-    id: 'whatsapp-vips',
-    emoji: '📞',
+    id: 'patron-motivos',
+    emoji: '🟠',
     severity: 'warning',
-    title: 'Enviar WhatsApp manual a 3 clientes VIP',
-    description: 'Ventana cerrando <30 min y ETA > slack mínimo',
+    title: 'Patrón en motivos de no entrega',
+    description: 'Driver Carlos García: "cliente no contesta" en 4 visitas hoy (confidence LLM 87%). Revisar si es patrón real o falso positivo.',
     features: [
-      { label: 'Clientes afectados', value: '3 VIPs (tier oro)' },
-      { label: 'Slack promedio', value: '−12 min' },
-      { label: 'Tasa de respuesta WhatsApp', value: '78% últimos 30d' },
+      { label: 'Motivos coincidentes', value: '4 visitas / 12 hoy' },
+      { label: 'LLM confidence', value: '87%' },
+      { label: 'Histórico mismo driver', value: '0.3 / día (baseline)' },
+      { label: 'Comunas distintas', value: 'sí (3) → no clúster geográfico' },
     ],
   },
   {
-    id: 'driver-garcia-parado',
-    emoji: '⚠️',
-    severity: 'warning',
-    title: 'Driver García parado hace 25 min',
-    description: 'Sin movimiento GPS. Verificar — última entrega OK',
+    id: 'driver-sin-respuesta',
+    emoji: '🔴',
+    severity: 'critical',
+    title: 'Driver sin respuesta a alerta',
+    description: 'Carlos Pérez no respondió alerta enviada hace 12 min sobre folio #14246812. Escalamiento automático a supervisor sugerido.',
     features: [
-      { label: 'Última ubicación', value: 'Av. Vitacura 4500, Vitacura' },
-      { label: 'Velocidad últimos 15 min', value: '0 km/h' },
-      { label: 'Próximo stop', value: 'a 2.3 km · ETA 14:35' },
+      { label: 'Alerta enviada', value: 'WhatsApp · 12 min atrás' },
+      { label: 'Última lectura WA', value: '14:18 (hace 27 min)' },
+      { label: 'Visita afectada', value: '#14246812 · ETA 15:00 · slack −20' },
     ],
   },
 ];
+
+interface SuggestionAction {
+  label: string;
+  primary?: boolean;
+  /** Identificador semántico de la acción. Logueado en backend cuando
+   *  exista el endpoint. NUNCA contiene "reassign", "reorder", "modify_route". */
+  intent: 'escalate_supervisor' | 'retry_driver_alert' | 'review_visits' | 'mark_incident' | 'ignore';
+}
+
+const ACTIONS_BY_SUGGESTION: Record<string, SuggestionAction[]> = {
+  'retraso-vip-platinum': [
+    { label: 'Escalar a supervisor', intent: 'escalate_supervisor', primary: true },
+    { label: 'Reintentar alerta driver', intent: 'retry_driver_alert' },
+    { label: 'Ignorar', intent: 'ignore' },
+  ],
+  'patron-motivos': [
+    { label: 'Confirmar patrón → escalar', intent: 'escalate_supervisor', primary: true },
+    { label: 'Revisar visitas', intent: 'review_visits' },
+    { label: 'Ignorar', intent: 'ignore' },
+  ],
+  'driver-sin-respuesta': [
+    { label: 'Escalar ahora', intent: 'escalate_supervisor', primary: true },
+    { label: 'Reintentar alerta', intent: 'retry_driver_alert' },
+    { label: 'Marcar incidente', intent: 'mark_incident' },
+  ],
+};
 
 export function CopilotoPanel({
   collapsed, onToggle,
@@ -124,6 +158,21 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
     suggestion.severity === 'warning' ? 'border-l-4 border-l-amber-500' :
     'border-l-4 border-l-blue-500';
 
+  const actions = ACTIONS_BY_SUGGESTION[suggestion.id] ?? [
+    { label: 'Ignorar', intent: 'ignore' as const },
+  ];
+
+  const handleAction = (a: SuggestionAction) => {
+    // TODO(ai-integration): POST /api/copiloto/decisions { suggestion_id, intent }
+    if (a.intent === 'ignore') {
+      setDismissed(true);
+      return;
+    }
+    // Las acciones reales se manejan en T8 (escalamiento) y T11 (modal).
+    // Por ahora warn — el usuario ve el flujo en el slide-over y modal.
+    console.warn(`[copiloto] intent=${a.intent} suggestion=${suggestion.id} (mock)`);
+  };
+
   return (
     <div className={`bg-bg-900 border border-line/60 rounded-md ${sevBorder} relative`}>
       <div className="px-3 py-2.5">
@@ -136,19 +185,18 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 mt-2">
-          <button
-            onClick={() => alert(`TODO(ai-integration): aplicar acción "${suggestion.id}"`)}
-            className="btn-primary text-[10px] !py-1 !px-2"
-          >
-            Aplicar
-          </button>
-          <button
-            onClick={() => setDismissed(true)}
-            className="btn text-[10px] !py-1 !px-2"
-          >
-            Ignorar
-          </button>
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          {actions.map((a, i) => (
+            <button
+              key={i}
+              onClick={() => handleAction(a)}
+              className={a.primary
+                ? 'btn-primary text-[10px] !py-1 !px-2'
+                : 'btn text-[10px] !py-1 !px-2'}
+            >
+              {a.label}
+            </button>
+          ))}
           <button
             onClick={() => setShowWhy(v => !v)}
             className="text-[10px] text-text-muted hover:text-brand ml-auto flex items-center gap-0.5"

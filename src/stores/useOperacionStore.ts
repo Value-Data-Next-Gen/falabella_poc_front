@@ -19,29 +19,51 @@ interface OperacionState {
   hoveredDriverId: number | null;
   /** vehicle_id seleccionado (click). Origen tanto sidebar como mapa. */
   selectedDriverId: number | null;
+  /** CR-012 T7: tracking_id de la visita con hover (pin del mapa o parada del Gantt). */
+  hoveredVisitaId: string | null;
+  /** CR-012 T7: tracking_id seleccionado → abre el slide-over (T8). */
+  selectedVisitaId: string | null;
   /**
    * Pedido pendiente de scrollIntoView. El sidebar lo consume y se auto-limpia.
    * Lo usamos para que el click en un pin del mapa lleve el card del driver
    * a la vista (la fuente del scroll está fuera del sidebar).
    */
   scrollDriverIntoView: number | null;
+  /** Persistido en localStorage por OperacionModuleV2 (`op.bottomCollapsed`). */
+  bottomPanelCollapsed: boolean;
+  /** Persistido en localStorage (`copiloto_mode`). default permanent. */
+  copilotoPermanent: boolean;
 
   setHoveredDriver: (id: number | null) => void;
   setSelectedDriver: (id: number | null) => void;
+  setHoveredVisita: (id: string | null) => void;
+  setSelectedVisita: (id: string | null) => void;
   requestScrollToDriver: (id: number | null) => void;
+  setBottomCollapsed: (v: boolean) => void;
+  setCopilotoPermanent: (v: boolean) => void;
   reset: () => void;
 }
 
 export const useOperacionStore = create<OperacionState>((set) => ({
   hoveredDriverId: null,
   selectedDriverId: null,
+  hoveredVisitaId: null,
+  selectedVisitaId: null,
   scrollDriverIntoView: null,
+  bottomPanelCollapsed: false,
+  copilotoPermanent: true,
   setHoveredDriver: (id) => set({ hoveredDriverId: id }),
   setSelectedDriver: (id) => set({ selectedDriverId: id }),
+  setHoveredVisita: (id) => set({ hoveredVisitaId: id }),
+  setSelectedVisita: (id) => set({ selectedVisitaId: id }),
   requestScrollToDriver: (id) => set({ scrollDriverIntoView: id }),
+  setBottomCollapsed: (v) => set({ bottomPanelCollapsed: v }),
+  setCopilotoPermanent: (v) => set({ copilotoPermanent: v }),
   reset: () => set({
     hoveredDriverId: null,
     selectedDriverId: null,
+    hoveredVisitaId: null,
+    selectedVisitaId: null,
     scrollDriverIntoView: null,
   }),
 }));

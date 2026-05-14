@@ -3033,6 +3033,27 @@ export interface components {
             /** Unique Ips 24H */
             unique_ips_24h: number;
         };
+        /**
+         * AlertEvent
+         * @description CR-012 T0.3: evento histórico de alerta enviada para una visita.
+         *
+         *     Hidratado desde `fpoc_alert_dispatch_log` por tracking_id. El frontend lo
+         *     muestra en el slide-over de drill-down (Tarea 8) en orden cronológico
+         *     descendente. `acknowledged_at = None` y `sent_at` >10min atrás → estado
+         *     'sin respuesta'.
+         */
+        AlertEvent: {
+            /** Timestamp */
+            timestamp: string;
+            /** Type */
+            type: string;
+            /** Channel */
+            channel: string;
+            /** Target */
+            target: string;
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+        };
         /** AnticipatedAlert */
         AnticipatedAlert: {
             /** Tracking Id */
@@ -5043,6 +5064,336 @@ export interface components {
         PasswordReset: {
             /** New Password */
             new_password: string;
+        };
+        /** PlanDiarioResponseLegacy */
+        PlanDiarioResponseLegacy: {
+            /** Planned Date */
+            planned_date: string;
+            /** Sim Clock */
+            sim_clock: string;
+            /** Empresas */
+            empresas: components["schemas"]["PlanEmpresaLegacy"][];
+        };
+        /** PlanDiarioResponseNew */
+        PlanDiarioResponseNew: {
+            /** Planned Date */
+            planned_date: string;
+            /** Sim Clock */
+            sim_clock: string;
+            /** Region */
+            region: string;
+            /** Only Vip */
+            only_vip: boolean;
+            /** Source */
+            source: string;
+            /** Empresas */
+            empresas: components["schemas"]["PlanEmpresaNew"][];
+        };
+        /** PlanDriverLegacy */
+        PlanDriverLegacy: {
+            /** Vehicle Id */
+            vehicle_id: number;
+            /** Vehicle Name */
+            vehicle_name?: string | null;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Total Visits */
+            total_visits: number;
+            /** Completed */
+            completed: number;
+            /** Pending */
+            pending: number;
+            /** Red Visits */
+            red_visits: number;
+            /** Vip Visits */
+            vip_visits: number;
+            /** High Priority */
+            high_priority: number;
+            /** Visits */
+            visits: components["schemas"]["PlanVisitLegacy"][];
+        };
+        /** PlanEmpresaLegacy */
+        PlanEmpresaLegacy: {
+            /** Empresa Id */
+            empresa_id: number;
+            /** Nombre */
+            nombre: string;
+            /** Total Visits */
+            total_visits: number;
+            /** Completed */
+            completed: number;
+            /** Pending */
+            pending: number;
+            /** Red Visits */
+            red_visits: number;
+            /** Vip Visits */
+            vip_visits: number;
+            /** High Priority */
+            high_priority: number;
+            /** Drivers */
+            drivers: components["schemas"]["PlanDriverLegacy"][];
+        };
+        /** PlanEmpresaNew */
+        PlanEmpresaNew: {
+            /** Empresa Id */
+            empresa_id: number;
+            /** Empresa Nombre */
+            empresa_nombre: string;
+            /** Total Visitas */
+            total_visitas: number;
+            /** Completadas */
+            completadas: number;
+            /** Pendientes */
+            pendientes: number;
+            /** Fallidas */
+            fallidas: number;
+            /** En Riesgo */
+            en_riesgo: number;
+            /**
+             * Red Visitas
+             * @default 0
+             */
+            red_visitas: number;
+            /**
+             * Vip Visitas
+             * @default 0
+             */
+            vip_visitas: number;
+            /**
+             * High Priority
+             * @default 0
+             */
+            high_priority: number;
+            /** Rutas */
+            rutas: components["schemas"]["PlanRuta"][];
+            /** Supervisor Phone */
+            supervisor_phone?: string | null;
+            /**
+             * Supervisor Phone Is Mock
+             * @default false
+             */
+            supervisor_phone_is_mock: boolean;
+        };
+        /** PlanRuta */
+        PlanRuta: {
+            /** Ruta Id */
+            ruta_id: string;
+            /** Vehicle Id */
+            vehicle_id: number;
+            /** Vehicle Name */
+            vehicle_name: string;
+            /** Plate */
+            plate?: string | null;
+            /** Patente */
+            patente?: string | null;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Dotacion Estado */
+            dotacion_estado?: string | null;
+            /** Dotacion Motivo */
+            dotacion_motivo?: string | null;
+            /**
+             * Operable
+             * @default true
+             */
+            operable: boolean;
+            /**
+             * Region
+             * @default RM
+             */
+            region: string;
+            /** Ct */
+            ct?: string | null;
+            /** Next Stop Order */
+            next_stop_order?: number | null;
+            /** Orden Actual */
+            orden_actual?: number | null;
+            /** Total Visitas */
+            total_visitas: number;
+            /** Completadas */
+            completadas: number;
+            /** Pendientes */
+            pendientes: number;
+            /** Fallidas */
+            fallidas: number;
+            /** En Riesgo */
+            en_riesgo: number;
+            /** Progreso Pct */
+            progreso_pct: number;
+            /**
+             * Red Visitas
+             * @default 0
+             */
+            red_visitas: number;
+            /**
+             * Vip Visitas
+             * @default 0
+             */
+            vip_visitas: number;
+            /**
+             * High Priority
+             * @default 0
+             */
+            high_priority: number;
+            /** Visitas */
+            visitas: components["schemas"]["PlanVisit"][];
+            /** Driver Phone */
+            driver_phone?: string | null;
+            /**
+             * Driver Phone Is Mock
+             * @default false
+             */
+            driver_phone_is_mock: boolean;
+        };
+        /** PlanVisit */
+        PlanVisit: {
+            /** Tracking Id */
+            tracking_id: string;
+            /** Order */
+            order: number;
+            /** Title */
+            title: string;
+            /** Cliente Nombre */
+            cliente_nombre: string;
+            /** Address */
+            address: string;
+            /** Comuna */
+            comuna?: string | null;
+            /** Region */
+            region: string;
+            /**
+             * Latitude
+             * @default 0
+             */
+            latitude: number;
+            /**
+             * Longitude
+             * @default 0
+             */
+            longitude: number;
+            /**
+             * Lat
+             * @default 0
+             */
+            lat: number;
+            /**
+             * Lon
+             * @default 0
+             */
+            lon: number;
+            /**
+             * Window Start
+             * @default
+             */
+            window_start: string;
+            /**
+             * Window End
+             * @default
+             */
+            window_end: string;
+            /**
+             * Planned Arrival Time
+             * @default
+             */
+            planned_arrival_time: string;
+            /**
+             * Estimated Time Arrival
+             * @default
+             */
+            estimated_time_arrival: string;
+            /**
+             * Current Eta Cl
+             * @default
+             */
+            current_eta_cl: string;
+            /**
+             * Slack Min
+             * @default 0
+             */
+            slack_min: number;
+            /**
+             * Alert Slack
+             * @default GREEN
+             */
+            alert_slack: string;
+            /**
+             * P Fallo
+             * @default 0
+             */
+            p_fallo: number;
+            /** Status */
+            status: string;
+            /**
+             * Priority
+             * @default normal
+             */
+            priority: string;
+            /** Priority Reason */
+            priority_reason?: string | null;
+            /**
+             * Is Vip
+             * @default false
+             */
+            is_vip: boolean;
+            /** Vip Tier */
+            vip_tier?: string | null;
+            /** Vip Deadline Time */
+            vip_deadline_time?: string | null;
+            /**
+             * Alert Valuedata
+             * @default false
+             */
+            alert_valuedata: boolean;
+            /** Folio */
+            folio?: string | null;
+            /** Motivo Reportado */
+            motivo_reportado?: string | null;
+            /** Severity */
+            severity?: string | null;
+            /**
+             * Alert History
+             * @default []
+             */
+            alert_history: components["schemas"]["AlertEvent"][];
+        };
+        /** PlanVisitLegacy */
+        PlanVisitLegacy: {
+            /** Tracking Id */
+            tracking_id: string;
+            /** Order */
+            order: number;
+            /** Title */
+            title: string;
+            /** Address */
+            address: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /** Window Start */
+            window_start: string;
+            /** Window End */
+            window_end: string;
+            /** Planned Arrival Time */
+            planned_arrival_time: string;
+            /** Estimated Time Arrival */
+            estimated_time_arrival: string;
+            /** Slack Min */
+            slack_min: number;
+            /** Alert Slack */
+            alert_slack: string;
+            /** P Fallo */
+            p_fallo: number;
+            /** Status */
+            status: string;
+            /** Priority */
+            priority: string;
+            /** Priority Reason */
+            priority_reason?: string | null;
+            /** Is Vip */
+            is_vip: boolean;
+            /** Alert Valuedata */
+            alert_valuedata: boolean;
         };
         /** PreferencesResponse */
         PreferencesResponse: {
@@ -7256,7 +7607,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlanDiarioResponseNew"] | components["schemas"]["PlanDiarioResponseLegacy"];
                 };
             };
             /** @description Validation Error */

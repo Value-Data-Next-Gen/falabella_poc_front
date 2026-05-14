@@ -259,30 +259,44 @@ export function OperationsMap({
     queryFn: api.empresaContactos.listEmpresas,
   });
   const fleetQ = useQuery({ queryKey: ['fleet-vehicles-map'], queryFn: api.fleetVehicles });
-  // Plan-diario real: fuente única para stops + metadata de filtros. Antes
-  // teníamos /api/visits (synthetic legacy) renderizando los pines y plan-diario
-  // (synthetic) para filtros — los vehicle_id no se cruzaban con el plan REAL
-  // del XLSX cargado por el usuario, por eso el mapa mostraba 0 pines cuando
-  // se elegía una ruta real. Ahora la fuente es la misma para todo el módulo.
+  // CR-012 Fix V2: queryKey CANÓNICO ['plan-diario', fecha, empresaId, region, onlyVip].
+  // El mapa recibe los 4 params del padre vía externalEmpresaId/Region/OnlyVip,
+  // así el queryKey coincide exactamente con el de OperacionModuleV2 →
+  // 1 sola request hidratada en cache.
+  const _planEmpresaId = externalEmpresaId ?? null;
+  const _planRegion = externalRegion ?? 'all';
+  const _planOnlyVip = externalOnlyVip ?? false;
   const planQ = useQuery({
-    queryKey: ['plan-diario-map', plannedDate],
+    queryKey: ['plan-diario', plannedDate, _planEmpresaId, _planRegion, _planOnlyVip],
     queryFn: () => api.planDiario({
+      empresa_id: _planEmpresaId ?? undefined,
+      region: _planRegion,
+      only_vip: _planOnlyVip,
       source: plannedDate ? 'real' : 'synthetic',
       planned_date: plannedDate ?? undefined,
     }),
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
+    enabled: !!plannedDate,
   });
 
   // Posiciones reales de los drivers (driver_sim). Devuelve {vehicle_id, lat,
   // lon, ruta_id, status, stops_total/completed/failed}. Sustituye la
   // interpolación cliente-side (computeDriverMarkers) que dependía de
   // sim_clock + estimated_time_arrival de visits sintéticos.
+  // CR-012 Fix V2: queryKey CANÓNICO ['driver-positions', fecha, empresaId]
+  // compartido con DriversAvancePanel y MapaFoliosTable. Resultado: 1 fetch
+  // cada 10s sirve a los 3 consumidores (antes eran 3 fetches separados).
+  const _dpEmpresaId = externalEmpresaId ?? null;
   const driverPositionsQ = useQuery({
-    queryKey: ['driver-positions-map', plannedDate],
+    queryKey: ['driver-positions', plannedDate, _dpEmpresaId],
     queryFn: () => plannedDate
-      ? api.operacion.driverPositions(plannedDate)
+      ? api.operacion.driverPositions(plannedDate, _dpEmpresaId)
       : Promise.resolve({ sim_active: false, sim_clock: null, tick_sec: 0, minutes_per_tick: 0, drivers: [] }),
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 8_000,
     enabled: !!plannedDate,
   });
 
@@ -310,6 +324,8 @@ export function OperationsMap({
   const selectedDriverId = useOperacionStore(s => s.selectedDriverId);
   const setSelectedDriver = useOperacionStore(s => s.setSelectedDriver);
   const setHoveredDriver = useOperacionStore(s => s.setHoveredDriver);
+  const setSelectedVisita = useOperacionStore(s => s.setSelectedVisita);
+  const setHoveredVisita = useOperacionStore(s => s.setHoveredVisita);
   const requestScrollToDriver = useOperacionStore(s => s.requestScrollToDriver);
 
   // allVisits: derivado del plan-diario REAL (Sprint 6). Cada PlanVisit hereda
@@ -654,8 +670,25 @@ export function OperationsMap({
       filled: true,
       pickable: false,
     }),
-    // [Tarea 2] Capa 2: Borde VIP. Anillo violeta sobre visitas marcadas
-    // VIP, sin relleno, sin halo. Filter por d.vip.
+    // [CR-012 T2] Capa 2a: Borde NARANJO para visitas con alert_valuedata
+    // pero NO VIP. Brief: "VIP y alert_valuedata NO se superponen". Las que
+    // son ambas se renderizan con el borde violeta (capa 2b) y el badge VD
+    // se muestra en el drawer (T8), no en el pin.
+    new ScatterplotLayer({
+      id: 'visit-vd-ring',
+      data: visibleVisits.filter(v => v.alert_valuedata && !v.vip),
+      getPosition: (d: VisitMap) => [d.longitude, d.latitude],
+      getRadius: 12,
+      radiusUnits: 'pixels',
+      stroked: true,
+      filled: false,
+      getLineColor: [251, 146, 60, 255], // naranjo (tw orange-400)
+      getLineWidth: 2,
+      lineWidthUnits: 'pixels',
+      pickable: false,
+    }),
+    // [Tarea 2] Capa 2b: Borde VIP violeta. Si una visita es VIP+alert_valuedata
+    // gana violeta (brief). El badge "VD" pequeño se agrega en el slide-over.
     new ScatterplotLayer({
       id: 'visit-vip-ring',
       data: visibleVisits.filter(v => v.vip),
@@ -700,19 +733,24 @@ export function OperationsMap({
           setTooltip({ visit: info.object, x: info.x, y: info.y });
           // Resaltar el driver de esta visita en el sidebar
           if (info.object.vehicle_id) setHoveredDriver(info.object.vehicle_id);
+          // CR-012 T7: emite hover de visita para que Gantt resalte la parada
+          if (info.object.tracking_id) setHoveredVisita(info.object.tracking_id);
         } else {
           setTooltip({ visit: null, x: 0, y: 0 });
           setHoveredDriver(null);
+          setHoveredVisita(null);
         }
       },
       onClick: (info: any) => {
         // [Tarea 5] Click en pin → enfocar ese driver en mapa, fit a sus
         // stops, marcar selected en el store y pedir scrollIntoView en sidebar.
+        // CR-012 T7+T8: además abre el slide-over de la visita.
         if (info.object?.vehicle_id) {
           const vid = info.object.vehicle_id as number;
           setFocusedVehicle(vid);
           setSelectedDriver(vid);
           requestScrollToDriver(vid);
+          if (info.object.tracking_id) setSelectedVisita(info.object.tracking_id);
           const stops = visits.filter(v => v.vehicle_id === vid);
           if (stops.length) fitToVisits(stops, true);
         }
@@ -786,7 +824,11 @@ export function OperationsMap({
       getSize: 28,
       pickable: true,
       onHover: (info: any) => {
-        // Reusamos el tooltip de visits a costa de mock — más simple que un layer nuevo.
+        // [CR-012 T4] Fix bug "window_end: Santiago". Antes inyectábamos cd.ciudad
+        // en window_end para reusar el tooltip de visit — el usuario veía la
+        // ciudad del CD en el campo "Window end" del tooltip. Lo dejamos vacío
+        // y mostramos la ciudad en `title`. TODO(T8): cuando exista el slide-over
+        // de Visita, crear un tooltip separado para CDs y borrar este shim.
         if (info.object) {
           const cd = info.object;
           setTooltip({
@@ -795,13 +837,13 @@ export function OperationsMap({
               vehicle_id: 0,
               vehicle_name: cd.nombre,
               order: 0,
-              title: `${cd.nombre} · ${cd.region}`,
+              title: `${cd.nombre} · ${cd.region} · ${cd.ciudad ?? ''}`.trim(),
               address: cd.ciudad ?? '',
               latitude: cd.lat,
               longitude: cd.lon,
               load: 0,
               window_start: '',
-              window_end: cd.ciudad ?? '',
+              window_end: '',
               planned_arrival_time: '',
               estimated_time_arrival: '',
               slack_min: 0,
@@ -1123,8 +1165,10 @@ export function OperationsMap({
           <div className="font-semibold text-text-primary mb-1">{tooltip.visit.title}</div>
           <div className="text-text-muted">{tooltip.visit.vehicle_name} · #{tooltip.visit.order}</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
-            <div className="text-text-muted">Window end</div><div className="text-right">{tooltip.visit.window_end}</div>
-            <div className="text-text-muted">ETA</div><div className="text-right">{tooltip.visit.estimated_time_arrival}</div>
+            <div className="text-text-muted">Window end</div>
+            <div className="text-right">{tooltip.visit.window_end || '—'}</div>
+            <div className="text-text-muted">ETA</div>
+            <div className="text-right">{tooltip.visit.estimated_time_arrival || '—'}</div>
             <div className="text-text-muted">P(fallo)</div>
             <div className={`text-right font-semibold ${
               tooltip.visit.p_fallo >= 0.5 ? 'text-accent-red'

@@ -74,9 +74,9 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['day-state', fecha] });
       qc.invalidateQueries({ queryKey: ['state'] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
-      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
+      // CR-012 Fix V2: queryKey unificado.
+      qc.invalidateQueries({ queryKey: ['driver-positions', fecha] });
+      qc.invalidateQueries({ queryKey: ['plan-diario', fecha] });
     },
   });
 
@@ -96,10 +96,9 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['day-state', fecha] });
       qc.invalidateQueries({ queryKey: ['state'] });
-      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-panel', fecha] });
+      qc.invalidateQueries({ queryKey: ['plan-diario', fecha] });
+      // CR-012 Fix V2: queryKey unificado.
+      qc.invalidateQueries({ queryKey: ['driver-positions', fecha] });
     },
   });
 
@@ -109,10 +108,9 @@ export function DiaOperativoPanel({ fecha, onChangeFecha, onJumpToTab, openCard 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['day-state', fecha] });
       qc.invalidateQueries({ queryKey: ['state'] });
-      qc.invalidateQueries({ queryKey: ['plan-diario-map', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-map', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-table', fecha] });
-      qc.invalidateQueries({ queryKey: ['driver-positions-panel', fecha] });
+      qc.invalidateQueries({ queryKey: ['plan-diario', fecha] });
+      // CR-012 Fix V2: queryKey unificado.
+      qc.invalidateQueries({ queryKey: ['driver-positions', fecha] });
     },
   });
 
