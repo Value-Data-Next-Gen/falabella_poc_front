@@ -18,16 +18,75 @@ const QUICK: { label: string; text: string }[] = [
   { label: 'Resumen ruta',            text: 'ruta R-20260419-001' },
 ];
 
+/**
+ * Persistencia del historial visual en localStorage.
+ *
+ * El backend ya mantiene el estado del FSM en `fpoc_whatsapp_sessions` con TTL
+ * 30 min (igual que WA real). Acá persistimos sólo los mensajes para que el
+ * panel sobreviva al desmount del dock (cierre/apertura) y a recargas de
+ * página dentro de la misma ventana de sesión.
+ *
+ * Key namespaced por user_id (recuperado de localStorage.fpoc.auth) para que
+ * si dos usuarios distintos comparten browser, no se pisen historiales.
+ *
+ * TTL: 30 min alineado con la sesión backend. Si el FSM expiró en el server,
+ * tampoco tiene sentido mostrar mensajes viejos en pantalla.
+ */
+const MSGS_KEY_BASE = 'fpoc.agent.web.msgs';
+const MSGS_TTL_MS = 30 * 60 * 1000;
+
+function _userIdFromAuth(): string {
+  try {
+    const raw = localStorage.getItem('fpoc.auth');
+    if (!raw) return 'anon';
+    const obj = JSON.parse(raw);
+    return String(obj?.user?.user_id ?? obj?.user_id ?? 'anon');
+  } catch {
+    return 'anon';
+  }
+}
+
+function _msgsKey(): string {
+  return `${MSGS_KEY_BASE}.${_userIdFromAuth()}`;
+}
+
+const HELLO: Msg = {
+  who: 'agent',
+  text: 'Hola, soy el asistente. Escribí "help" para ver comandos o probá los atajos de arriba.',
+  ts: Date.now(),
+};
+
+function _loadMsgs(): Msg[] {
+  try {
+    const raw = localStorage.getItem(_msgsKey());
+    if (!raw) return [HELLO];
+    const parsed = JSON.parse(raw) as { savedAt: number; msgs: Msg[] };
+    if (!parsed?.msgs?.length) return [HELLO];
+    if (Date.now() - (parsed.savedAt ?? 0) > MSGS_TTL_MS) {
+      // Historial expirado: el FSM del backend ya tampoco existe.
+      localStorage.removeItem(_msgsKey());
+      return [HELLO];
+    }
+    return parsed.msgs;
+  } catch {
+    return [HELLO];
+  }
+}
+
+function _saveMsgs(msgs: Msg[]): void {
+  try {
+    localStorage.setItem(_msgsKey(), JSON.stringify({ savedAt: Date.now(), msgs }));
+  } catch {
+    // localStorage lleno o desactivado — silenciar, no es crítico.
+  }
+}
+
 export function AgentChatPanel() {
   const [input, setInput] = useState('');
-  const [msgs, setMsgs] = useState<Msg[]>(() => [
-    {
-      who: 'agent',
-      text: 'Hola, soy el asistente. Escribí "help" para ver comandos o probá los atajos de arriba.',
-      ts: Date.now(),
-    },
-  ]);
+  const [msgs, setMsgs] = useState<Msg[]>(() => _loadMsgs());
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { _saveMsgs(msgs); }, [msgs]);
 
   const stateQ = useQuery({
     queryKey: ['agent-web-state'],
@@ -58,6 +117,7 @@ export function AgentChatPanel() {
   const resetMut = useMutation({
     mutationFn: () => api.agent.reset(),
     onSuccess: () => {
+      try { localStorage.removeItem(_msgsKey()); } catch {}
       setMsgs([{
         who: 'agent',
         text: 'Sesión reiniciada. ¿En qué te puedo ayudar?',
