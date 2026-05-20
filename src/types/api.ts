@@ -2716,6 +2716,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invitations
+         * @description Lista agregada de activaciones wa.me sobre users + drivers + contactos.
+         *
+         *     Devuelve `items` ya filtrados+paginados, `total` con el conteo POST-filtro
+         *     (pre-pagination) para que el frontend pueda mostrar "X de Y" y `summary`
+         *     con el desglose por state sobre el universo filtrado (sin aplicar `state`
+         *     para que las pestañas/contadores no se cancelen entre sí).
+         */
+        get: operations["list_invitations_api_admin_invitations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -4822,6 +4847,48 @@ export interface components {
             /** Extra Min */
             extra_min: number;
         };
+        /** InvitationItem */
+        InvitationItem: {
+            /**
+             * Tipo
+             * @enum {string}
+             */
+            tipo: "user" | "driver" | "contacto";
+            /** Id */
+            id: string;
+            /** Nombre */
+            nombre: string;
+            /** Phone E164 */
+            phone_e164?: string | null;
+            /** Empresa Id */
+            empresa_id?: number | null;
+            /** Empresa Nombre */
+            empresa_nombre?: string | null;
+            /** Rol */
+            rol?: string | null;
+            /** Activo */
+            activo: boolean;
+            /** Activation Token */
+            activation_token?: string | null;
+            /** Activation Link */
+            activation_link?: string | null;
+            /** Activation Used At */
+            activation_used_at?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "activated" | "no_link";
+        };
+        /** InvitationsListOut */
+        InvitationsListOut: {
+            /** Total */
+            total: number;
+            /** Summary */
+            summary: Record<string, never>;
+            /** Items */
+            items: components["schemas"]["InvitationItem"][];
+        };
         /** LiveGenStats */
         LiveGenStats: {
             /** Enabled */
@@ -6774,6 +6841,11 @@ export interface components {
              * @default manual
              */
             triggered_by: string;
+            /**
+             * From Number
+             * @description Sender phone en E.164 con o sin prefijo `whatsapp:` (p.ej. `whatsapp:+56957018982` o `+56957018982`). Si se omite, se usa TWILIO_WHATSAPP_FROM. Útil para dual-sender: responder desde el mismo número al que el usuario escribió.
+             */
+            from_number?: string | null;
         };
         /** WhatsAppResponse */
         WhatsAppResponse: {
@@ -12137,6 +12209,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EscalateSupervisorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invitations_api_admin_invitations_get: {
+        parameters: {
+            query?: {
+                tipo?: ("user" | "driver" | "contacto") | null;
+                state?: ("pending" | "activated" | "no_link") | null;
+                empresa_id?: number | null;
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationsListOut"];
                 };
             };
             /** @description Validation Error */

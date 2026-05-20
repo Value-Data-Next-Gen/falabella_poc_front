@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Database,
   LogOut,
+  Mail,
   Settings,
   Truck,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { api } from '../../api';
 
 export type ModuleKey =
   | 'onboarding'
+  | 'invitaciones'
   | 'planificacion'
   | 'operacion'
   | 'auditoria-ia'
@@ -30,10 +32,13 @@ export interface ModuleDef {
   hint: string;
   icon: any;
   group: 'data' | 'ops' | 'analytics' | 'system';
+  /** Si true, solo se muestra a roles falabella_admin / falabella_ops. */
+  falabellaOnly?: boolean;
 }
 
 export const MODULES: ModuleDef[] = [
   { key: 'onboarding',     label: 'Onboarding',     hint: 'Empresas, vehículos, drivers, clientes VIP, usuarios, motivos', icon: Database,     group: 'data' },
+  { key: 'invitaciones',   label: 'Invitaciones',   hint: 'Dashboard unificado de activaciones wa.me (users / drivers / contactos)', icon: Mail, group: 'data', falabellaOnly: true },
   { key: 'planificacion',  label: 'Planificación',  hint: 'Día operativo y calendario',                                     icon: CalendarDays, group: 'ops' },
   { key: 'operacion',      label: 'Operación',      hint: 'Mapa y alertas en vivo',                                         icon: Truck,        group: 'ops' },
   { key: 'auditoria-ia',   label: 'Auditoría IA',   hint: 'Alertas IA, copiloto, correcciones de motivo',                   icon: Bot,          group: 'analytics' },
@@ -97,12 +102,12 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Module list */}
+      {/* Module list — filtrado por rol (algunos modules son solo para Falabella). */}
       <nav className="flex-1 overflow-y-auto py-2">
-        {MODULES.map((m, idx) => {
+        {MODULES.filter(m => !m.falabellaOnly || isFalabella).map((m, idx, arr) => {
           const Icon = m.icon;
           const active = current === m.key;
-          const showSeparator = idx > 0 && MODULES[idx - 1].group !== m.group;
+          const showSeparator = idx > 0 && arr[idx - 1].group !== m.group;
           return (
             <div key={m.key}>
               {showSeparator && (

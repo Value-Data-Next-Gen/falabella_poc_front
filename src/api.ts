@@ -84,6 +84,43 @@ type EscalateSupervisorOut = components['schemas']['EscalateSupervisorOut'];
  *  obtiene uno válido para compartir. */
 export type ActivationLinkOut = components['schemas']['ActivationLinkOut'];
 
+// CR-Invitaciones: el endpoint `GET /api/admin/invitations` todavía no está
+// en `openapi.json` (el backend agent no terminó su parte). Tipos locales para
+// poder consumir el endpoint cuando exista. Cuando `gen-types` los traiga,
+// migrar a `components['schemas']['InvitationItem' | 'InvitationsListOut']`.
+export type InvitationTipo = 'user' | 'driver' | 'contacto';
+export type InvitationState = 'pending' | 'activated' | 'no_link';
+
+export interface InvitationItem {
+  tipo: InvitationTipo;
+  id: string;
+  nombre: string;
+  phone_e164: string | null;
+  empresa_id: number | null;
+  empresa_nombre: string | null;
+  rol: string | null;
+  activo: boolean;
+  activation_token: string | null;
+  activation_link: string | null;
+  activation_used_at: string | null;
+  state: InvitationState;
+}
+
+export interface InvitationsListOut {
+  total: number;
+  summary: { pending: number; activated: number; no_link: number };
+  items: InvitationItem[];
+}
+
+export interface ListInvitationsParams {
+  tipo?: InvitationTipo;
+  state?: InvitationState;
+  empresa_id?: number;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 /** Error tipado para escalamiento — incluye status y body parseado para que
  *  el modal pueda discriminar 409/429/5xx y leer headers (Retry-After). */
 export class EscalateSupervisorError extends Error {
@@ -501,6 +538,21 @@ export const api = {
       instructions: string;
       public_webhook_url: string | null;
     }>('/whatsapp/onboard/sandbox-info'),
+
+    /** Lista unificada de invitaciones wa.me (users + drivers + contactos
+     *  empresa) con resumen por estado. Backend: `GET /api/admin/invitations`.
+     *  Permite filtrar por tipo, estado, empresa o búsqueda libre. */
+    listInvitations: (params?: ListInvitationsParams) => {
+      const p: string[] = [];
+      if (params?.tipo) p.push(`tipo=${params.tipo}`);
+      if (params?.state) p.push(`state=${params.state}`);
+      if (params?.empresa_id != null) p.push(`empresa_id=${params.empresa_id}`);
+      if (params?.search) p.push(`search=${encodeURIComponent(params.search)}`);
+      if (params?.limit != null) p.push(`limit=${params.limit}`);
+      if (params?.offset != null) p.push(`offset=${params.offset}`);
+      const q = p.length ? '?' + p.join('&') : '';
+      return get<InvitationsListOut>(`/admin/invitations${q}`);
+    },
 
     // Capacitaciones — catálogo
     listCapacitacionModulos: (only_active = false) =>

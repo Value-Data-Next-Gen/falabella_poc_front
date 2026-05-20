@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Sidebar, ModuleKey, MODULES } from './Sidebar';
 import { Topbar } from './Topbar';
 import { OnboardingModule } from '../modules/OnboardingModule';
+import { InvitacionesPanel } from '../InvitacionesPanel';
 import { PlanificacionModule } from '../modules/PlanificacionModule';
 import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
@@ -159,6 +160,7 @@ export function AppShell() {
         />
         <main className="flex-1 overflow-hidden">
           {nav.module === 'onboarding' && <OnboardingModule sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'invitaciones' && <InvitacionesPanel />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} onNavigate={(m, s) => navigate(m as ModuleKey, s)} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
           {nav.module === 'auditoria-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
