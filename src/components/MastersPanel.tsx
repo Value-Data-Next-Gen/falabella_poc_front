@@ -11,6 +11,32 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { MotivosConfigPanel } from './MotivosConfigPanel';
 import { OnboardWhatsAppModal } from './shared/OnboardWhatsAppModal';
+import { ActivationCell } from './shared/ActivationCell';
+import { ActivationSuccessBlock } from './shared/ActivationSuccessBlock';
+import { OnboardingHelpBanner } from './shared/OnboardingHelpBanner';
+
+/** Campos de activación WhatsApp (CR activación wa.me) que el backend agregó a
+ *  UserOut/DriverOut/ContactoOut. El legacy `types.ts` no los lleva; los
+ *  leemos vía esta interfaz mixin con cast seguro (siempre `?`). */
+interface ActivationFields {
+  activation_token?: string | null;
+  activation_link?: string | null;
+  activation_used_at?: string | null;
+}
+
+/** Lee los 3 campos de activación de un row del backend de forma segura.
+ *  Usamos `unknown` + narrowing para no depender del shape exacto de
+ *  AdminUser/AdminDriver (que no los declara). */
+function readActivation(row: unknown): {
+  token: string | null; link: string | null; usedAt: string | null;
+} {
+  const r = (row ?? {}) as ActivationFields;
+  return {
+    token: r.activation_token ?? null,
+    link: r.activation_link ?? null,
+    usedAt: r.activation_used_at ?? null,
+  };
+}
 
 type Sub = 'empresas' | 'users' | 'drivers' | 'vehicles' | 'clients' | 'vip' | 'motivos';
 
@@ -50,6 +76,10 @@ export function MastersPanel() {
     { key: 'motivos', label: 'Motivos / Alertas', icon: AlertTriangle },
   ];
 
+  // El banner sólo aplica a tabs donde se crean personas con activación WA
+  // (usuarios y drivers). Empresas/vehículos/clients/vip/motivos no.
+  const showActivationBanner = sub === 'users' || sub === 'drivers';
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex gap-1 border-b border-line">
@@ -68,6 +98,8 @@ export function MastersPanel() {
           </button>
         ))}
       </div>
+
+      {showActivationBanner && <OnboardingHelpBanner />}
 
       {sub === 'empresas' && <EmpresasTab />}
       {sub === 'users' && <UsersTab />}
@@ -587,9 +619,18 @@ export function UsersTab() {
   const [onboardTarget, setOnboardTarget] = useState<{
     phone: string; name: string; userId?: number; roleHint: 'manager' | 'contacto';
   } | null>(null);
+  /** Datos para el bloque de éxito post-create (link de activación a compartir). */
+  const [activationSuccess, setActivationSuccess] = useState<{
+    name: string; link: string | null;
+  } | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin-users'] });
   const delMut = useMutation({ mutationFn: api.admin.deleteUser, onSuccess: refresh });
+  /** Regenera/recupera el activation link de un user existente y refresca la lista. */
+  const generateActivation = async (userId: number) => {
+    await api.admin.getUserActivationLink(userId);
+    refresh();
+  };
 
   const all = data ?? [];
   const matchFilters = (u: AdminUser): boolean => {
@@ -674,6 +715,7 @@ export function UsersTab() {
             onEdit={setEditing}
             onReset={setResetting}
             onDelete={(id) => delMut.mutate(id)}
+            onGenerateActivation={generateActivation}
           />
           <UserSection
             title="Usuarios externos"
@@ -682,6 +724,7 @@ export function UsersTab() {
             onEdit={setEditing}
             onReset={setResetting}
             onDelete={(id) => delMut.mutate(id)}
+            onGenerateActivation={generateActivation}
           />
         </>
       )}
@@ -694,17 +737,31 @@ export function UsersTab() {
               const created = await api.admin.createUser(data);
               refresh();
               setCreating(false);
-              // Si tiene phone + notify_whatsapp, abrir flow de onboarding guiado
-              if (data.phone_e164 && data.notify_whatsapp) {
-                setOnboardTarget({
-                  phone: data.phone_e164,
-                  name: data.display_name,
-                  userId: created.user_id,
-                  roleHint: data.role === 'transport_manager' ? 'manager' : 'manager',
-                });
+              // Si el backend devolvió activation_link, mostramos el bloque
+              // de éxito con el wa.me link copiable. Si además había
+              // notify_whatsapp, igual exponemos el onboarding clásico via
+              // botón del bloque (no abrimos el modal viejo automáticamente
+              // para no apilar UIs).
+              const link = readActivation(created).link;
+              if (link || data.phone_e164) {
+                setActivationSuccess({ name: data.display_name, link });
               }
             }}
           />
+        </Modal>
+      )}
+      {activationSuccess && (
+        <Modal title="Usuario creado" onClose={() => setActivationSuccess(null)}>
+          <ActivationSuccessBlock
+            link={activationSuccess.link}
+            name={activationSuccess.name}
+          />
+          <button
+            onClick={() => setActivationSuccess(null)}
+            className="btn-primary w-full mt-3"
+          >
+            Cerrar
+          </button>
         </Modal>
       )}
       {onboardTarget && (
@@ -758,13 +815,15 @@ export function UsersTab() {
 }
 
 
-function UserSection({ title, subtitle, users, onEdit, onReset, onDelete }: {
+function UserSection({ title, subtitle, users, onEdit, onReset, onDelete, onGenerateActivation }: {
   title: string;
   subtitle: string;
   users: AdminUser[];
   onEdit: (u: AdminUser) => void;
   onReset: (u: AdminUser) => void;
   onDelete: (id: number) => void;
+  /** Llama a getUserActivationLink(id) y refresca la lista. */
+  onGenerateActivation: (userId: number) => Promise<void>;
 }) {
   return (
     <div className="mt-2">
@@ -788,53 +847,71 @@ function UserSection({ title, subtitle, users, onEdit, onReset, onDelete }: {
               <th className="px-3 py-2 text-left">Empresa / Driver</th>
               <th className="px-3 py-2 text-left">Estado</th>
               <th className="px-3 py-2 text-left">Último login</th>
+              <th className="px-3 py-2 text-left">Activación WhatsApp</th>
               <th className="px-3 py-2 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
-              <tr key={u.user_id} className="border-b border-line/50 hover:bg-bg-700/30">
-                <td className="px-3 py-2 text-text-muted">#{u.user_id}</td>
-                <td className="px-3 py-2 font-mono">{u.email}</td>
-                <td className="px-3 py-2">{u.display_name}</td>
-                <td className="px-3 py-2">
-                  <span className={`pill ${
-                    u.role === 'falabella_admin' ? 'pill-violet'
-                    : u.role === 'falabella_ops' ? 'pill-blue'
-                    : u.role === 'driver' ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40 border'
-                    : 'pill-green'
-                  }`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-text-secondary">
-                  {u.empresa_nombre ?? '—'}
-                  {u.driver_id && (
-                    <div className="text-[10px] text-text-muted font-mono">{u.driver_id}</div>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`pill ${u.activo ? 'pill-green' : 'pill-red'}`}>
-                    {u.activo ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-text-muted text-[10px]">
-                  {u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : '—'}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex items-center gap-3 justify-end">
-                    <button onClick={() => onEdit(u)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
-                      <Pencil size={12} /> Editar
-                    </button>
-                    <button onClick={() => onReset(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1"
-                            title="Resetear contraseña del usuario">
-                      <KeyRound size={12} /> Resetear contraseña
-                    </button>
-                    <ConfirmDelete what={u.email} onConfirm={() => onDelete(u.user_id)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {users.map(u => {
+              const act = readActivation(u);
+              const hasPhone = !!(u.phone_e164 && u.phone_e164.trim().length > 0);
+              return (
+                <tr key={u.user_id} className="border-b border-line/50 hover:bg-bg-700/30">
+                  <td className="px-3 py-2 text-text-muted">#{u.user_id}</td>
+                  <td className="px-3 py-2 font-mono">{u.email}</td>
+                  <td className="px-3 py-2">{u.display_name}</td>
+                  <td className="px-3 py-2">
+                    <span className={`pill ${
+                      u.role === 'falabella_admin' ? 'pill-violet'
+                      : u.role === 'falabella_ops' ? 'pill-blue'
+                      : u.role === 'driver' ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/40 border'
+                      : 'pill-green'
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-text-secondary">
+                    {u.empresa_nombre ?? '—'}
+                    {u.driver_id && (
+                      <div className="text-[10px] text-text-muted font-mono">{u.driver_id}</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`pill ${u.activo ? 'pill-green' : 'pill-red'}`}>
+                      {u.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-text-muted text-[10px]">
+                    {u.last_login ? u.last_login.slice(0, 16).replace('T', ' ') : '—'}
+                  </td>
+                  <td className="px-3 py-2">
+                    {hasPhone ? (
+                      <ActivationCell
+                        token={act.token}
+                        link={act.link}
+                        usedAt={act.usedAt}
+                        name={u.display_name}
+                        onGenerate={() => onGenerateActivation(u.user_id)}
+                      />
+                    ) : (
+                      <span className="text-[10px] text-text-muted italic">sin teléfono</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex items-center gap-3 justify-end">
+                      <button onClick={() => onEdit(u)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
+                        <Pencil size={12} /> Editar
+                      </button>
+                      <button onClick={() => onReset(u)} className="text-accent-yellow hover:underline text-xs flex items-center gap-1"
+                              title="Resetear contraseña del usuario">
+                        <KeyRound size={12} /> Resetear contraseña
+                      </button>
+                      <ConfirmDelete what={u.email} onConfirm={() => onDelete(u.user_id)} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -1012,9 +1089,16 @@ export function DriversTab() {
   const [creating, setCreating] = useState(false);
   const [waEditing, setWaEditing] = useState<AdminDriver | null>(null);
   const [onboardTarget, setOnboardTarget] = useState<{ phone: string; name: string; driverId: string } | null>(null);
+  const [activationSuccess, setActivationSuccess] = useState<{
+    name: string; link: string | null;
+  } | null>(null);
 
   const refresh = () => { qc.invalidateQueries({ queryKey: ['admin-drivers'] }); qc.invalidateQueries({ queryKey: ['drivers'] }); };
   const delMut = useMutation({ mutationFn: api.admin.deleteDriver, onSuccess: refresh });
+  const generateActivation = async (driverId: string) => {
+    await api.admin.getDriverActivationLink(driverId);
+    refresh();
+  };
 
   return (
     <div className="panel">
@@ -1039,46 +1123,64 @@ export function DriversTab() {
                 <th className="px-3 py-2 text-right">Entregas 30d</th>
                 <th className="px-3 py-2 text-right">% fallo 30d</th>
                 <th className="px-3 py-2 text-left">WhatsApp</th>
+                <th className="px-3 py-2 text-left">Activación</th>
                 <th className="px-3 py-2 text-left">Estado</th>
                 <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {data.map(d => (
-                <tr key={d.driver_id} className="border-b border-line/50 hover:bg-bg-700/30">
-                  <td className="px-3 py-2 text-text-muted font-mono">{d.driver_id}</td>
-                  <td className="px-3 py-2 font-semibold">{d.name}</td>
-                  <td className="px-3 py-2 text-text-secondary">{d.phone}</td>
-                  <td className="px-3 py-2">{d.vehicle_name}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{d.rating.toFixed(2)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{d.deliveries_30d}</td>
-                  <td className={`px-3 py-2 text-right tabular-nums ${
-                    d.fail_rate_30d > 0.18 ? 'text-accent-red' : d.fail_rate_30d > 0.12 ? 'text-accent-yellow' : 'text-accent-green'
-                  }`}>{(d.fail_rate_30d * 100).toFixed(1)}%</td>
-                  <td className="px-3 py-2">
-                    <button
-                      onClick={() => setWaEditing(d)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ring-1 bg-slate-500/15 text-slate-400 ring-slate-500/30 hover:bg-slate-500/25"
-                      title="Configurar opt-in WhatsApp"
-                    >
-                      Configurar
-                    </button>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`pill ${d.active ? 'pill-green' : 'pill-red'}`}>
-                      {d.active ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center gap-3 justify-end">
-                      <button onClick={() => setEditing(d)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
-                        <Pencil size={12} /> Editar
+              {data.map(d => {
+                const act = readActivation(d);
+                const hasPhone = !!(d.phone && d.phone.trim().length > 0);
+                return (
+                  <tr key={d.driver_id} className="border-b border-line/50 hover:bg-bg-700/30">
+                    <td className="px-3 py-2 text-text-muted font-mono">{d.driver_id}</td>
+                    <td className="px-3 py-2 font-semibold">{d.name}</td>
+                    <td className="px-3 py-2 text-text-secondary">{d.phone}</td>
+                    <td className="px-3 py-2">{d.vehicle_name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{d.rating.toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{d.deliveries_30d}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${
+                      d.fail_rate_30d > 0.18 ? 'text-accent-red' : d.fail_rate_30d > 0.12 ? 'text-accent-yellow' : 'text-accent-green'
+                    }`}>{(d.fail_rate_30d * 100).toFixed(1)}%</td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => setWaEditing(d)}
+                        className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded ring-1 bg-slate-500/15 text-slate-400 ring-slate-500/30 hover:bg-slate-500/25"
+                        title="Configurar opt-in WhatsApp (flow viejo: template-invitación)"
+                      >
+                        Configurar
                       </button>
-                      <ConfirmDelete what={d.driver_id} onConfirm={() => delMut.mutate(d.driver_id)} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3 py-2">
+                      {hasPhone ? (
+                        <ActivationCell
+                          token={act.token}
+                          link={act.link}
+                          usedAt={act.usedAt}
+                          name={d.name}
+                          onGenerate={() => generateActivation(d.driver_id)}
+                        />
+                      ) : (
+                        <span className="text-[10px] text-text-muted italic">sin teléfono</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`pill ${d.active ? 'pill-green' : 'pill-red'}`}>
+                        {d.active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex items-center gap-3 justify-end">
+                        <button onClick={() => setEditing(d)} className="text-accent-blue hover:underline text-xs flex items-center gap-1">
+                          <Pencil size={12} /> Editar
+                        </button>
+                        <ConfirmDelete what={d.driver_id} onConfirm={() => delMut.mutate(d.driver_id)} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1091,16 +1193,29 @@ export function DriversTab() {
               const created = await api.admin.createDriver(data);
               refresh();
               setCreating(false);
-              // Driver con phone+notify → flow guiado de WhatsApp
-              if (data.phone_e164 && data.notify_whatsapp) {
-                setOnboardTarget({
-                  phone: data.phone_e164,
-                  name: data.name,
-                  driverId: created.driver_id,
-                });
+              // Mostramos el bloque de activación si el backend devolvió link
+              // (driver con phone). El flow viejo de template-invitación queda
+              // disponible vía el botón "Configurar" de la columna WhatsApp.
+              const link = readActivation(created).link;
+              if (link || data.phone) {
+                setActivationSuccess({ name: data.name, link });
               }
             }}
           />
+        </Modal>
+      )}
+      {activationSuccess && (
+        <Modal title="Conductor creado" onClose={() => setActivationSuccess(null)}>
+          <ActivationSuccessBlock
+            link={activationSuccess.link}
+            name={activationSuccess.name}
+          />
+          <button
+            onClick={() => setActivationSuccess(null)}
+            className="btn-primary w-full mt-3"
+          >
+            Cerrar
+          </button>
         </Modal>
       )}
       {onboardTarget && (

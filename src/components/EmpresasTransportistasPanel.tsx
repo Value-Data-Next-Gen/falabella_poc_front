@@ -3,12 +3,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BulkXlsxButtons } from './shared/BulkXlsxButtons';
 import { Modal } from './shared/Modal';
 import { WhatsAppInviteButton } from './shared/WhatsAppInviteButton';
+import { ActivationCell } from './shared/ActivationCell';
+import { ActivationSuccessBlock } from './shared/ActivationSuccessBlock';
+import { OnboardingHelpBanner } from './shared/OnboardingHelpBanner';
 import {
   Building2, CheckCircle2, Clock, Download, FileText, FileWarning, KeyRound, Pencil, Plus, Send,
   ShieldAlert, Trash2, Upload, UserCheck, X,
 } from 'lucide-react';
 import { EntityDocumentsTab } from './shared/EntityDocumentsTab';
 import { api } from '../api';
+
+/** Lee los 3 campos de activación de un Contacto. El legacy `types.ts` no
+ *  los declara pero el backend ahora los devuelve. Cast seguro vía unknown. */
+function readContactoActivation(c: unknown): {
+  token: string | null; link: string | null; usedAt: string | null;
+} {
+  const r = (c ?? {}) as {
+    activation_token?: string | null;
+    activation_link?: string | null;
+    activation_used_at?: string | null;
+  };
+  return {
+    token: r.activation_token ?? null,
+    link: r.activation_link ?? null,
+    usedAt: r.activation_used_at ?? null,
+  };
+}
 import {
   AdminDriver, AdminVehicle, BulkCSVResult, Contacto, ContactoCreate,
   ContactoRegion, ContactoRol, EmpresaSummary, MotivoSeverity, TestBroadcastResult,
@@ -855,6 +875,9 @@ export function ContactosTab({ empresaId }: { empresaId: number }) {
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Contacto | null>(null);
+  const [activationSuccess, setActivationSuccess] = useState<{
+    name: string; link: string | null;
+  } | null>(null);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['contactos', empresaId] });
@@ -871,10 +894,18 @@ export function ContactosTab({ empresaId }: { empresaId: number }) {
     onSuccess: refresh,
   });
 
+  /** Regenera/recupera el activation link de un contacto existente. */
+  const generateActivation = async (contactId: number) => {
+    await api.empresaContactos.getActivationLink(empresaId, contactId);
+    refresh();
+  };
+
   const contactos = contactosQ.data ?? [];
 
   return (
     <div className="flex flex-col gap-3">
+      <OnboardingHelpBanner />
+
       <div className="flex items-center justify-between">
         <div className="text-xs text-text-muted">{contactos.length} contactos activos</div>
         <button onClick={() => setCreating(true)}
@@ -898,6 +929,7 @@ export function ContactosTab({ empresaId }: { empresaId: number }) {
               onEdit={() => setEditing(c)}
               onDelete={() => delMut.mutate(c.contact_id)}
               onOptIn={() => optInMut.mutate(c.contact_id)}
+              onGenerateActivation={() => generateActivation(c.contact_id)}
             />
           ))}
         </div>
@@ -908,7 +940,14 @@ export function ContactosTab({ empresaId }: { empresaId: number }) {
           title="Nuevo contacto"
           empresaId={empresaId}
           onClose={() => setCreating(false)}
-          onSaved={() => { refresh(); setCreating(false); }}
+          onSaved={(created) => {
+            refresh();
+            setCreating(false);
+            if (created) {
+              const link = readContactoActivation(created).link;
+              if (link) setActivationSuccess({ name: created.nombre, link });
+            }
+          }}
         />
       )}
       {editing && (
@@ -920,20 +959,36 @@ export function ContactosTab({ empresaId }: { empresaId: number }) {
           onSaved={() => { refresh(); setEditing(null); }}
         />
       )}
+      {activationSuccess && (
+        <Modal title="Contacto creado" onClose={() => setActivationSuccess(null)}>
+          <ActivationSuccessBlock
+            link={activationSuccess.link}
+            name={activationSuccess.name}
+          />
+          <button
+            onClick={() => setActivationSuccess(null)}
+            className="btn-primary w-full mt-3"
+          >
+            Cerrar
+          </button>
+        </Modal>
+      )}
     </div>
   );
 }
 
 function ContactoCard({
-  contacto, onEdit, onDelete, onOptIn,
+  contacto, onEdit, onDelete, onOptIn, onGenerateActivation,
 }: {
   contacto: Contacto;
   onEdit: () => void;
   onDelete: () => void;
   onOptIn: () => void;
+  onGenerateActivation: () => Promise<void>;
 }) {
   const [confirming, setConfirming] = useState(false);
   const rol = ROL_META[contacto.rol] ?? FALLBACK_ROL_META;
+  const act = readContactoActivation(contacto);
 
   return (
     <div className="border border-line rounded-md bg-bg-700/30 p-3">
@@ -973,12 +1028,28 @@ function ContactoCard({
               </span>
             )}
           </div>
+          {/* Activación WhatsApp (CR wa.me): badge + acciones */}
+          <div className="mt-2 pt-2 border-t border-line/40">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+              Activación WhatsApp
+            </div>
+            <ActivationCell
+              token={act.token}
+              link={act.link}
+              usedAt={act.usedAt}
+              name={contacto.nombre}
+              onGenerate={onGenerateActivation}
+              compact
+            />
+          </div>
         </div>
         <div className="flex flex-col gap-1 items-end">
           <button onClick={onEdit}
                   className="text-accent-blue text-xs hover:underline flex items-center gap-1">
             <Pencil size={11} /> editar
           </button>
+          {/* Flow viejo de WhatsApp (template-invitación): se mantiene como
+              opción complementaria al wa.me link de activación nuevo. */}
           <WhatsAppInviteButton
             phone={contacto.phone_e164}
             name={contacto.nombre}
@@ -1019,7 +1090,9 @@ function ContactoFormModal({
   empresaId: number;
   initial?: Contacto;
   onClose: () => void;
-  onSaved: () => void;
+  /** Recibe el contacto recién creado/editado (para que el caller pueda
+   *  leerle el activation_link, por ejemplo). */
+  onSaved: (saved?: Contacto) => void;
 }) {
   const [nombre, setNombre] = useState(initial?.nombre ?? '');
   const [rol, setRol] = useState<ContactoRol>(initial?.rol ?? 'coordinador');
@@ -1056,12 +1129,13 @@ function ContactoFormModal({
       notes: notes.trim() || null,
     };
     try {
+      let saved: Contacto;
       if (initial) {
-        await api.empresaContactos.update(empresaId, initial.contact_id, body);
+        saved = await api.empresaContactos.update(empresaId, initial.contact_id, body);
       } else {
-        await api.empresaContactos.create(empresaId, body);
+        saved = await api.empresaContactos.create(empresaId, body);
       }
-      onSaved();
+      onSaved(saved);
     } catch (e: any) {
       setErr(e?.message ?? 'error');
       setSubmitting(false);

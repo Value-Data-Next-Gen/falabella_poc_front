@@ -79,6 +79,11 @@ type CopilotoDecisionOut = components['schemas']['CopilotoDecisionOut'];
 type EscalateSupervisorIn = components['schemas']['EscalateSupervisorIn'];
 type EscalateSupervisorOut = components['schemas']['EscalateSupervisorOut'];
 
+/** Respuesta de los endpoints GET .../activation-link (user/driver/contacto).
+ *  Backend regenera el token si ya fue usado, así que el caller siempre
+ *  obtiene uno válido para compartir. */
+export type ActivationLinkOut = components['schemas']['ActivationLinkOut'];
+
 /** Error tipado para escalamiento — incluye status y body parseado para que
  *  el modal pueda discriminar 409/429/5xx y leer headers (Retry-After). */
 export class EscalateSupervisorError extends Error {
@@ -448,6 +453,11 @@ export const api = {
     resetPassword: (id: number, new_password: string) =>
       post<{ reset: number }>(`/admin/users/${id}/reset-password`, { new_password }),
     deleteUser: (id: number) => del<{ deleted: number }>(`/admin/users/${id}`),
+    /** Obtiene (o regenera) el link wa.me de activación de un usuario.
+     *  Si `is_used`, el backend ya emitió un token nuevo y este link es
+     *  el que hay que compartir. */
+    getUserActivationLink: (user_id: number) =>
+      get<ActivationLinkOut>(`/admin/users/${user_id}/activation-link`),
 
     // Drivers
     listDrivers: () => get<AdminDriver[]>('/admin/drivers'),
@@ -455,6 +465,9 @@ export const api = {
     updateDriver: (id: string, req: Partial<AdminDriver>) =>
       put<AdminDriver>(`/admin/drivers/${id}`, req),
     deleteDriver: (id: string) => del<{ deleted: string }>(`/admin/drivers/${id}`),
+    /** Idem para drivers — devuelve link wa.me ACTIVAR <TOKEN>. */
+    getDriverActivationLink: (driver_id: string) =>
+      get<ActivationLinkOut>(`/admin/drivers/${encodeURIComponent(driver_id)}/activation-link`),
 
     // Vehicles
     listVehicles: () => get<AdminVehicle[]>('/admin/vehicles'),
@@ -652,6 +665,12 @@ export const api = {
       del<{ deleted: number }>(`/empresa-contactos/empresas/${empresaId}/contactos/${contactId}`),
     optIn: (empresaId: number, contactId: number) =>
       post<Contacto>(`/empresa-contactos/empresas/${empresaId}/contactos/${contactId}/opt-in`, {}),
+    /** Devuelve (o regenera si ya fue usado) el link wa.me de activación
+     *  de un contacto empresa. */
+    getActivationLink: (empresaId: number, contactId: number) =>
+      get<ActivationLinkOut>(
+        `/empresa-contactos/empresas/${empresaId}/contactos/${contactId}/activation-link`,
+      ),
     csvTemplateUrl: (empresaId: number) =>
       `${BASE}/empresa-contactos/empresas/${empresaId}/contactos/csv-template`,
     downloadCsvTemplate: async (empresaId: number) => {

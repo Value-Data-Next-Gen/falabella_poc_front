@@ -655,6 +655,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users/{user_id}/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User Activation Link
+         * @description Devuelve (o regenera) el wa.me activation link de un user.
+         *
+         *     Si el token está usado (activation_used_at IS NOT NULL) se regenera uno
+         *     nuevo y se limpia used_at — el admin puede reenviar el link cuando quiera.
+         *     Solo admin/ops pueden llamar (require_admin gatea falabella_admin).
+         */
+        get: operations["get_user_activation_link_api_admin_users__user_id__activation_link_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{user_id}": {
         parameters: {
             query?: never;
@@ -702,6 +726,29 @@ export interface paths {
         put?: never;
         /** Create Driver */
         post: operations["create_driver_api_admin_drivers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/drivers/{driver_id}/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Driver Activation Link
+         * @description Devuelve (o regenera) el wa.me activation link del driver.
+         *
+         *     Si el token ya está usado, se regenera limpiando used_at. transport_manager
+         *     solo puede pedirlo para drivers de SU empresa (enforce vía existing.empresa_id).
+         */
+        get: operations["get_driver_activation_link_api_admin_drivers__driver_id__activation_link_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1493,6 +1540,32 @@ export interface paths {
          * @description Soft delete: active=0. Mantiene la fila para auditoría histórica de logs.
          */
         delete: operations["delete_contacto_api_empresa_contactos_empresas__empresa_id__contactos__contact_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/empresa-contactos/empresas/{empresa_id}/contactos/{contact_id}/activation-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Contacto Activation Link
+         * @description Devuelve (o regenera) el wa.me activation link del contacto.
+         *
+         *     Si el token ya está usado se regenera limpiando used_at — permite reenviar
+         *     el link a un contacto que ya activó pero perdió el WhatsApp.
+         *
+         *     Permisos: falabella_admin, falabella_ops, o transport_manager sobre
+         *     contactos de SU empresa.
+         */
+        get: operations["get_contacto_activation_link_api_empresa_contactos_empresas__empresa_id__contactos__contact_id__activation_link_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3067,6 +3140,17 @@ export interface components {
             /** Unique Ips 24H */
             unique_ips_24h: number;
         };
+        /** ActivationLinkOut */
+        ActivationLinkOut: {
+            /** Token */
+            token: string;
+            /** Link */
+            link: string;
+            /** Used At */
+            used_at?: string | null;
+            /** Is Used */
+            is_used: boolean;
+        };
         /**
          * AlertEvent
          * @description CR-012 T0.3: evento histórico de alerta enviada para una visita.
@@ -3667,6 +3751,12 @@ export interface components {
             created_at?: string | null;
             /** Updated At */
             updated_at?: string | null;
+            /** Activation Token */
+            activation_token?: string | null;
+            /** Activation Link */
+            activation_link?: string | null;
+            /** Activation Used At */
+            activation_used_at?: string | null;
         };
         /** ContactoUpdate */
         ContactoUpdate: {
@@ -4278,6 +4368,12 @@ export interface components {
              * @default false
              */
             is_problem_hidden: boolean;
+            /** Activation Token */
+            activation_token?: string | null;
+            /** Activation Link */
+            activation_link?: string | null;
+            /** Activation Used At */
+            activation_used_at?: string | null;
         };
         /** DriverPosition */
         DriverPosition: {
@@ -6159,6 +6255,12 @@ export interface components {
             created_at?: string | null;
             /** Last Login */
             last_login?: string | null;
+            /** Activation Token */
+            activation_token?: string | null;
+            /** Activation Link */
+            activation_link?: string | null;
+            /** Activation Used At */
+            activation_used_at?: string | null;
         };
         /** UserUpdate */
         UserUpdate: {
@@ -8040,6 +8142,37 @@ export interface operations {
             };
         };
     };
+    get_user_activation_link_api_admin_users__user_id__activation_link_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_user_api_admin_users__user_id__put: {
         parameters: {
             query?: never;
@@ -8181,6 +8314,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_driver_activation_link_api_admin_drivers__driver_id__activation_link_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationLinkOut"];
                 };
             };
             /** @description Validation Error */
@@ -10158,6 +10322,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_contacto_activation_link_api_empresa_contactos_empresas__empresa_id__contactos__contact_id__activation_link_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                empresa_id: number;
+                contact_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivationLinkOut"];
                 };
             };
             /** @description Validation Error */
