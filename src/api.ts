@@ -1058,34 +1058,16 @@ export const api = {
   },
 
   operacion: {
+    /** Fase 3: shape NUEVO (flat array). `DriverPosition` está declarado más
+     *  abajo en este mismo archivo y es shared con `api.pilot.driverPositions`
+     *  (ambos consumen el mismo endpoint). El parámetro `empresa_id` queda
+     *  ignorado en backend hoy (Fase 3 simplificó el endpoint), lo aceptamos
+     *  en la firma para no romper a callers existentes; lo pasamos como query
+     *  string igual por si el backend lo vuelve a usar. */
     driverPositions: (fecha: string, empresa_id?: number | null) => {
       const p = new URLSearchParams({ fecha });
       if (empresa_id != null) p.set('empresa_id', String(empresa_id));
-      return get<{
-        sim_active: boolean;
-        sim_clock: string | null;
-        tick_sec: number;
-        minutes_per_tick: number;
-        drivers: Array<{
-          vehicle_id: number;
-          ruta_id: string | null;
-          driver_name: string | null;
-          patente: number | null;
-          empresa_id: number | null;
-          empresa_nombre: string | null;
-          current_stop: number | null;
-          next_stop: number | null;
-          lat: number | null;
-          lon: number | null;
-          ts_sim: string | null;
-          status: string;
-          speed_kmh: number | null;
-          stops_total: number;
-          stops_completed: number;
-          stops_failed: number;
-          vip_visitas: number;
-        }>;
-      }>(`/operacion/driver-positions?${p.toString()}`);
+      return get<DriverPosition[]>(`/operacion/driver-positions?${p.toString()}`);
     },
     folios: (params: { fecha: string; empresa_id?: number | null; ruta_id?: string | null; only_vip?: boolean; limit?: number }) => {
       const p = new URLSearchParams({ fecha: params.fecha });
@@ -1213,4 +1195,134 @@ export const api = {
       }>>(`/centros-distribucion${q}`);
     },
   },
+
+  // ============================================================================
+  // Piloto (Fase 3 backend MVP refactor)
+  // Endpoints del módulo Piloto que se montan bajo /api/admin/pilot/*. Los tipos
+  // todavía no aparecen en types/api.ts porque el openapi.json se regenera al
+  // final de la fase. Cuando eso ocurra, migrar a components['schemas'][...].
+  // El listado de posiciones de drivers de la Fase 3 vive en /api/operacion/
+  // driver-positions con NUEVO shape (flat array con driver_id, lat/lng,
+  // status, next_visit_*). Tanto `api.pilot.driverPositions` como
+  // `api.operacion.driverPositions` apuntan al mismo endpoint y devuelven
+  // `DriverPosition[]` (alias semánticos, mismo response).
+  // ============================================================================
+  pilot: {
+    getClock: (fecha: string) =>
+      get<PilotClockResponse>(`/admin/pilot/clock?fecha=${encodeURIComponent(fecha)}`),
+    setClock: (fecha: string, action: 'advance' | 'reset', minutes?: number) =>
+      post<PilotClockResponse>('/admin/pilot/clock', {
+        fecha,
+        action,
+        ...(minutes != null ? { minutes } : {}),
+      }),
+    setup: (body: PilotSetupRequest) =>
+      post<PilotSetupResponse>('/admin/pilot/setup', body),
+    simulateEvent: (tracking_id: number | string, event: 'delay' | 'complete' | 'no_show') =>
+      post<PilotSimulateEventResponse>('/admin/pilot/simulate-event', { tracking_id, event }),
+    getStatus: (fecha: string) =>
+      get<PilotStatusResponse>(`/admin/pilot/status?fecha=${encodeURIComponent(fecha)}`),
+    /** Fase 3: shape NUEVO (lat/lng + driver_id + next_visit_*). Alias del
+     *  método `api.operacion.driverPositions` — golpean el mismo endpoint. */
+    driverPositions: (fecha: string) =>
+      get<DriverPosition[]>(`/operacion/driver-positions?fecha=${encodeURIComponent(fecha)}`),
+  },
 };
+
+// ============================================================================
+// Tipos públicos del módulo Piloto (Fase 3).
+// ============================================================================
+export type PilotClockMode = 'auto' | 'manual';
+
+export interface PilotClockResponse {
+  fecha: string;
+  sim_clock: string; // ISO
+  offset_min: number;
+  mode: PilotClockMode;
+}
+
+export interface PilotDriverResult {
+  driver_id: string;
+  driver_name: string;
+  vehicle_id: string;
+  visitas: number;
+}
+
+export interface PilotSetupRequest {
+  fecha: string;
+  driver_ids: string[];
+  regiones: string[];
+  visitas_por_driver: number;
+  horario_inicio: string;
+  horario_fin: string;
+  auto_start_day: boolean;
+}
+
+export interface PilotSetupResponse {
+  fecha: string;
+  created: number;
+  drivers: PilotDriverResult[];
+  day_state: string;
+  regiones_used: string[];
+}
+
+export interface PilotStatusDriver {
+  driver_id: string;
+  driver_name: string;
+  vehicle_id: string;
+  pending: number;
+  completed: number;
+  failed: number;
+}
+
+export interface PilotStatusResponse {
+  fecha: string;
+  sim_clock: string;
+  offset_min: number;
+  mode: PilotClockMode;
+  day_state: string;
+  drivers: PilotStatusDriver[];
+  totals: { pending: number; completed: number; failed: number };
+  next_eta_breach_at: string | null;
+}
+
+export interface PilotSimulateEventResponse {
+  tracking_id: string;
+  event: string;
+  status: string;
+  current_eta_cl?: string;
+  detail?: string;
+}
+
+/** Posición de driver en el shape nuevo de la Fase 3 (flat, sin envoltura). */
+export interface DriverPosition {
+  driver_id: string;
+  driver_name: string;
+  vehicle_id: string;
+  lat: number | null;
+  lng: number | null;
+  status: 'sin_inicio' | 'detenido' | 'en_ruta' | 'finalizado';
+  next_visit_id: string | null;
+  next_visit_title: string | null;
+  next_visit_eta: string | null;
+  last_completed_id: string | null;
+  completed_count: number;
+  pending_count: number;
+}
+
+// Wrappers funcionales (mismo nombre que pide el CR de Fase 3 frontend) — son
+// thin wrappers sobre `api.pilot.*` para callers que prefieran functions
+// sueltas en vez del namespace.
+export const getPilotClock = (fecha: string) => api.pilot.getClock(fecha);
+export const setPilotClock = (
+  fecha: string,
+  action: 'advance' | 'reset',
+  minutes?: number,
+) => api.pilot.setClock(fecha, action, minutes);
+export const pilotSetup = (body: PilotSetupRequest) => api.pilot.setup(body);
+export const pilotSimulateEvent = (
+  tracking_id: number | string,
+  event: 'delay' | 'complete' | 'no_show',
+) => api.pilot.simulateEvent(tracking_id, event);
+export const getPilotStatus = (fecha: string) => api.pilot.getStatus(fecha);
+export const getDriverPositions = (fecha: string) => api.pilot.driverPositions(fecha);

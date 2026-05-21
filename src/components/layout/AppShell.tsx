@@ -5,6 +5,7 @@ import { OnboardingModule } from '../modules/OnboardingModule';
 import { InvitacionesPanel } from '../InvitacionesPanel';
 import { PlanificacionModule } from '../modules/PlanificacionModule';
 import { OperacionModuleV2 } from '../modules/OperacionModuleV2';
+import { PilotoModule } from '../modules/PilotoModule';
 import { SeguimientoIAModule } from '../modules/SeguimientoIAModule';
 import { AnaliticaModule } from '../modules/AnaliticaModule';
 import { IAModule } from '../modules/IAModule';
@@ -163,6 +164,7 @@ export function AppShell() {
           {nav.module === 'invitaciones' && <InvitacionesPanel />}
           {nav.module === 'planificacion' && <PlanificacionModule sub={nav.sub} setSub={setSub} onNavigate={(m, s) => navigate(m as ModuleKey, s)} />}
           {nav.module === 'operacion' && <OperacionModuleV2 sub={nav.sub} setSub={setSub} />}
+          {nav.module === 'piloto' && <PilotoModule />}
           {nav.module === 'auditoria-ia' && <SeguimientoIAModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'control' && <AnaliticaModule sub={nav.sub} setSub={setSub} />}
           {nav.module === 'ia' && <IAModule sub={nav.sub} setSub={setSub} />}

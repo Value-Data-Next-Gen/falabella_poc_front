@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  FlaskConical,
   LogOut,
   Mail,
   Settings,
@@ -21,6 +22,7 @@ export type ModuleKey =
   | 'invitaciones'
   | 'planificacion'
   | 'operacion'
+  | 'piloto'
   | 'auditoria-ia'
   | 'control'
   | 'ia'
@@ -41,6 +43,7 @@ export const MODULES: ModuleDef[] = [
   { key: 'invitaciones',   label: 'Invitaciones',   hint: 'Dashboard unificado de activaciones wa.me (users / drivers / contactos)', icon: Mail, group: 'data', falabellaOnly: true },
   { key: 'planificacion',  label: 'Planificación',  hint: 'Día operativo y calendario',                                     icon: CalendarDays, group: 'ops' },
   { key: 'operacion',      label: 'Operación',      hint: 'Mapa y alertas en vivo',                                         icon: Truck,        group: 'ops' },
+  { key: 'piloto',         label: 'Piloto',         hint: 'Genera pilotos sintéticos, reloj manual, eventos por visita',    icon: FlaskConical, group: 'ops', falabellaOnly: true },
   { key: 'auditoria-ia',   label: 'Auditoría IA',   hint: 'Alertas IA, copiloto, correcciones de motivo',                   icon: Bot,          group: 'analytics' },
   { key: 'control',        label: 'Control',        hint: 'KPIs, scorecard de drivers, log de notificaciones',              icon: BarChart3,    group: 'analytics' },
   { key: 'ia',             label: 'IA / Modelo',    hint: 'Modelo XGB, métricas, calibración',                              icon: Brain,        group: 'analytics' },

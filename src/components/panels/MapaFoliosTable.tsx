@@ -39,16 +39,19 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
     enabled: !!fecha,
   });
 
+  // Fase 3: el shape nuevo de driver-positions no expone `vip_visitas` ni
+  // `stops_failed`. Mantenemos los counters que sí siguen vivos: total drivers,
+  // en_ruta / finalizados, y completed/total derivado de completed_count +
+  // pending_count. "conVip" y "fail" se omiten (no hay equivalente directo en
+  // el nuevo endpoint; se levantan desde folios o alertas en otro CR).
   const driverSummary = useMemo(() => {
-    const drivers = driversQ.data?.drivers ?? [];
+    const drivers = driversQ.data ?? [];
     const total = drivers.length;
-    const conVip = drivers.filter(d => d.vip_visitas > 0).length;
-    const enRuta = drivers.filter(d => d.status === 'en_ruta' || d.status === 'entregando').length;
+    const enRuta = drivers.filter(d => d.status === 'en_ruta').length;
     const finalizados = drivers.filter(d => d.status === 'finalizado').length;
-    const okTotal = drivers.reduce((s, d) => s + d.stops_completed, 0);
-    const failTotal = drivers.reduce((s, d) => s + d.stops_failed, 0);
-    const stopsTotal = drivers.reduce((s, d) => s + d.stops_total, 0);
-    return { total, conVip, enRuta, finalizados, okTotal, failTotal, stopsTotal };
+    const okTotal = drivers.reduce((s, d) => s + d.completed_count, 0);
+    const stopsTotal = drivers.reduce((s, d) => s + d.completed_count + d.pending_count, 0);
+    return { total, enRuta, finalizados, okTotal, stopsTotal };
   }, [driversQ.data]);
 
   const rows = foliosQ.data ?? [];
@@ -106,9 +109,8 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
         </span>
         <span className="ml-auto flex items-center gap-3 text-[10px] normal-case tracking-normal">
           <span><Truck size={10} className="inline mr-1" />{driverSummary.total} drivers</span>
-          <span className="text-cmr"><Star size={10} className="inline mr-1" />{driverSummary.conVip} con VIP</span>
-          <span className="text-brand">{driverSummary.okTotal} OK</span>
-          <span className="text-accent-red">{driverSummary.failTotal} fail</span>
+          <span className="text-brand">{driverSummary.okTotal}/{driverSummary.stopsTotal} entregas</span>
+          <span className="text-text-muted">{driverSummary.finalizados} finalizados</span>
         </span>
       </div>
 

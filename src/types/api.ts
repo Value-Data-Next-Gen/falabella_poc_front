@@ -474,7 +474,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Plan Diario */
+        /**
+         * Get Plan Diario
+         * @description Plan diario. Fuente única: fpoc.simpli_visits.
+         *
+         *     Tras Fase 2 MVP refactor el modo `source=synthetic` quedó eliminado
+         *     (acoplado a STATE.snapshot_df que ya no existe). El query param se mantiene
+         *     por compat de URL pero solo acepta `real`.
+         *
+         *     Modo `legacy=true` sigue exponiendo el shape Sprint-1 (Empresa→Drivers→Visits),
+         *     leyendo SIEMPRE de DB real (antes caía al snapshot sintético cuando no venía
+         *     planned_date; ahora usa STATE.today como default).
+         */
         get: operations["get_plan_diario_api_plan_diario_get"];
         put?: never;
         post?: never;
@@ -495,102 +506,6 @@ export interface paths {
         get: operations["get_watchlist_api_watchlist_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/live-gen/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stats */
-        get: operations["stats_api_live_gen_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/live-gen/toggle": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Toggle */
-        post: operations["toggle_api_live_gen_toggle_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/live-gen/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reset
-         * @description Borra las rows generadas por el live-gen de hoy (id >= ID_BASE).
-         */
-        post: operations["reset_api_live_gen_reset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/live-gen/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Batch
-         * @description Inyecta un batch de N filas en una fecha específica (default: hoy).
-         *     Útil para popular un día rápido en la demo.
-         */
-        post: operations["batch_api_live_gen_batch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/live-gen/simulate-days": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Simulate Days
-         * @description Simula N días con rows_per_day cada uno. Loopea hacia atrás desde hoy.
-         *     Bloqueante (puede tardar varios segundos). Con 7x1800 ≈ 10-20s.
-         */
-        post: operations["simulate_days_api_live_gen_simulate_days_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1690,74 +1605,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/comment-sim/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Stats */
-        get: operations["get_stats_api_comment_sim_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/comment-sim/toggle": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Toggle */
-        post: operations["toggle_api_comment_sim_toggle_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/comment-sim/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Update Config */
-        post: operations["update_config_api_comment_sim_config_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/comment-sim/emit-now": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Emit Now */
-        post: operations["emit_now_api_comment_sim_emit_now_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/motivos/classify": {
         parameters: {
             query?: never;
@@ -1784,7 +1631,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Clasificar Motivo */
+        /**
+         * Clasificar Motivo
+         * @deprecated
+         */
         post: operations["clasificar_motivo_api_llm_clasificar_motivo_post"];
         delete?: never;
         options?: never;
@@ -1960,33 +1810,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/planificacion/import-mock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Import Mock
-         * @description Importa visitas mock para una fecha y las persiste en fpoc_simpli_visits.
-         *
-         *     - `fecha`: 'YYYY-MM-DD'. Default: STATE.today si existe, sino hoy.
-         *     - `force=true`: re-importar aunque la fecha ya esté cargada (para demos
-         *       destructivas).
-         *
-         *     Idempotencia: marker en `fpoc_planificacion_imports`. Si ya hay para la
-         *     fecha, devuelve `already_imported=true` + el count anterior, sin duplicar.
-         */
-        post: operations["import_mock_api_planificacion_import_mock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/planificacion/import-xlsx": {
         parameters: {
             query?: never;
@@ -2026,14 +1849,18 @@ export interface paths {
          * Start Day
          * @description Marca el comienzo del día operativo en la fecha indicada.
          *
-         *     - Detiene el live_generator (deja de inyectar visitas al planned_date).
-         *     - Si reset_status=true (default): resetea status='pending' + limpia checkouts
-         *       en todas las visitas del día. Crucial porque el import-mock las trae con
-         *       status=completed/failed (datos sintéticos para ML); para operar el día
-         *       tienen que arrancar como pending.
-         *     - Setea STATE.today = fecha y refresca el snapshot ML/in-memory.
-         *     - Cuenta visitas reales en fpoc.simpli_visits para esa fecha (cuadratura).
+         *     Fase 2 MVP: ya no hay live_generator que pausar ni snapshot ML que refrescar.
+         *     El endpoint solo:
+         *     - Si reset_status=true (default): pasa todas las visitas a status='pending'
+         *       y limpia checkouts (comment/observation). Si la importación quedó con
+         *       visitas pre-completadas (datos sintéticos legacy), esto las pone listas
+         *       para operar.
+         *     - Setea STATE.today = fecha (placeholder de día operativo activo).
+         *     - Cuenta visitas en fpoc.simpli_visits para esa fecha (cuadratura).
          *     - Devuelve conflictos de dotación pendientes.
+         *
+         *     `live_gen_paused` y `snapshot_size` quedan con valores estables (False y 0)
+         *     para no romper el contrato del frontend mientras se migra.
          */
         post: operations["start_day_api_planificacion_start_day_post"];
         delete?: never;
@@ -2259,64 +2086,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/planificacion/day-state/clean-and-regenerate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Clean And Regenerate
-         * @description Borra todas las visitas del día y regenera con el live_generator.
-         *
-         *     Modos:
-         *       - "default" (1800 rows, multi-empresa, multi-driver, multi-región)
-         *       - "minimal" (5 visitas, 1 empresa, 1 driver, RM, ETAs cronológicas)
-         *         Ignora `rows`. Para demos limpios y tests unitarios.
-         *
-         *     El live_generator respeta región por driver (hash determinístico), evita
-         *     líneas cruzando el país. Visitas nacen `pending` para que el sim las
-         *     procese cronológicamente.
-         */
-        post: operations["clean_and_regenerate_api_planificacion_day_state_clean_and_regenerate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/planificacion/day-state/regenerate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Regenerate Day
-         * @description Rebobina la simulación de un día EN_CURSO sin destruir el plan.
-         *
-         *     Qué hace:
-         *       - sim_clock vuelve a 09:00 del día.
-         *       - Todas las visitas del día pasan a status='pending', limpiando observaciones de sim.
-         *       - driver_positions del día se borra y se re-inicializa.
-         *       - El plan (rutas, drivers, asignaciones) se conserva intacto.
-         *
-         *     Para qué sirve: "ver de nuevo cómo simula el día" sin tener que volver a
-         *     BORRADOR → VALIDADO → EN_CURSO. Usable solo en EN_CURSO.
-         */
-        post: operations["regenerate_day_api_planificacion_day_state_regenerate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/planificacion/day-state/extend": {
         parameters: {
             query?: never;
@@ -2421,23 +2190,6 @@ export interface paths {
         };
         /** Get Supported Regions */
         get: operations["get_supported_regions_api_admin_seed_regions_supported_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/operacion/driver-positions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Driver Positions */
-        get: operations["driver_positions_api_operacion_driver_positions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2741,6 +2493,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/notify-day-start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Notify Day Start
+         * @description Dispara un broadcast de inicio de jornada a todos los drivers opted-in
+         *     de la(s) empresa(s) que tienen visitas hoy. Usa template aprobado
+         *     `vd_alerta_motivo_v2` con `severidad=INFO` y `motivo=INICIO DE JORNADA`.
+         */
+        post: operations["notify_day_start_api_admin_notify_day_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/notify-eta-breach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Notify Eta Breach
+         * @description Manual trigger para disparar alerta de atraso ETA en una visita
+         *     específica (uso QA / demo). Persiste el `tracking_id` en la sesión
+         *     WhatsApp del driver para que el LLM agent pueda enlazar la respuesta
+         *     libre del driver con el `report_motivo` correspondiente.
+         *
+         *     La logica real vive en `dispatch_eta_breach()` para que el cron
+         *     `sims.eta_breach_cron` y el `/api/admin/pilot/simulate-event` la puedan
+         *     reusar sin duplicar codigo.
+         */
+        post: operations["notify_eta_breach_api_admin_notify_eta_breach_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pilot/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Clock */
+        get: operations["get_clock_api_admin_pilot_clock_get"];
+        put?: never;
+        /** Post Clock */
+        post: operations["post_clock_api_admin_pilot_clock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pilot/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pilot Setup */
+        post: operations["pilot_setup_api_admin_pilot_setup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pilot/simulate-event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Event
+         * @description Aplica un evento simulado a una visita.
+         *
+         *     - delay      => +30min al current_eta_cl + dispara alerta WhatsApp ETA breach.
+         *     - complete   => status='completed'. Sin notificacion (driver lo marco OK).
+         *     - no_show    => status='failed' + comentario alertable 'SIN MORADORES'.
+         */
+        post: operations["simulate_event_api_admin_pilot_simulate_event_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pilot/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pilot Status */
+        get: operations["pilot_status_api_admin_pilot_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operacion/driver-positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Positions */
+        get: operations["driver_positions_api_operacion_driver_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -2783,219 +2677,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get State */
+        /**
+         * Get State
+         * @description Estado mínimo de la torre.
+         *
+         *     Tras Fase 2 MVP: sin snapshot ML, sin sim_clock auto-advance. Los campos
+         *     obsoletos quedan con defaults estables (day_seed=0, auto_advance=False,
+         *     sim_minutes_per_tick=0, incidents={}, last_tick_at=None) para no romper
+         *     el contrato con el frontend mientras se migra.
+         *
+         *     `vehicles` y `total_visits` se computan leyendo fpoc.simpli_visits para
+         *     la fecha activa (STATE.today). Si STATE.today es None o falla, se cae a 0.
+         */
         get: operations["get_state_api_state_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/control/incident": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Post Incident */
-        post: operations["post_incident_api_control_incident_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/control/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Post Reset */
-        post: operations["post_reset_api_control_reset_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/control/freeze": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Freeze
-         * @description Congela el día: setea sim_clock al inicio (09:00) y pausa auto_advance.
-         */
-        post: operations["post_freeze_api_control_freeze_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/control/start-day": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Start Day
-         * @description Arranca el día: opcionalmente regenera el plan y resetea sim_clock al
-         *     inicio, luego activa auto_advance.
-         */
-        post: operations["post_start_day_api_control_start_day_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/control/clock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Post Clock */
-        post: operations["post_clock_api_control_clock_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/kpis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Kpis */
-        get: operations["get_kpis_api_kpis_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/visits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Visits */
-        get: operations["get_visits_api_visits_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/alerts/anticipated": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Anticipated Alerts */
-        get: operations["get_anticipated_alerts_api_alerts_anticipated_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/visits/{tracking_id}/explanation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Explanation */
-        get: operations["get_explanation_api_visits__tracking_id__explanation_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/vehicles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Vehicles */
-        get: operations["get_vehicles_api_vehicles_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/model/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Model Metrics */
-        get: operations["get_model_metrics_api_model_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/model/importance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Model Importance */
-        get: operations["get_model_importance_api_model_importance_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3064,40 +2758,6 @@ export interface paths {
         };
         /** Get Fleet Vehicle */
         get: operations["get_fleet_vehicle_api_fleet_vehicles__vehicle_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/clients": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Clients */
-        get: operations["get_clients_api_clients_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/clients/{customer_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Client */
-        get: operations["get_client_api_clients__customer_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3197,31 +2857,6 @@ export interface components {
             /** Acknowledged At */
             acknowledged_at?: string | null;
         };
-        /** AnticipatedAlert */
-        AnticipatedAlert: {
-            /** Tracking Id */
-            tracking_id: string;
-            /** Title */
-            title: string;
-            /** Vehicle Id */
-            vehicle_id: number;
-            /** Vehicle Name */
-            vehicle_name: string;
-            /** Window End */
-            window_end: string;
-            /** Estimated Time Arrival */
-            estimated_time_arrival: string;
-            /** P Fallo */
-            p_fallo: number;
-            /** Horas Hasta Window End */
-            horas_hasta_window_end: number;
-            /** Latitude */
-            latitude: number;
-            /** Longitude */
-            longitude: number;
-            /** Top Factors */
-            top_factors: components["schemas"]["ShapFactor"][];
-        };
         /** AppConfigEntry */
         AppConfigEntry: {
             /** Value */
@@ -3283,25 +2918,6 @@ export interface components {
             min_date?: string | null;
             /** Max Date */
             max_date?: string | null;
-        };
-        /** BatchRequest */
-        BatchRequest: {
-            /**
-             * Rows
-             * @default 1800
-             */
-            rows: number;
-            /** Date */
-            date?: string | null;
-        };
-        /** BatchResponse */
-        BatchResponse: {
-            /** Date */
-            date: string;
-            /** Inserted */
-            inserted: number;
-            /** Elapsed Sec */
-            elapsed_sec: number;
         };
         /** Body_bulk_csv_api_empresa_contactos_empresas__empresa_id__contactos_bulk_csv_post */
         Body_bulk_csv_api_empresa_contactos_empresas__empresa_id__contactos_bulk_csv_post: {
@@ -3448,13 +3064,6 @@ export interface components {
              */
             pending: number;
         };
-        /** CalibrationPoint */
-        CalibrationPoint: {
-            /** Predicted */
-            predicted: number;
-            /** Actual */
-            actual: number;
-        };
         /** CapacitacionModuloIn */
         CapacitacionModuloIn: {
             /** Codigo */
@@ -3540,17 +3149,6 @@ export interface components {
             /** Severity */
             severity: string;
         };
-        /** CleanRegenerateResponse */
-        CleanRegenerateResponse: {
-            /** Fecha */
-            fecha: string;
-            /** Deleted Visits */
-            deleted_visits: number;
-            /** Inserted Visits */
-            inserted_visits: number;
-            /** State */
-            state: string;
-        };
         /** ClientDayNoteIn */
         ClientDayNoteIn: {
             /** Fecha */
@@ -3596,33 +3194,6 @@ export interface components {
             in_problem_comuna: boolean;
             /** Notes */
             notes?: string | null;
-        };
-        /** ClientMaster */
-        ClientMaster: {
-            /** Customer Id */
-            customer_id: string;
-            /** Title */
-            title: string;
-            /** Address */
-            address: string;
-            /** Latitude */
-            latitude: number;
-            /** Longitude */
-            longitude: number;
-            /** Comuna Id */
-            comuna_id: string;
-            /** Is Problem Zone */
-            is_problem_zone: boolean;
-            /** N Visits 60D */
-            n_visits_60d: number;
-            /** N Failed 60D */
-            n_failed_60d: number;
-            /** Fail Rate 60D */
-            fail_rate_60d: number;
-            /** First Seen */
-            first_seen: string;
-            /** Last Seen */
-            last_seen: string;
         };
         /** ClientOut */
         ClientOut: {
@@ -3700,14 +3271,37 @@ export interface components {
             /** Offset */
             offset: number;
         };
-        /** ClockRequest */
-        ClockRequest: {
+        /** ClockActionRequest */
+        ClockActionRequest: {
+            /**
+             * Fecha
+             * @description YYYY-MM-DD
+             */
+            fecha: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "advance" | "reset";
+            /**
+             * Minutes
+             * @description Requerido si action=advance. Minutos a sumar al offset.
+             */
+            minutes?: number | null;
+        };
+        /** ClockResponse */
+        ClockResponse: {
+            /** Fecha */
+            fecha: string;
             /** Sim Clock */
-            sim_clock?: string | null;
-            /** Offset Minutes */
-            offset_minutes?: number | null;
-            /** Auto Advance */
-            auto_advance?: boolean | null;
+            sim_clock: string;
+            /** Offset Min */
+            offset_min: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "auto" | "manual";
         };
         /** CommentCreate */
         CommentCreate: {
@@ -4402,52 +3996,36 @@ export interface components {
         };
         /** DriverPosition */
         DriverPosition: {
-            /** Vehicle Id */
-            vehicle_id: number;
-            /** Ruta Id */
-            ruta_id?: string | null;
+            /** Driver Id */
+            driver_id: string;
             /** Driver Name */
             driver_name?: string | null;
-            /** Patente */
-            patente?: number | null;
-            /** Empresa Id */
-            empresa_id?: number | null;
-            /** Empresa Nombre */
-            empresa_nombre?: string | null;
-            /** Current Stop */
-            current_stop?: number | null;
-            /** Next Stop */
-            next_stop?: number | null;
+            /** Vehicle Id */
+            vehicle_id: number;
             /** Lat */
             lat?: number | null;
-            /** Lon */
-            lon?: number | null;
-            /** Ts Sim */
-            ts_sim?: string | null;
+            /** Lng */
+            lng?: number | null;
             /** Status */
             status: string;
-            /** Speed Kmh */
-            speed_kmh?: number | null;
+            /** Next Visit Id */
+            next_visit_id?: string | null;
+            /** Next Visit Title */
+            next_visit_title?: string | null;
+            /** Next Visit Eta */
+            next_visit_eta?: string | null;
+            /** Last Completed Id */
+            last_completed_id?: string | null;
             /**
-             * Stops Total
+             * Completed Count
              * @default 0
              */
-            stops_total: number;
+            completed_count: number;
             /**
-             * Stops Completed
+             * Pending Count
              * @default 0
              */
-            stops_completed: number;
-            /**
-             * Stops Failed
-             * @default 0
-             */
-            stops_failed: number;
-            /**
-             * Vip Visitas
-             * @default 0
-             */
-            vip_visitas: number;
+            pending_count: number;
         };
         /** DriverProfile */
         DriverProfile: {
@@ -4709,15 +4287,6 @@ export interface components {
             /** Pending Visits */
             pending_visits: number;
         };
-        /** FeatureImportance */
-        FeatureImportance: {
-            /** Name */
-            name: string;
-            /** Display */
-            display: string;
-            /** Importance */
-            importance: number;
-        };
         /** FolioRow */
         FolioRow: {
             /** Ruta Id */
@@ -4781,30 +4350,6 @@ export interface components {
             /** Imported By User Id */
             imported_by_user_id?: number | null;
         };
-        /** ImportMockResponse */
-        ImportMockResponse: {
-            /** Ok */
-            ok: boolean;
-            /** Count */
-            count: number;
-            /** Fecha */
-            fecha: string;
-            /**
-             * Already Imported
-             * @default false
-             */
-            already_imported: boolean;
-            /**
-             * Message
-             * @default
-             */
-            message: string;
-            /**
-             * Conflicts
-             * @default []
-             */
-            conflicts: components["schemas"]["DotacionConflict"][];
-        };
         /** ImportXlsxResponse */
         ImportXlsxResponse: {
             /** Ok */
@@ -4839,13 +4384,6 @@ export interface components {
              * @default []
              */
             conflicts: components["schemas"]["DotacionConflict"][];
-        };
-        /** IncidentRequest */
-        IncidentRequest: {
-            /** Vehicle Id */
-            vehicle_id: number;
-            /** Extra Min */
-            extra_min: number;
         };
         /** InvitationItem */
         InvitationItem: {
@@ -4889,22 +4427,38 @@ export interface components {
             /** Items */
             items: components["schemas"]["InvitationItem"][];
         };
-        /** LiveGenStats */
-        LiveGenStats: {
-            /** Enabled */
-            enabled: boolean;
-            /** Interval Sec */
-            interval_sec: number;
-            /** Rows Per Tick */
-            rows_per_tick: number;
-            /** Total Inserted Session */
-            total_inserted_session: number;
-            /** Last Insert At */
-            last_insert_at?: string | null;
-            /** Last Error */
-            last_error?: string | null;
-            /** Rows Today Db */
-            rows_today_db: number;
+        /** KPIs */
+        KPIs: {
+            /** Planned Date */
+            planned_date: string;
+            /** Total */
+            total: number;
+            /** Completed */
+            completed: number;
+            /** Failed */
+            failed: number;
+            /** Completion Pct */
+            completion_pct: number;
+            /** Ruta Anomala */
+            ruta_anomala: number;
+            /** Ruta Anomala Pct */
+            ruta_anomala_pct: number;
+            /** Sla Hour Avg */
+            sla_hour_avg: number;
+            /** Sla Hour P50 */
+            sla_hour_p50: number;
+            /** Sla Hour P90 */
+            sla_hour_p90: number;
+            /** On Time */
+            on_time: number;
+            /** Early */
+            early: number;
+            /** Late */
+            late: number;
+            /** Empresas */
+            empresas: number;
+            /** Drivers */
+            drivers: number;
         };
         /** LocalidadPerf */
         LocalidadPerf: {
@@ -4969,25 +4523,6 @@ export interface components {
              * @default agent
              */
             kind: string;
-        };
-        /** ModelMetrics */
-        ModelMetrics: {
-            /** Auc */
-            auc: number;
-            /** Brier */
-            brier: number;
-            /** Confusion Matrix */
-            confusion_matrix: number[][];
-            /** Calibration Curve */
-            calibration_curve: components["schemas"]["CalibrationPoint"][];
-            /** N Train */
-            n_train: number;
-            /** N Val */
-            n_val: number;
-            /** Base Rate Train */
-            base_rate_train: number;
-            /** Base Rate Val */
-            base_rate_val: number;
         };
         /** MotivoAlertConfig */
         MotivoAlertConfig: {
@@ -5201,6 +4736,95 @@ export interface components {
             /** User Id */
             user_id?: number | null;
         };
+        /** NotifyDayStartDriverItem */
+        NotifyDayStartDriverItem: {
+            /** Driver Id */
+            driver_id?: string | null;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Vehicle */
+            vehicle: string;
+            /** Patente Falsa */
+            patente_falsa: number;
+            /** Pending */
+            pending: number;
+            /** Completed */
+            completed: number;
+            /** Total */
+            total: number;
+            /** Status */
+            status: string;
+            /** Skipped Reason */
+            skipped_reason?: string | null;
+            /** Twilio Sid */
+            twilio_sid?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** NotifyDayStartRequest */
+        NotifyDayStartRequest: {
+            /**
+             * Fecha
+             * @description Fecha planificada (YYYY-MM-DD). Default: hoy.
+             */
+            fecha?: string | null;
+            /**
+             * Empresa Id
+             * @description Si se indica, filtra a esa empresa. None = todas.
+             */
+            empresa_id?: number | null;
+            /**
+             * Dry Run
+             * @description Si true, no envía WhatsApp; solo lista los drivers candidatos.
+             * @default false
+             */
+            dry_run: boolean;
+        };
+        /** NotifyDayStartResponse */
+        NotifyDayStartResponse: {
+            /** Fecha */
+            fecha: string;
+            /** Empresa Id */
+            empresa_id?: number | null;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Notifications Sent */
+            notifications_sent: number;
+            /** Notifications Skipped */
+            notifications_skipped: number;
+            /** Notifications Failed */
+            notifications_failed: number;
+            /** Skipped Reasons */
+            skipped_reasons: string[];
+            /** Drivers */
+            drivers: components["schemas"]["NotifyDayStartDriverItem"][];
+        };
+        /** NotifyEtaBreachRequest */
+        NotifyEtaBreachRequest: {
+            /** Tracking Id */
+            tracking_id: string;
+        };
+        /** NotifyEtaBreachResponse */
+        NotifyEtaBreachResponse: {
+            /** Tracking Id */
+            tracking_id: string;
+            /** Driver Id */
+            driver_id?: string | null;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Driver Phone */
+            driver_phone?: string | null;
+            /** Vehicle */
+            vehicle: string;
+            /** Twilio Sid */
+            twilio_sid?: string | null;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
+        };
         /** OnboardListResponse */
         OnboardListResponse: {
             /** Drivers */
@@ -5302,6 +4926,100 @@ export interface components {
         PasswordReset: {
             /** New Password */
             new_password: string;
+        };
+        /** PilotDriverResult */
+        PilotDriverResult: {
+            /** Driver Id */
+            driver_id: string;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Vehicle Id */
+            vehicle_id: number;
+            /** Visitas */
+            visitas: number;
+        };
+        /** PilotSetupRequest */
+        PilotSetupRequest: {
+            /**
+             * Fecha
+             * @description YYYY-MM-DD
+             */
+            fecha: string;
+            /** Driver Ids */
+            driver_ids: string[];
+            /** Regiones */
+            regiones: string[];
+            /** Visitas Por Driver */
+            visitas_por_driver: number;
+            /**
+             * Horario Inicio
+             * @description HH:MM
+             * @default 09:00
+             */
+            horario_inicio: string;
+            /**
+             * Horario Fin
+             * @description HH:MM
+             * @default 18:00
+             */
+            horario_fin: string;
+            /**
+             * Auto Start Day
+             * @default true
+             */
+            auto_start_day: boolean;
+        };
+        /** PilotSetupResponse */
+        PilotSetupResponse: {
+            /** Fecha */
+            fecha: string;
+            /** Created */
+            created: number;
+            /** Drivers */
+            drivers: components["schemas"]["PilotDriverResult"][];
+            /** Day State */
+            day_state: string;
+            /** Regiones Used */
+            regiones_used: string[];
+        };
+        /** PilotStatusDriverItem */
+        PilotStatusDriverItem: {
+            /** Driver Id */
+            driver_id: string;
+            /** Driver Name */
+            driver_name?: string | null;
+            /** Vehicle Id */
+            vehicle_id: number;
+            /** Pending */
+            pending: number;
+            /** Completed */
+            completed: number;
+            /** Failed */
+            failed: number;
+            /** Total */
+            total: number;
+        };
+        /** PilotStatusResponse */
+        PilotStatusResponse: {
+            /** Fecha */
+            fecha: string;
+            /** Sim Clock */
+            sim_clock: string;
+            /** Offset Min */
+            offset_min: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "auto" | "manual";
+            /** Day State */
+            day_state: string;
+            /** Drivers */
+            drivers: components["schemas"]["PilotStatusDriverItem"][];
+            /** Totals */
+            totals: Record<string, never>;
+            /** Next Eta Breach At */
+            next_eta_breach_at?: string | null;
         };
         /** PlanDiarioResponseLegacy */
         PlanDiarioResponseLegacy: {
@@ -5732,15 +5450,6 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
-        /** ResetRequest */
-        ResetRequest: {
-            /** Start Date */
-            start_date?: string | null;
-            /** Day Seed */
-            day_seed?: number | null;
-            /** Sim Minutes Per Tick */
-            sim_minutes_per_tick?: number | null;
-        };
         /** ResetResponse */
         ResetResponse: {
             /** Ok */
@@ -5952,89 +5661,28 @@ export interface components {
              */
             sample_rutas: string[];
         };
-        /** ShapFactor */
-        ShapFactor: {
-            /** Name */
-            name: string;
-            /** Display */
-            display: string;
-            /** Contribution */
-            contribution: number;
-        };
-        /** SimConfig */
-        SimConfig: {
-            /** Interval Sec */
-            interval_sec?: number | null;
-            /** Only Alertable */
-            only_alertable?: boolean | null;
-            /** Severity Filter */
-            severity_filter?: string | null;
-        };
-        /** SimStats */
-        SimStats: {
-            /** Enabled */
-            enabled: boolean;
-            /** Interval Sec */
-            interval_sec: number;
-            /** Only Alertable */
-            only_alertable: boolean;
-            /** Severity Filter */
-            severity_filter?: string | null;
-            /** Total Emitted Session */
-            total_emitted_session: number;
-            /** Last Emit At */
-            last_emit_at?: string | null;
-            /** Last Emit Payload */
-            last_emit_payload?: Record<string, never> | null;
-            /** Last Error */
-            last_error?: string | null;
-        };
-        /** SimStatusResponse */
-        SimStatusResponse: {
-            /** Sim Active */
-            sim_active: boolean;
-            /** Sim Clock */
-            sim_clock?: string | null;
-            /** Tick Sec */
-            tick_sec: number;
-            /** Minutes Per Tick */
-            minutes_per_tick: number;
-            /** Drivers */
-            drivers: components["schemas"]["DriverPosition"][];
-        };
-        /** SimToggle */
-        SimToggle: {
-            /** Enabled */
-            enabled: boolean;
-        };
-        /** SimulateRequest */
-        SimulateRequest: {
+        /** SimulateEventRequest */
+        SimulateEventRequest: {
+            /** Tracking Id */
+            tracking_id: string;
             /**
-             * Days
-             * @default 7
+             * Event
+             * @enum {string}
              */
-            days: number;
-            /**
-             * Rows Per Day
-             * @default 1800
-             */
-            rows_per_day: number;
-            /**
-             * Include Today
-             * @default true
-             */
-            include_today: boolean;
+            event: "delay" | "complete" | "no_show";
         };
-        /** SimulateResponse */
-        SimulateResponse: {
-            /** Total Inserted */
-            total_inserted: number;
-            /** Per Day */
-            per_day: {
-                [key: string]: number;
-            };
-            /** Elapsed Sec */
-            elapsed_sec: number;
+        /** SimulateEventResponse */
+        SimulateEventResponse: {
+            /** Tracking Id */
+            tracking_id: string;
+            /** Event */
+            event: string;
+            /** Status */
+            status: string;
+            /** Current Eta Cl */
+            current_eta_cl?: string | null;
+            /** Detail */
+            detail?: string | null;
         };
         /** SlaBin */
         SlaBin: {
@@ -6044,16 +5692,6 @@ export interface components {
             bin_start: number;
             /** Count */
             count: number;
-        };
-        /** StartDayRequest */
-        StartDayRequest: {
-            /**
-             * Regen Plan
-             * @default false
-             */
-            regen_plan: boolean;
-            /** Day Seed */
-            day_seed?: number | null;
         };
         /** StartDayResponse */
         StartDayResponse: {
@@ -6216,11 +5854,6 @@ export interface components {
             twilio_sid?: string | null;
             /** Error */
             error?: string | null;
-        };
-        /** ToggleRequest */
-        ToggleRequest: {
-            /** Enabled */
-            enabled: boolean;
         };
         /** TrackingNotifSummary */
         TrackingNotifSummary: {
@@ -6454,27 +6087,6 @@ export interface components {
              */
             is_problem_hidden: boolean;
         };
-        /** VehicleSummary */
-        VehicleSummary: {
-            /** Vehicle Id */
-            vehicle_id: number;
-            /** Vehicle Name */
-            vehicle_name: string;
-            /** N Visits */
-            n_visits: number;
-            /** Completed */
-            completed: number;
-            /** Pending */
-            pending: number;
-            /** Red Simpliroute */
-            red_simpliroute: number;
-            /** Vd Alerts */
-            vd_alerts: number;
-            /** Last Observed Delay Min */
-            last_observed_delay_min: number;
-            /** Incident Extra Min */
-            incident_extra_min: number;
-        };
         /** VehicleUpdate */
         VehicleUpdate: {
             /** Empresa Id */
@@ -6569,56 +6181,6 @@ export interface components {
              */
             parse_notes: boolean;
         };
-        /** Visit */
-        Visit: {
-            /** Tracking Id */
-            tracking_id: string;
-            /** Vehicle Id */
-            vehicle_id: number;
-            /** Vehicle Name */
-            vehicle_name: string;
-            /** Order */
-            order: number;
-            /** Title */
-            title: string;
-            /** Address */
-            address: string;
-            /** Latitude */
-            latitude: number;
-            /** Longitude */
-            longitude: number;
-            /** Load */
-            load: number;
-            /**
-             * N Subordenes
-             * @default 1
-             */
-            n_subordenes: number;
-            /** Region */
-            region?: string | null;
-            /** Comuna */
-            comuna?: string | null;
-            /** Window Start */
-            window_start: string;
-            /** Window End */
-            window_end: string;
-            /** Planned Arrival Time */
-            planned_arrival_time: string;
-            /** Estimated Time Arrival */
-            estimated_time_arrival: string;
-            /** Slack Min */
-            slack_min: number;
-            /** Alert Slack */
-            alert_slack: string;
-            /** P Fallo */
-            p_fallo: number;
-            /** Alert Valuedata */
-            alert_valuedata: boolean;
-            /** Status */
-            status: string;
-            /** Horas Hasta Window End */
-            horas_hasta_window_end: number;
-        };
         /** VisitComment */
         VisitComment: {
             /** Comment Id */
@@ -6646,21 +6208,6 @@ export interface components {
             alertable: boolean;
             /** Severity */
             severity?: string | null;
-        };
-        /** VisitExplanation */
-        VisitExplanation: {
-            /** Tracking Id */
-            tracking_id: string;
-            /** Title */
-            title: string;
-            /** P Fallo */
-            p_fallo: number;
-            /** Alert Slack */
-            alert_slack: string;
-            /** Alert Valuedata */
-            alert_valuedata: boolean;
-            /** Top Factors */
-            top_factors: components["schemas"]["ShapFactor"][];
         };
         /** VisitRow */
         VisitRow: {
@@ -6714,12 +6261,10 @@ export interface components {
         WatchlistSummary: {
             /** Total */
             total: number;
-            /** Critico */
-            critico: number;
-            /** Alto */
-            alto: number;
-            /** Medio */
-            medio: number;
+            /** Urgent */
+            urgent: number;
+            /** Warning */
+            warning: number;
             /** Vip At Risk */
             vip_at_risk: number;
             /** Notified */
@@ -6732,7 +6277,7 @@ export interface components {
             /** Tracking Id */
             tracking_id: string;
             /** Vehicle Id */
-            vehicle_id: number;
+            vehicle_id?: number | null;
             /** Vehicle Name */
             vehicle_name?: string | null;
             /** Driver Name */
@@ -6745,24 +6290,14 @@ export interface components {
             title: string;
             /** Address */
             address?: string | null;
-            /** Latitude */
-            latitude: number;
-            /** Longitude */
-            longitude: number;
-            /** Order */
-            order: number;
-            /** Window End */
-            window_end: string;
+            /** Comuna */
+            comuna?: string | null;
+            /** Region */
+            region: string;
             /** Estimated Time Arrival */
-            estimated_time_arrival: string;
-            /** Slack Min */
-            slack_min: number;
-            /** Alert Slack */
-            alert_slack: string;
-            /** P Fallo */
-            p_fallo: number;
-            /** Alert Valuedata */
-            alert_valuedata: boolean;
+            estimated_time_arrival?: string | null;
+            /** Status Label */
+            status_label: string;
             /** Is Vip */
             is_vip: boolean;
             /** Vip Tier */
@@ -6777,8 +6312,6 @@ export interface components {
             severity: string;
             /** Reasons */
             reasons: string[];
-            /** Region */
-            region: string;
             notif?: components["schemas"]["NotifInline"] | null;
         };
         /** WhatsAppInviteRequest */
@@ -6858,31 +6391,6 @@ export interface components {
             /** Results */
             results: components["schemas"]["NotificationResult"][];
         };
-        /** KPIs */
-        core__schemas__KPIs: {
-            /** Total */
-            total: number;
-            /** Completed */
-            completed: number;
-            /** In Route */
-            in_route: number;
-            /** Pending */
-            pending: number;
-            /** Red Simpliroute */
-            red_simpliroute: number;
-            /** Yellow Simpliroute */
-            yellow_simpliroute: number;
-            /** Vd Alerts */
-            vd_alerts: number;
-            /** Vd Alerts Caught Real */
-            vd_alerts_caught_real: number;
-            /** Real Failures Oracle */
-            real_failures_oracle: number;
-            /** Projected Compliance Pct */
-            projected_compliance_pct: number;
-            /** Rescue Clp */
-            rescue_clp: number;
-        };
         /** StateResponse */
         core__schemas__StateResponse: {
             /**
@@ -6924,39 +6432,6 @@ export interface components {
              * @default {}
              */
             context: Record<string, never>;
-        };
-        /** KPIs */
-        routers__seguimiento__KPIs: {
-            /** Planned Date */
-            planned_date: string;
-            /** Total */
-            total: number;
-            /** Completed */
-            completed: number;
-            /** Failed */
-            failed: number;
-            /** Completion Pct */
-            completion_pct: number;
-            /** Ruta Anomala */
-            ruta_anomala: number;
-            /** Ruta Anomala Pct */
-            ruta_anomala_pct: number;
-            /** Sla Hour Avg */
-            sla_hour_avg: number;
-            /** Sla Hour P50 */
-            sla_hour_p50: number;
-            /** Sla Hour P90 */
-            sla_hour_p90: number;
-            /** On Time */
-            on_time: number;
-            /** Early */
-            early: number;
-            /** Late */
-            late: number;
-            /** Empresas */
-            empresas: number;
-            /** Drivers */
-            drivers: number;
         };
     };
     responses: never;
@@ -7129,7 +6604,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["routers__seguimiento__KPIs"];
+                    "application/json": components["schemas"]["KPIs"];
                 };
             };
             /** @description Validation Error */
@@ -7890,145 +7365,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WatchlistResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stats_api_live_gen_stats_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LiveGenStats"];
-                };
-            };
-        };
-    };
-    toggle_api_live_gen_toggle_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ToggleRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LiveGenStats"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_api_live_gen_reset_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    batch_api_live_gen_batch_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    simulate_days_api_live_gen_simulate_days_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SimulateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimulateResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10634,112 +9970,6 @@ export interface operations {
             };
         };
     };
-    get_stats_api_comment_sim_stats_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimStats"];
-                };
-            };
-        };
-    };
-    toggle_api_comment_sim_toggle_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SimToggle"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimStats"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_config_api_comment_sim_config_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SimConfig"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimStats"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    emit_now_api_comment_sim_emit_now_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimStats"];
-                };
-            };
-        };
-    };
     classify_api_motivos_classify_post: {
         parameters: {
             query?: never;
@@ -11066,38 +10296,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportLogRow"][];
-                };
-            };
-        };
-    };
-    import_mock_api_planificacion_import_mock_post: {
-        parameters: {
-            query?: {
-                fecha?: string | null;
-                force?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportMockResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -11557,70 +10755,6 @@ export interface operations {
             };
         };
     };
-    clean_and_regenerate_api_planificacion_day_state_clean_and_regenerate_post: {
-        parameters: {
-            query: {
-                fecha: string;
-                rows?: number;
-                mode?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CleanRegenerateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    regenerate_day_api_planificacion_day_state_regenerate_post: {
-        parameters: {
-            query: {
-                fecha: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DayState"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     extend_day_api_planificacion_day_state_extend_post: {
         parameters: {
             query: {
@@ -11799,38 +10933,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportedRegionsResponse"];
-                };
-            };
-        };
-    };
-    driver_positions_api_operacion_driver_positions_get: {
-        parameters: {
-            query: {
-                fecha: string;
-                empresa_id?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -12258,6 +11360,267 @@ export interface operations {
             };
         };
     };
+    notify_day_start_api_admin_notify_day_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotifyDayStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotifyDayStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notify_eta_breach_api_admin_notify_eta_breach_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotifyEtaBreachRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotifyEtaBreachResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_clock_api_admin_pilot_clock_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM-DD */
+                fecha: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_clock_api_admin_pilot_clock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pilot_setup_api_admin_pilot_setup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotSetupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotSetupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_event_api_admin_pilot_simulate_event_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulateEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pilot_status_api_admin_pilot_status_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM-DD */
+                fecha: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_positions_api_operacion_driver_positions_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM-DD */
+                fecha: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPosition"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_health_get: {
         parameters: {
             query?: never;
@@ -12351,362 +11714,6 @@ export interface operations {
             };
         };
     };
-    post_incident_api_control_incident_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IncidentRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_reset_api_control_reset_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ResetRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_freeze_api_control_freeze_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    post_start_day_api_control_start_day_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["StartDayRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_clock_api_control_clock_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClockRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_kpis_api_kpis_get: {
-        parameters: {
-            query?: {
-                vehicle_id?: number[] | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["core__schemas__KPIs"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_visits_api_visits_get: {
-        parameters: {
-            query?: {
-                vehicle_id?: number[] | null;
-                status?: string | null;
-                only_alerts?: boolean;
-                region?: string;
-                only_vip?: boolean;
-                eta_window_hours?: number | null;
-                alert_threshold?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Visit"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_anticipated_alerts_api_alerts_anticipated_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                region?: string;
-                eta_window_hours?: number | null;
-                alert_threshold?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AnticipatedAlert"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_explanation_api_visits__tracking_id__explanation_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tracking_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitExplanation"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_vehicles_api_vehicles_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VehicleSummary"][];
-                };
-            };
-        };
-    };
-    get_model_metrics_api_model_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ModelMetrics"];
-                };
-            };
-        };
-    };
-    get_model_importance_api_model_importance_get: {
-        parameters: {
-            query?: {
-                top_k?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FeatureImportance"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_drivers_api_drivers_get: {
         parameters: {
             query?: never;
@@ -12796,72 +11803,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleExtended"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_clients_api_clients_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                only_problem_zone?: boolean;
-                min_fail_rate?: number;
-                search?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClientMaster"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_client_api_clients__customer_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                customer_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClientMaster"];
                 };
             };
             /** @description Validation Error */

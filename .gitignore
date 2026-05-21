@@ -11,3 +11,5 @@ dist-ssr/
 coverage/
 .vscode/*
 !.vscode/extensions.json
+test-results/
+playwright-report/

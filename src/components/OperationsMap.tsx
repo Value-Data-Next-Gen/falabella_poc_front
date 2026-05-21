@@ -4,7 +4,7 @@ import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 import { Map, NavigationControl, FullscreenControl, GeolocateControl } from 'react-map-gl/maplibre';
 import { Crosshair, Home, Maximize2, Minus, Plus, X, Filter, ChevronDown } from 'lucide-react';
-import { api } from '../api';
+import { api, type DriverPosition } from '../api';
 import { RegionFilter, Visit } from '../types';
 import { useTheme } from '../hooks/useTheme';
 import { isLatLonInRegion, routeColorByVehicle } from '../lib/regiones';
@@ -281,10 +281,11 @@ export function OperationsMap({
     enabled: !!plannedDate,
   });
 
-  // Posiciones reales de los drivers (driver_sim). Devuelve {vehicle_id, lat,
-  // lon, ruta_id, status, stops_total/completed/failed}. Sustituye la
-  // interpolación cliente-side (computeDriverMarkers) que dependía de
-  // sim_clock + estimated_time_arrival de visits sintéticos.
+  // Posiciones reales de los drivers (Fase 3: shape flat). Devuelve
+  // DriverPosition[] con {driver_id, driver_name, vehicle_id, lat, lng, status,
+  // next_visit_*, completed_count, pending_count}. Sustituye la interpolación
+  // cliente-side (computeDriverMarkers) que dependía de sim_clock +
+  // estimated_time_arrival de visits sintéticos.
   // CR-012 Fix V2: queryKey CANÓNICO ['driver-positions', fecha, empresaId]
   // compartido con DriversAvancePanel y MapaFoliosTable. Resultado: 1 fetch
   // cada 10s sirve a los 3 consumidores (antes eran 3 fetches separados).
@@ -293,7 +294,7 @@ export function OperationsMap({
     queryKey: ['driver-positions', plannedDate, _dpEmpresaId],
     queryFn: () => plannedDate
       ? api.operacion.driverPositions(plannedDate, _dpEmpresaId)
-      : Promise.resolve({ sim_active: false, sim_clock: null, tick_sec: 0, minutes_per_tick: 0, drivers: [] }),
+      : Promise.resolve([] as DriverPosition[]),
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
     staleTime: 8_000,
@@ -533,35 +534,40 @@ export function OperationsMap({
     }
   }, [rutaFilter, rutaByVid, visits, fitToVisits]);
 
-  // Driver live positions — fuente real (driver_sim) cuando hay plannedDate.
-  // Cae a la interpolación legacy si no hay data real (modo sintético).
+  // Driver live positions — fuente real (Fase 3 shape flat) cuando hay
+  // plannedDate. Cae a la interpolación legacy si no hay data real.
   const driverMarkers = useMemo(() => {
-    // Si hay posiciones reales del driver_sim, las usamos directo
-    const realDrivers = driverPositionsQ.data?.drivers ?? [];
+    // Si hay posiciones reales del backend, las usamos directo.
+    // Fase 3: el shape es flat (DriverPosition[]) con lat/lng + status +
+    // completed_count/pending_count. Coercemos vehicle_id (string) a number
+    // para mantener compat con selectedVehicles:number[] y el resto del módulo.
+    const realDrivers = driverPositionsQ.data ?? [];
     if (realDrivers.length > 0) {
-      // Filtrar por selectedVehicles para que la cascada de filtros aplique al camión
       const allowed = new Set(selectedVehicles);
       return realDrivers
-        .filter(d => d.lat != null && d.lon != null
-          && (selectedVehicles.length === 0 || allowed.has(d.vehicle_id)))
-        .map(d => {
-          // Próximo stop pendiente desde las visits del plan para este vehicle
+        .filter((d: DriverPosition) => {
+          if (d.lat == null || d.lng == null) return false;
+          const vidNum = Number(d.vehicle_id);
+          return selectedVehicles.length === 0 || allowed.has(vidNum);
+        })
+        .map((d: DriverPosition) => {
+          const vidNum = Number(d.vehicle_id);
+          // Próximo stop pendiente desde las visits del plan para este vehicle.
           const vehVisits = visits
-            .filter(v => v.vehicle_id === d.vehicle_id)
+            .filter(v => v.vehicle_id === vidNum)
             .sort((a, b) => a.order - b.order);
           const completed = vehVisits.filter(v => v.status === 'completed');
           const pending = vehVisits.filter(v => v.status === 'pending');
+          const total = d.completed_count + d.pending_count;
           return {
-            vehicle_id: d.vehicle_id,
+            vehicle_id: vidNum,
             vehicle_name: d.driver_name ?? `Vehículo ${d.vehicle_id}`,
-            position: [d.lon!, d.lat!] as [number, number],
+            position: [d.lng as number, d.lat as number] as [number, number],
             lastCompleted: completed[completed.length - 1] ?? null,
             nextPending: pending[0] ?? null,
-            progressPct: d.stops_total > 0
-              ? Math.round((d.stops_completed / d.stops_total) * 100)
-              : 0,
-            totalStops: d.stops_total,
-            completedStops: d.stops_completed,
+            progressPct: total > 0 ? Math.round((d.completed_count / total) * 100) : 0,
+            totalStops: total,
+            completedStops: d.completed_count,
           };
         });
     }

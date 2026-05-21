@@ -160,7 +160,13 @@ export interface PlanDiarioResponse {
   empresas: Empresa[];
 }
 
-/** Driver activo desde `/driver-positions`. NO confundir con `Ruta`. */
+/**
+ * @deprecated Shape viejo del endpoint `/api/operacion/driver-positions`.
+ * Fase 3 reemplazó el response por el flat array `DriverPosition[]` declarado
+ * en `src/api.ts`. Este tipo quedó huérfano (no se consume en ningún caller)
+ * pero se preserva como referencia histórica hasta que se haga la limpieza
+ * generalizada de `types.ts` legacy. Usar `DriverPosition` de `api.ts`.
+ */
 export interface DriverLive {
   vehicle_id: number;
   patente: string;
@@ -174,6 +180,10 @@ export interface DriverLive {
   vip_visitas: number;
 }
 
+/**
+ * @deprecated Shape viejo (envoltura con sim_active/sim_clock/drivers). Fase 3
+ * eliminó la envoltura: el endpoint ahora devuelve `DriverPosition[]` directo.
+ */
 export interface DriverPositionsResponse {
   sim_active: boolean;
   sim_clock: string | null;

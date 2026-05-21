@@ -7,7 +7,7 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, Flame, Map as MapIcon,
   Radio, Star, Truck, XCircle,
 } from 'lucide-react';
-import { api } from '../../api';
+import { api, type DriverPosition } from '../../api';
 import { RegionFilter } from '../../types';
 import { REGIONES_CL } from '../../lib/regiones';
 import { useAuth } from '../../hooks/useAuth';
@@ -745,26 +745,46 @@ function DriversAvancePanel({
   );
   const { riskByVid, vipRiskByVid, peorPFalloByVid, lastDriverAckByVid } = agg;
 
-  const drivers = driversQ.data?.drivers ?? [];
-  // CR-013: nowMs — preferimos sim_clock del backend para mantener
-  // determinismo en demos. Fallback a Date.now() si la query aún no resolvió.
+  const drivers: DriverPosition[] = driversQ.data ?? [];
+  // Fase 3: el endpoint driver-positions ya no expone sim_clock. Lo leemos
+  // únicamente desde plan-diario; fallback a Date.now() si la query no
+  // resolvió. CR-013 sigue válido (determinismo en demos basado en sim_clock).
   const nowMs = useMemo(() => {
-    const sc = driversQ.data?.sim_clock ?? planQ.data?.sim_clock;
+    const sc = planQ.data?.sim_clock;
     if (sc) {
       const t = Date.parse(sc);
       if (Number.isFinite(t)) return t;
     }
     return Date.now();
-  }, [driversQ.data?.sim_clock, planQ.data?.sim_clock]);
+  }, [planQ.data?.sim_clock]);
+
+  // Mapeo vehicle_id (number) → ruta_id, derivado del plan-diario. Antes
+  // venía dentro del response de driver-positions; el nuevo shape no lo
+  // expone, así que lo levantamos del plan que ya tenemos en cache.
+  const rutaByVid = useMemo(() => {
+    const map: Record<number, string> = {};
+    (planQ.data?.empresas ?? []).forEach(emp => {
+      emp.rutas.forEach(r => {
+        if (typeof r.vehicle_id === 'number' && r.ruta_id) {
+          map[r.vehicle_id] = r.ruta_id;
+        }
+      });
+    });
+    return map;
+  }, [planQ.data]);
 
   const sorted = useMemo(() => {
     return [...drivers].sort((a, b) => {
-      const sa = urgencyScoreFn(a.vehicle_id, a.status, agg, nowMs);
-      const sb = urgencyScoreFn(b.vehicle_id, b.status, agg, nowMs);
+      const va = Number(a.vehicle_id);
+      const vb = Number(b.vehicle_id);
+      const sa = urgencyScoreFn(va, a.status, agg, nowMs);
+      const sb = urgencyScoreFn(vb, b.status, agg, nowMs);
       if (sa !== sb) return sb - sa;
       // Empate: % avance asc (rezagados arriba)
-      const aPct = a.stops_total > 0 ? a.stops_completed / a.stops_total : 0;
-      const bPct = b.stops_total > 0 ? b.stops_completed / b.stops_total : 0;
+      const aTotal = a.completed_count + a.pending_count;
+      const bTotal = b.completed_count + b.pending_count;
+      const aPct = aTotal > 0 ? a.completed_count / aTotal : 0;
+      const bPct = bTotal > 0 ? b.completed_count / bTotal : 0;
       return aPct - bPct;
     });
   }, [drivers, agg, nowMs]);
@@ -807,22 +827,17 @@ function DriversAvancePanel({
         )}
       </div>
       {sorted.length === 0 ? (
-        // CR-012 T6: estado vacío con CTA cuando sim_active === false.
-        // POST /api/sim/start no existe — el flujo correcto en este POC es
-        // iniciar el día desde el panel "Día Operativo" (BORRADOR→VALIDADO→
-        // EN_CURSO). Mostramos texto guía en ese caso.
-        driversQ.data?.sim_active === false ? (
-          <div className="text-[11px] text-text-muted px-2 py-3">
-            <div className="font-medium mb-1">Simulador inactivo</div>
-            <div className="text-text-muted">
-              Iniciá el día operativo desde el panel "Día Operativo" para ver drivers en vivo.
-            </div>
+        // Fase 3: el endpoint driver-positions ya no expone `sim_active`. Si
+        // no hay drivers la causa típica es que el día operativo no fue
+        // iniciado (sigue en BORRADOR/VALIDADO) — guiamos al panel "Día
+        // Operativo" desde un mensaje único. Lo viejo distinguía sim_active
+        // false vs vacío real; ya no aplica.
+        <div className="text-[11px] text-text-muted px-2 py-3">
+          <div className="font-medium mb-1">Sin drivers iniciados</div>
+          <div className="text-text-muted">
+            Iniciá el día operativo desde el panel "Día Operativo" para ver drivers en vivo.
           </div>
-        ) : (
-          <div className="text-[11px] text-text-muted px-2 py-3 italic">
-            Sin drivers iniciados.
-          </div>
-        )
+        </div>
       ) : (
         <div
           ref={scrollContainerRef}
@@ -834,45 +849,48 @@ function DriversAvancePanel({
           >
             {rowVirtualizer.getVirtualItems().map(virtualRow => {
               const d = sorted[virtualRow.index];
-              const pct = d.stops_total > 0
-                ? Math.round((d.stops_completed / d.stops_total) * 100)
-                : 0;
-              const isFocused = !!d.ruta_id && d.ruta_id === focusedRutaId;
+              const vidNum = Number(d.vehicle_id);
+              const total = d.completed_count + d.pending_count;
+              const pct = total > 0 ? Math.round((d.completed_count / total) * 100) : 0;
+              // Ruta_id se levanta del plan-diario (el nuevo shape de
+              // driver-positions ya no la trae). Si no aparece, el card no
+              // dispara onPickRuta.
+              const driverRutaId = rutaByVid[vidNum] ?? null;
+              const isFocused = !!driverRutaId && driverRutaId === focusedRutaId;
               const barColor =
                 d.status === 'finalizado' ? 'bg-text-muted' :
-                d.stops_failed > 0 ? 'bg-accent-red' :
                 'bg-brand';
-              const riskCount = riskByVid[d.vehicle_id] ?? 0;
-              const vipRiskCount = vipRiskByVid[d.vehicle_id] ?? 0;
-              const maxP = peorPFalloByVid[d.vehicle_id] ?? 0;
+              const riskCount = riskByVid[vidNum] ?? 0;
+              const vipRiskCount = vipRiskByVid[vidNum] ?? 0;
+              const maxP = peorPFalloByVid[vidNum] ?? 0;
               const hasVipRisk = vipRiskCount > 0;
               const hasRisk = riskCount > 0;
               // CR-013: SIN_RESPUESTA gana sobre VIP+RED/RED en la etiqueta y el borde.
-              const sinRespuesta = isSinRespuesta(d.vehicle_id, agg, nowMs);
-              const isHovered = hoveredDriverId === d.vehicle_id;
-              const isSelected = selectedDriverId === d.vehicle_id || isFocused;
+              const sinRespuesta = isSinRespuesta(vidNum, agg, nowMs);
+              const isHovered = hoveredDriverId === vidNum;
+              const isSelected = selectedDriverId === vidNum || isFocused;
               // Etiqueta de estado según prioridad (brief T6 + CR-013).
               const stateLabel =
                 sinRespuesta ? { txt: 'SIN RESPUESTA', cls: 'bg-red-900/60 text-red-200' } :
                 d.status === 'finalizado' ? { txt: 'FINALIZADO', cls: 'bg-text-muted/20 text-text-muted' } :
                 hasVipRisk ? { txt: 'EN RIESGO', cls: 'bg-red-500/20 text-red-500' } :
                 hasRisk ? { txt: 'ATRASO', cls: 'bg-amber-500/20 text-amber-500' } :
-                d.stops_completed > 0 ? { txt: 'OK', cls: 'bg-emerald-500/15 text-emerald-500' } :
+                d.completed_count > 0 ? { txt: 'OK', cls: 'bg-emerald-500/15 text-emerald-500' } :
                 { txt: '—', cls: 'bg-bg-700 text-text-muted' };
               return (
                 <button
-                  key={d.vehicle_id}
-                  data-driver-id={d.vehicle_id}
-                  onMouseEnter={() => setHoveredDriver(d.vehicle_id)}
+                  key={d.driver_id}
+                  data-driver-id={vidNum}
+                  onMouseEnter={() => setHoveredDriver(vidNum)}
                   onMouseLeave={() => setHoveredDriver(null)}
                   onClick={() => {
-                    if (!d.ruta_id) return;
+                    if (!driverRutaId) return;
                     if (isFocused) {
                       onPickRuta('');
                       setSelectedDriver(null);
                     } else {
-                      onPickRuta(d.ruta_id);
-                      setSelectedDriver(d.vehicle_id);
+                      onPickRuta(driverRutaId);
+                      setSelectedDriver(vidNum);
                     }
                   }}
                   className={`absolute left-0 right-0 text-left px-2 py-1.5 rounded border transition-colors ${
@@ -897,19 +915,16 @@ function DriversAvancePanel({
                 >
                   <div className="flex items-center justify-between gap-1 text-[11px]">
                     <span className="font-medium truncate flex items-center gap-1">
-                      {d.driver_name ?? `vid ${d.vehicle_id}`}
+                      {d.driver_name || `vid ${d.vehicle_id}`}
                     </span>
                     <span className={`text-[8px] uppercase tracking-wider px-1 py-0.5 rounded font-bold ${stateLabel.cls}`}>
                       {stateLabel.txt}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                    <span className="font-mono truncate">{d.ruta_id ?? '—'}</span>
+                    <span className="font-mono truncate">{driverRutaId ?? '—'}</span>
                     <span className="tabular-nums shrink-0 ml-1">
-                      {d.stops_completed}/{d.stops_total}
-                      {d.stops_failed > 0 && (
-                        <span className="text-accent-red ml-1">·{d.stops_failed}f</span>
-                      )}
+                      {d.completed_count}/{total}
                     </span>
                   </div>
                   <div className="h-1 bg-bg-700 rounded-full mt-1 overflow-hidden">
@@ -924,9 +939,6 @@ function DriversAvancePanel({
                       </span>
                     ) : (
                       <span className="text-text-muted">{pct}%</span>
-                    )}
-                    {d.vip_visitas > 0 && !hasVipRisk && (
-                      <span className="text-cmr">★{d.vip_visitas}</span>
                     )}
                   </div>
                 </button>
