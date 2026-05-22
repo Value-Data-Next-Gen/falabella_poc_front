@@ -466,6 +466,9 @@ export const api = {
 
   // ---- Mantenedores admin (CRUD) ----
   admin: {
+    // Dashboard stats live (Pieza #5)
+    dayStats: (fecha: string) => get<any>(`/admin/day-stats?fecha=${fecha}`),
+
     // Intervención sobre folio (Pieza #6 — admin Falabella actúa en vivo)
     visitIntervention: (req: {
       tracking_id: string;

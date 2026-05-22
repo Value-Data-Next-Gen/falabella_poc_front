@@ -19,6 +19,7 @@ import { GanttPorParada } from '../panels/GanttPorParada';
 import { OperationsMap } from '../OperationsMap';
 import { EventStream } from '../EventStream';
 import { MapaFoliosTable } from '../panels/MapaFoliosTable';
+import { DayStatsLive } from '../panels/DayStatsLive';
 import { RutaDetalleDrawer } from '../panels/RutaDetalleDrawer';
 import { RouteOpsPanel } from '../RouteOpsPanel';
 import { CopilotoPanel } from '../panels/CopilotoPanel';
@@ -542,6 +543,10 @@ function MapaTab({ region, empresaId, onlyVip }: {
             </span>
             <span className="text-text-muted text-[10px]">sim</span>
           </span>
+        </div>
+        {/* Stats live para admin */}
+        <div className="px-2 pt-2">
+          <DayStatsLive fecha={activeDate} />
         </div>
         {/* Split: panel lateral con avance por driver + mapa. */}
         <div className="flex flex-1 min-h-[480px] gap-2 p-2">
