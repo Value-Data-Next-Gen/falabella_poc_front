@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Mail, RefreshCw, ShieldAlert, Search, Pause, Play, Filter,
-  User as UserIcon, Truck, ClipboardList,
+  User as UserIcon, Truck, ClipboardList, UserPlus,
 } from 'lucide-react';
 import {
   api,
@@ -13,6 +13,7 @@ import {
 } from '../api';
 import { useAuth } from '../hooks/useAuth';
 import { ActivationCell } from './shared/ActivationCell';
+import { InviteWizardModal } from './shared/InviteWizardModal';
 
 /** Dashboard centralizado de invitaciones wa.me.
  *
@@ -36,6 +37,8 @@ export function InvitacionesPanel() {
 
   // Auto-refresh toggle
   const [autoRefresh, setAutoRefresh] = useState(true);
+  // Wizard modal
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Sort
   const [sortBy, setSortBy] = useState<'tipo' | 'nombre' | 'empresa' | 'state'>('state');
@@ -166,6 +169,13 @@ export function InvitacionesPanel() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setWizardOpen(true)}
+            className="btn-primary flex items-center gap-1"
+            title="Crear una nueva invitación (driver, jefe o admin)"
+          >
+            <UserPlus size={12} /> Nueva invitación
+          </button>
+          <button
             onClick={() => setAutoRefresh(a => !a)}
             className="btn flex items-center gap-1"
             title={autoRefresh ? 'Pausar auto-refresh (30s)' : 'Reanudar auto-refresh (30s)'}
@@ -176,7 +186,7 @@ export function InvitacionesPanel() {
           <button
             onClick={refetchAll}
             disabled={invitationsQ.isFetching}
-            className="btn-primary flex items-center gap-1"
+            className="btn flex items-center gap-1"
             title="Refrescar ahora"
           >
             <RefreshCw size={12} className={invitationsQ.isFetching ? 'animate-spin' : ''} />
@@ -184,6 +194,7 @@ export function InvitacionesPanel() {
           </button>
         </div>
       </div>
+      <InviteWizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} />
 
       {/* Summary cards (clic filtra) */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
