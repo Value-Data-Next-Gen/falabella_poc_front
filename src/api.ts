@@ -466,6 +466,38 @@ export const api = {
 
   // ---- Mantenedores admin (CRUD) ----
   admin: {
+    // Intervención sobre folio (Pieza #6 — admin Falabella actúa en vivo)
+    visitIntervention: (req: {
+      tracking_id: string;
+      action: 'cancel' | 'reschedule' | 'escalate_priority' | 'override_motivo';
+      reason?: string;
+      new_eta?: string;
+      new_motivo?: string;
+      priority?: string;
+    }) => post<{
+      intervention_id: number | null;
+      tracking_id: string;
+      action: string;
+      driver_notified: boolean;
+      manager_notified_count: number;
+      admin_notified_count: number;
+      before_value: string | null;
+      after_value: string | null;
+      detail: string;
+    }>('/admin/visit-intervention', req),
+    listInterventions: (params: { tracking_id?: string; limit?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.tracking_id) qs.set('tracking_id', params.tracking_id);
+      if (params.limit) qs.set('limit', String(params.limit));
+      const s = qs.toString();
+      return get<Array<{
+        intervention_id: number; tracking_id: string; action: string;
+        admin_user_id: number | null; admin_name: string;
+        before_value: string; after_value: string; reason: string;
+        created_at: string;
+      }>>(`/admin/visit-interventions${s ? '?' + s : ''}`);
+    },
+
     // Empresas
     listEmpresas: () => get<AdminEmpresa[]>('/admin/empresas'),
     createEmpresa: (req: { empresa_id: number; nombre: string; activo?: boolean; central_phone?: string | null }) =>

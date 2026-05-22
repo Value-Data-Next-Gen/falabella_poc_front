@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Star, Truck, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { Star, Truck, ChevronDown, ChevronRight, Search, Wrench } from 'lucide-react';
 import { api } from '../../api';
+import { useAuth } from '../../hooks/useAuth';
+import { InterventionModal } from '../shared/InterventionModal';
 
 interface Props {
   fecha: string;
@@ -20,6 +22,11 @@ const STATUS_PILL: Record<string, string> = {
 export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = false, onOpenRuta }: Props) {
   const [q, setQ] = useState('');
   const [expandedRutas, setExpandedRutas] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
+  const isFalabella = user?.role === 'falabella_admin' || user?.role === 'falabella_ops';
+  const [interventionTarget, setInterventionTarget] = useState<{
+    tracking_id: string; cliente?: string; driver_name?: string; current_eta?: string;
+  } | null>(null);
 
   // CR-012 Fix V2: queryKey CANÓNICO ['driver-positions', fecha, empresaId]
   // compartido con OperationsMap y DriversAvancePanel → 1 fetch dedupado.
@@ -131,6 +138,16 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
         </div>
       </div>
 
+      <InterventionModal
+        open={!!interventionTarget}
+        onClose={() => setInterventionTarget(null)}
+        tracking_id={interventionTarget?.tracking_id ?? ''}
+        cliente={interventionTarget?.cliente}
+        driver_name={interventionTarget?.driver_name}
+        current_eta={interventionTarget?.current_eta}
+        fecha={fecha}
+      />
+
       <div className="overflow-auto max-h-[420px]">
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-bg-800 z-10 border-b border-line">
@@ -143,11 +160,12 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
               <th className="px-3 py-1.5">ETA</th>
               <th className="px-3 py-1.5">VIP</th>
               <th className="px-3 py-1.5">Estado</th>
+              {isFalabella && <th className="px-3 py-1.5 text-right">Acción</th>}
             </tr>
           </thead>
           <tbody>
             {rutaKeys.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-text-muted">
+              <tr><td colSpan={isFalabella ? 9 : 8} className="px-3 py-6 text-center text-text-muted">
                 {foliosQ.isLoading ? 'Cargando folios…' : 'Sin folios para los filtros actuales.'}
               </td></tr>
             )}
@@ -163,7 +181,7 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
                     className="bg-bg-700/40 border-b border-line/60 cursor-pointer hover:bg-bg-700/70"
                     onClick={() => toggleRuta(rk)}
                   >
-                    <td colSpan={8} className="px-3 py-1.5">
+                    <td colSpan={isFalabella ? 9 : 8} className="px-3 py-1.5">
                       <div className="flex items-center gap-2">
                         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                         <span className="font-mono text-brand">{rk}</span>
@@ -219,6 +237,22 @@ export function MapaFoliosTable({ fecha, empresaId, empresaNombre, onlyVip = fal
                           {r.status}
                         </span>
                       </td>
+                      {isFalabella && (
+                        <td className="px-3 py-1 text-right">
+                          <button
+                            onClick={() => setInterventionTarget({
+                              tracking_id: r.tracking_id,
+                              cliente: r.cliente,
+                              driver_name: r.driver_name ?? undefined,
+                              current_eta: r.eta ?? undefined,
+                            })}
+                            title="Intervenir folio"
+                            className="text-text-muted hover:text-brand"
+                          >
+                            <Wrench size={12} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </>
