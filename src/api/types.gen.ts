@@ -2473,6 +2473,54 @@ export type PromoteVipsResult = {
 };
 
 /**
+ * RangeReport
+ *
+ * Aggregate over every día of an empresa in [desde, hasta], plus a per-día
+ * trend so the UI can chart the evolution across the range.
+ */
+export type RangeReport = {
+    /**
+     * Empresa Id
+     */
+    empresa_id: number;
+    /**
+     * Empresa Nombre
+     */
+    empresa_nombre: string | null;
+    /**
+     * Desde
+     */
+    desde: string;
+    /**
+     * Hasta
+     */
+    hasta: string;
+    /**
+     * Dias
+     */
+    dias: number;
+    totals: OutcomeCounts;
+    vip: OutcomeCounts;
+    on_time: OnTime;
+    /**
+     * By Region
+     */
+    by_region: Array<RegionRow>;
+    /**
+     * By Driver
+     */
+    by_driver: Array<DriverRow>;
+    /**
+     * By Motivo
+     */
+    by_motivo: Array<MotivoRow>;
+    /**
+     * Trend
+     */
+    trend: Array<TrendPoint>;
+};
+
+/**
  * ReadyResponse
  */
 export type ReadyResponse = {
@@ -2702,6 +2750,38 @@ export type TopRuta = {
      * Total Visitas
      */
     total_visitas: number;
+};
+
+/**
+ * TrendPoint
+ *
+ * One point in the per-día trend of a range report.
+ */
+export type TrendPoint = {
+    /**
+     * Fecha
+     */
+    fecha: string;
+    /**
+     * Dia Id
+     */
+    dia_id: number;
+    /**
+     * Visitas
+     */
+    visitas: number;
+    /**
+     * Entregado
+     */
+    entregado: number;
+    /**
+     * Success Pct
+     */
+    success_pct: number | null;
+    /**
+     * On Time Pct
+     */
+    on_time_pct: number | null;
 };
 
 /**
@@ -4659,6 +4739,50 @@ export type GetDiaReportResponses = {
 
 export type GetDiaReportResponse = GetDiaReportResponses[keyof GetDiaReportResponses];
 
+export type GetRangeReportData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Empresa Id
+         *
+         * Empresa a reportar
+         */
+        empresa_id: number;
+        /**
+         * Desde
+         *
+         * Fecha inicial (inclusive)
+         */
+        desde: string;
+        /**
+         * Hasta
+         *
+         * Fecha final (inclusive)
+         */
+        hasta: string;
+    };
+    url: '/api/v1/reports/rango';
+};
+
+export type GetRangeReportErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetRangeReportError = GetRangeReportErrors[keyof GetRangeReportErrors];
+
+export type GetRangeReportResponses = {
+    /**
+     * Successful Response
+     */
+    200: RangeReport;
+};
+
+export type GetRangeReportResponse = GetRangeReportResponses[keyof GetRangeReportResponses];
+
 export type ListDocumentTypesData = {
     body?: never;
     path?: never;
@@ -5702,6 +5826,34 @@ export type TwilioWebhookData = {
 };
 
 export type TwilioWebhookResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type TwilioInboundAliasData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/twilio/inbound';
+};
+
+export type TwilioInboundAliasResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type TwilioStatusCallbackData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/twilio/status';
+};
+
+export type TwilioStatusCallbackResponses = {
     /**
      * Successful Response
      */
