@@ -12,6 +12,7 @@ import {
   Bell,
   Globe,
   BarChart3,
+  UserPlus,
 } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 import { clsx } from 'clsx'
@@ -31,6 +32,7 @@ const nav: NavItem[] = [
   { to: '/alertas', icon: Bell, label: 'Alertas' },
   { to: '/reportes', icon: BarChart3, label: 'Reportes' },
   { to: '/empresas', icon: Building2, label: 'Empresas' },
+  { to: '/onboarding', icon: UserPlus, label: 'Onboarding' },
 ]
 
 const maestrosNav: NavItem[] = [

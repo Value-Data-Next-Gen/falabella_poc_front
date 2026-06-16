@@ -17,6 +17,7 @@ import { DiasListPage } from '@/features/operacion/DiasListPage'
 import { ClientesPage } from '@/features/clientes/ClientesPage'
 import { AlertasPage } from '@/features/alertas/AlertasPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
+import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
 
 // Code-split the map-heavy routes (deck.gl + maplibre ≈ most of the bundle) so
 // they load on demand instead of bloating the initial download.
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/reportes" element={<ReportsPage />} />
               <Route path="/empresas" element={<EmpresasPage />} />
               <Route path="/empresas/:empresaId" element={<EmpresaDetailPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/maestro/clientes" element={<ClientesPage />} />
               <Route path="/usuarios" element={<UsersPage />} />
               <Route path="/motivos" element={<MotivosPage />} />

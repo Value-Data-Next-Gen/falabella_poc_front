@@ -12,9 +12,6 @@
     "gen-api": "openapi-ts"
   },
   "dependencies": {
-    "compression": "^1.7.5",
-    "express": "^4.21.2",
-    "http-proxy-middleware": "^3.0.5",
     "@deck.gl/core": "^9.3.2",
     "@deck.gl/layers": "^9.3.2",
     "@deck.gl/react": "^9.3.2",
@@ -26,6 +23,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "maplibre-gl": "^5.24.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-map-gl": "^8.1.1",

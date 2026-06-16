@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { listEmpresas, listDrivers, listVehicles } from '@/api/sdk.gen'
-import { Building2, Truck, Users, Contact } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { listEmpresas, listDrivers, listVehicles, getOnboarding } from '@/api/sdk.gen'
+import { Building2, Truck, Users, Contact, UserPlus, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 function StatCard({ icon, label, value, sub }: { icon: ReactNode; label: string; value: number | string; sub?: string }) {
@@ -29,6 +30,12 @@ export function DashboardPage() {
     queryKey: ['vehicles'],
     queryFn: () => listVehicles(),
   })
+  const onboarding = useQuery({
+    queryKey: ['onboarding', true],
+    queryFn: () => getOnboarding({ query: { solo_pendientes: true } }),
+    select: (r) => r.data,
+  })
+  const pendientes = onboarding.data?.pendientes ?? 0
 
   const empresaCount = empresas.data?.data?.length ?? 0
   const driverList = drivers.data?.data ?? []
@@ -39,6 +46,23 @@ export function DashboardPage() {
   return (
     <div>
       <h1 className="text-sm font-semibold text-text-primary uppercase tracking-wider mb-6">Dashboard</h1>
+
+      {pendientes > 0 && (
+        <Link
+          to="/onboarding"
+          className="flex items-center justify-between gap-3 mb-4 rounded-md border border-brand-500/40 bg-brand-500/10 px-4 py-3 hover:bg-brand-500/15 transition-colors"
+        >
+          <div className="flex items-center gap-2.5">
+            <UserPlus className="w-4 h-4 text-brand-500" />
+            <span className="text-[13px] text-text-primary">
+              <strong>{pendientes}</strong> persona{pendientes === 1 ? '' : 's'} sin conectar a WhatsApp
+            </span>
+          </div>
+          <span className="flex items-center gap-1 text-[11px] font-semibold text-brand-500 uppercase tracking-wider">
+            Conectar <ChevronRight className="w-3.5 h-3.5" />
+          </span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard

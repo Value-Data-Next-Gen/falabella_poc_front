@@ -2366,6 +2366,66 @@ export type OnTime = {
 };
 
 /**
+ * OnboardingItem
+ */
+export type OnboardingItem = {
+    /**
+     * Tipo
+     */
+    tipo: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Nombre
+     */
+    nombre: string;
+    /**
+     * Empresa Id
+     */
+    empresa_id: number | null;
+    /**
+     * Empresa Nombre
+     */
+    empresa_nombre: string | null;
+    /**
+     * Phone E164
+     */
+    phone_e164: string | null;
+    /**
+     * Activation Token
+     */
+    activation_token: string | null;
+    /**
+     * Activado
+     */
+    activado: boolean;
+};
+
+/**
+ * OnboardingSummary
+ */
+export type OnboardingSummary = {
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Activados
+     */
+    activados: number;
+    /**
+     * Pendientes
+     */
+    pendientes: number;
+    /**
+     * Items
+     */
+    items: Array<OnboardingItem>;
+};
+
+/**
  * OutcomeCounts
  */
 export type OutcomeCounts = {
@@ -6768,3 +6828,35 @@ export type GetMapaStatsResponses = {
 };
 
 export type GetMapaStatsResponse = GetMapaStatsResponses[keyof GetMapaStatsResponses];
+
+export type GetOnboardingData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Solo Pendientes
+         *
+         * Solo no activados
+         */
+        solo_pendientes?: boolean;
+    };
+    url: '/api/v1/onboarding';
+};
+
+export type GetOnboardingErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOnboardingError = GetOnboardingErrors[keyof GetOnboardingErrors];
+
+export type GetOnboardingResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingSummary;
+};
+
+export type GetOnboardingResponse = GetOnboardingResponses[keyof GetOnboardingResponses];
