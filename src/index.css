@@ -1,112 +1,55 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* ---- Light theme (default) — paleta Falabella ---- */
-:root {
-  --bg-900: 245 245 245;     /* canvas — gris Falabella */
-  --bg-800: 255 255 255;     /* panels */
-  --bg-700: 240 240 240;     /* hover / secondary */
-  --bg-600: 229 229 229;     /* interactive */
-  --line: 218 218 218;
-  --text-primary: 29 29 27;  /* negro Falabella */
-  --text-secondary: 91 103 118;
-  --text-muted: 139 152 169;
+@theme {
+  --color-brand-50: #e8f5ed;
+  --color-brand-100: #d1eadb;
+  --color-brand-200: #a3d5b7;
+  --color-brand-300: #5fbe87;
+  --color-brand-400: #2cb35d;
+  --color-brand-500: #159349;
+  --color-brand-600: #0e6830;
+  --color-brand-700: #0a4f24;
+  --color-brand-800: #073a1a;
+  --color-brand-900: #042710;
 
-  /* Marca */
-  --brand: 21 147 73;        /* Falabella Green #159349 */
-  --brand-hover: 14 104 48;  /* Verde oscuro hover */
-  --brand-soft: 232 245 237; /* Verde muy suave para fondos */
-  --cmr: 255 203 5;          /* Amarillo CMR #FFCB05 */
+  --color-cmr: #FFCB05;
+  --color-cmr-hover: #FFD530;
 
-  /* Accents semánticos — verde = marca */
-  --accent-blue: 37 99 235;
-  --accent-green: 21 147 73;    /* alineado con brand */
-  --accent-yellow: 230 150 0;
-  --accent-red: 204 34 34;      /* rojo Falabella ofertas */
-  --accent-violet: 124 58 237;
+  --color-accent-green: #159349;
+  --color-accent-yellow: #e69600;
+  --color-accent-red: #cc2222;
+  --color-accent-blue: #2563eb;
+  --color-accent-violet: #7c3aed;
+
+  --color-bg-900: #f5f5f5;
+  --color-bg-800: #ffffff;
+  --color-bg-700: #f0f0f0;
+  --color-bg-600: #e5e5e5;
+
+  --color-text-primary: #1d1d1b;
+  --color-text-secondary: #5b6776;
+  --color-text-muted: #8b98a9;
+
+  --color-line: #dadada;
+
+  --color-sidebar: #0f141b;
+  --color-sidebar-active: #161c25;
+  --color-sidebar-hover: #1f2733;
+  --color-sidebar-text: #8b98a9;
+  --color-sidebar-text-active: #e7ecf3;
 }
 
-/* ---- Dark theme ---- */
-.dark {
-  --bg-900: 10 14 20;
-  --bg-800: 15 20 27;
-  --bg-700: 22 28 37;
-  --bg-600: 31 39 51;
-  --line: 37 46 59;
-  --text-primary: 231 236 243;
-  --text-secondary: 139 152 169;
-  --text-muted: 91 103 118;
-
-  --brand: 44 179 93;         /* Verde Falabella más claro en oscuro */
-  --brand-hover: 74 222 128;
-  --brand-soft: 20 60 36;
-  --cmr: 255 213 48;
-
-  --accent-blue: 96 165 250;
-  --accent-green: 74 222 128;
-  --accent-yellow: 251 191 36;
-  --accent-red: 239 68 68;
-  --accent-violet: 167 139 250;
+body {
+  margin: 0;
+  background: var(--color-bg-900);
+  color: var(--color-text-primary);
+  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@layer base {
-  html, body, #root {
-    height: 100%;
-    margin: 0;
-    background: rgb(var(--bg-900));
-    color: rgb(var(--text-primary));
-    font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
-    font-size: 13px;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  *::-webkit-scrollbar { width: 8px; height: 8px; }
-  *::-webkit-scrollbar-track { background: rgb(var(--bg-700)); }
-  *::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 4px; }
-  *::-webkit-scrollbar-thumb:hover { background: rgb(var(--text-muted)); }
+#root {
+  min-height: 100dvh;
 }
-
-@layer components {
-  .panel {
-    @apply bg-bg-800 border border-line rounded-md shadow-sm;
-  }
-  .panel-title {
-    @apply text-xs uppercase tracking-wider text-text-secondary px-3 py-2 border-b border-line flex items-center justify-between;
-  }
-  .kpi-card {
-    @apply bg-bg-800 border border-line rounded-md p-3 flex flex-col gap-1 shadow-sm;
-  }
-  .kpi-label {
-    @apply text-[11px] uppercase tracking-wider text-text-muted;
-  }
-  .kpi-value {
-    @apply text-2xl font-semibold text-text-primary;
-  }
-  .kpi-sub {
-    @apply text-[11px] text-text-secondary;
-  }
-  .pill {
-    @apply inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider;
-  }
-  .pill-green { @apply bg-accent-green/15 text-accent-green; }
-  .pill-yellow { @apply bg-accent-yellow/15 text-accent-yellow; }
-  .pill-red { @apply bg-accent-red/15 text-accent-red; }
-  .pill-blue { @apply bg-accent-blue/15 text-accent-blue; }
-  .pill-violet { @apply bg-accent-violet/15 text-accent-violet; }
-  .btn {
-    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded border border-line hover:border-brand hover:text-brand transition-colors;
-  }
-  .btn-primary {
-    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded bg-brand text-white border border-brand hover:bg-brand-hover hover:border-brand-hover transition-colors;
-  }
-  .btn-danger {
-    @apply px-3 py-1.5 text-xs uppercase tracking-wider rounded bg-accent-red/15 text-accent-red border border-accent-red/40 hover:bg-accent-red/25 transition-colors;
-  }
-  .input {
-    @apply bg-bg-700 border border-line rounded px-2 py-1 text-text-primary text-xs focus:outline-none focus:border-brand;
-  }
-}
-
-.maplibregl-ctrl-logo,
-.maplibregl-ctrl-attrib { display: none !important; }
