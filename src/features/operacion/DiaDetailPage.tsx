@@ -85,9 +85,21 @@ export function DiaDetailPage() {
     }
   }
 
-  const diaQ = useQuery({ queryKey: ['dia', id], queryFn: () => getDia({ path: { dia_id: id } }) })
+  // While a día is EN_CURSO, poll so the map markers + table reflect estado
+  // changes (pendiente → en_camino → entregado/no_entregado) as the operation
+  // (or the simulation) progresses — not just the moving driver dots.
+  const diaQ = useQuery({
+    queryKey: ['dia', id],
+    queryFn: () => getDia({ path: { dia_id: id } }),
+    refetchInterval: (q) => (q.state.data?.data?.estado === 'EN_CURSO' ? 8000 : false),
+  })
+  const livePoll = () => (diaQ.data?.data?.estado === 'EN_CURSO' ? 5000 : false)
   const rutasQ = useQuery({ queryKey: ['dia-rutas', id], queryFn: () => listRutas({ path: { dia_id: id } }) })
-  const visitasQ = useQuery({ queryKey: ['dia-visitas', id], queryFn: () => listVisitas({ path: { dia_id: id } }) })
+  const visitasQ = useQuery({
+    queryKey: ['dia-visitas', id],
+    queryFn: () => listVisitas({ path: { dia_id: id } }),
+    refetchInterval: livePoll,
+  })
   const motivosQ = useQuery({ queryKey: ['motivos'], queryFn: () => listMotivos() })
 
   const dia = diaQ.data?.data as DiaOut | undefined

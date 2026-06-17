@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import DeckGL from '@deck.gl/react'
 import { ScatterplotLayer, IconLayer, PathLayer, TextLayer, ColumnLayer } from '@deck.gl/layers'
 import type { PickingInfo } from '@deck.gl/core'
-import { listDriverPositions, getMapaHeatmap, getMapaStats } from '@/api/sdk.gen'
+import { listDriverPositions, getMapaHeatmap, getMapaStats, getSimClock } from '@/api/sdk.gen'
 import type {
   VisitaOut,
   RutaOut,
@@ -42,6 +42,7 @@ function vehicleColor(vehicleId: number | null): [number, number, number] {
 
 const STATUS_COLOR: Record<string, [number, number, number, number]> = {
   pendiente: [148, 163, 184, 255],   // slate
+  atrasada: [249, 115, 22, 255],     // orange — pendiente con ETA vencida
   en_camino: [245, 158, 11, 255],    // amber
   entregado: [16, 185, 129, 255],    // emerald
   no_entregado: [239, 68, 68, 255],  // red
@@ -149,6 +150,24 @@ export function MapaTab({ diaId, fecha, empresaId, visitas, rutas, diaEstado }: 
     refetchIntervalInBackground: false,
   })
   const positions = (positionsQ.data?.data ?? []) as DriverPositionOut[]
+
+  // Sim clock (shared cache with the clock widget) → mark pendientes whose ETA
+  // has passed as "atrasada" so delays are visible on the map.
+  const clockQ = useQuery({
+    queryKey: ['sim-clock'],
+    queryFn: () => getSimClock(),
+    refetchInterval: isLive ? 10000 : false,
+  })
+  const simNowMs = (() => {
+    const raw = (clockQ.data?.data as { sim_now?: string } | undefined)?.sim_now
+    return raw ? new Date(raw).getTime() : Date.now()
+  })()
+  const visitaColor = (v: VisitaOut): [number, number, number, number] => {
+    if (v.estado === 'pendiente' && v.eta_estimada && new Date(v.eta_estimada).getTime() < simNowMs) {
+      return STATUS_COLOR.atrasada!
+    }
+    return STATUS_COLOR[v.estado] ?? STATUS_COLOR.pendiente!
+  }
 
   // CR-029: heatmap query, enabled only when toggle on.
   const heatmapQ = useQuery({
@@ -289,7 +308,8 @@ export function MapaTab({ diaId, fecha, empresaId, visitas, rutas, diaEstado }: 
         id: 'visit-pins', data: filteredVisitas,
         getPosition: (v: VisitaOut) => [v.lon!, v.lat!],
         getRadius: 9, radiusUnits: 'pixels', stroked: true, filled: true,
-        getFillColor: (v: VisitaOut) => STATUS_COLOR[v.estado] ?? STATUS_COLOR.pendiente!,
+        getFillColor: visitaColor,
+        updateTriggers: { getFillColor: simNowMs },
         getLineColor: [255, 255, 255, 230], getLineWidth: 2, lineWidthUnits: 'pixels', pickable: true,
         onHover: (info: PickingInfo) => {
           if (info.object) {
@@ -364,7 +384,7 @@ export function MapaTab({ diaId, fecha, empresaId, visitas, rutas, diaEstado }: 
     }
 
     return ls
-  }, [filteredVisitas, validVisitas, rutas, positions, toggles, heatmapBuckets, rutaFilter])
+  }, [filteredVisitas, validVisitas, rutas, positions, toggles, heatmapBuckets, rutaFilter, simNowMs])
 
   const fitToData = useCallback(() => {
     if (validVisitas.length === 0 && positions.length === 0) return
