@@ -31,11 +31,13 @@ export function DashboardPage() {
     queryFn: () => listVehicles(),
   })
   const onboarding = useQuery({
-    queryKey: ['onboarding', true],
-    queryFn: () => getOnboarding({ query: { solo_pendientes: true } }),
+    queryKey: ['onboarding', false],
+    queryFn: () => getOnboarding({ query: { solo_pendientes: false } }),
     select: (r) => r.data,
   })
   const pendientes = onboarding.data?.pendientes ?? 0
+  const obTotal = onboarding.data?.total ?? 0
+  const obActivados = onboarding.data?.activados ?? 0
 
   const empresaCount = empresas.data?.data?.length ?? 0
   const driverList = drivers.data?.data ?? []
@@ -84,9 +86,9 @@ export function DashboardPage() {
         />
         <StatCard
           icon={<Contact className="w-4 h-4 text-brand-500" />}
-          label="Opt-in Rate"
-          value={driverCount ? `${Math.round((driversOptedIn / driverCount) * 100)}%` : '—'}
-          sub="conductores activados"
+          label="Opt-in WhatsApp"
+          value={obTotal ? `${Math.round((obActivados / obTotal) * 100)}%` : '—'}
+          sub={`${obActivados}/${obTotal} activados (conductores, contactos, usuarios)`}
         />
       </div>
 

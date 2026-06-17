@@ -129,6 +129,23 @@ export function OnboardingPage() {
         >
           Solo pendientes
         </button>
+        {(() => {
+          const pend = items.filter((i) => !i.activado && i.activation_token)
+          return (
+            <button
+              onClick={() => {
+                const lines = pend.map((i) => `${i.nombre}: ${waLink(i.activation_token as string)}`)
+                void navigator.clipboard.writeText(lines.join('\n'))
+                window.alert(`${lines.length} enlace(s) de invitación copiados al portapapeles.`)
+              }}
+              disabled={pend.length === 0}
+              className="flex items-center gap-1.5 rounded border border-line bg-bg-700 px-3 py-2 text-[12px] font-semibold uppercase tracking-wider text-text-muted hover:text-text-primary disabled:opacity-40"
+              title="Copiar los enlaces de invitación de todos los pendientes mostrados"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copiar enlaces ({pend.length})
+            </button>
+          )
+        })()}
       </div>
 
       {isLoading && <div className="text-text-muted text-xs uppercase tracking-wider py-12 text-center">Cargando…</div>}

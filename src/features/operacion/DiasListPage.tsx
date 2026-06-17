@@ -139,7 +139,11 @@ export function DiasListPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {grouped.map((g) => (
+          {grouped.map((g) => {
+            const dayEnt = g.dias.reduce((s, d) => s + (d.visitas_entregadas ?? 0), 0)
+            const dayFail = g.dias.reduce((s, d) => s + (d.visitas_no_entregadas ?? 0), 0)
+            const daySuccess = dayEnt + dayFail > 0 ? Math.round((dayEnt / (dayEnt + dayFail)) * 100) : null
+            return (
             <div key={g.fecha}>
               <div className="flex items-baseline gap-2 mb-2 pb-1 border-b border-line/60">
                 <span className="text-[12px] font-semibold text-text-primary uppercase tracking-wider">
@@ -147,6 +151,7 @@ export function DiasListPage() {
                 </span>
                 <span className="text-[10px] text-text-muted">
                   {g.dias.length} {g.dias.length === 1 ? 'empresa' : 'empresas'} · {g.dias.reduce((s, d) => s + (d.visitas_count ?? 0), 0)} visitas
+                  {daySuccess != null && <span className="text-accent-green font-semibold"> · {daySuccess}% éxito</span>}
                 </span>
               </div>
               <div className="space-y-2">
@@ -202,7 +207,8 @@ export function DiasListPage() {
           })}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

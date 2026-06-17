@@ -19,6 +19,9 @@ export function LoginPage() {
   const navigate = useNavigate()
 
   const selectValue = DEMO_USERS.some((u) => u.email === email) ? email : ''
+  // Demo quick-login is shown by default; set VITE_DEMO_LOGIN=false at build to
+  // hide it (e.g. a real production deployment).
+  const showDemo = import.meta.env.VITE_DEMO_LOGIN !== 'false'
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -50,6 +53,7 @@ export function LoginPage() {
           onSubmit={(e) => void handleSubmit(e)}
           className="bg-bg-800 rounded-md shadow-sm border border-line p-5 space-y-4"
         >
+          {showDemo && (
           <div>
             <label className="block text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">
               Acceso rápido (demo)
@@ -72,6 +76,7 @@ export function LoginPage() {
               ))}
             </select>
           </div>
+          )}
 
           <div>
             <label className="block text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">
