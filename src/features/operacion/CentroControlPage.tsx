@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCommandCenter, ackAlert, releaseAlert, updateAlert } from '@/api/sdk.gen'
+import { getCommandCenter, ackAlert, releaseAlert, updateAlert, notifyDriverVisita } from '@/api/sdk.gen'
 import type { CommandCenter, ExceptionItem, RouteHealth } from '@/api'
 import { useAuthStore } from '@/lib/auth-store'
-import { LayoutDashboard, AlertTriangle, Clock, CheckCircle2, Hand, ArrowUpRight } from 'lucide-react'
+import { LayoutDashboard, AlertTriangle, Clock, CheckCircle2, Hand, ArrowUpRight, MessageCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const SEV: Record<string, { bg: string; label: string }> = {
@@ -39,6 +39,13 @@ export function CentroControlPage() {
   const resMut = useMutation({
     mutationFn: (id: number) => updateAlert({ path: { alert_id: id }, body: { estado: 'resuelta' } }),
     onSuccess: inval,
+  })
+  const notifyMut = useMutation({
+    mutationFn: (vid: number) => notifyDriverVisita({ path: { visita_id: vid }, body: { motivo: 'ATRASO EN ENTREGA' } }),
+    onSuccess: (res) => {
+      const d = (res as { data?: { sent?: boolean; driver_nombre?: string; info?: string } }).data
+      window.alert(d?.sent ? `📲 Aviso enviado al conductor ${d.driver_nombre ?? ''}.` : `No se pudo avisar: ${d?.info ?? 'desconocido'}`)
+    },
   })
 
   const c = data?.counters
@@ -103,6 +110,13 @@ export function CentroControlPage() {
                         ) : mine ? (
                           <button onClick={() => relMut.mutate(e.alert_id)} className="rounded border border-line px-2 py-1 text-[10px] text-text-muted hover:text-text-primary">Liberar</button>
                         ) : null}
+                        {e.visita_id != null && (
+                          <button onClick={() => notifyMut.mutate(e.visita_id as number)} disabled={notifyMut.isPending}
+                            className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[10px] font-semibold text-text-primary hover:bg-bg-700"
+                            title="Avisar al conductor por WhatsApp (atraso/incumplimiento)">
+                            <MessageCircle className="w-3 h-3" /> Avisar
+                          </button>
+                        )}
                         <button onClick={() => resMut.mutate(e.alert_id)} disabled={resMut.isPending}
                           className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[10px] font-semibold text-text-primary hover:bg-bg-700">
                           <CheckCircle2 className="w-3 h-3" /> Resolver

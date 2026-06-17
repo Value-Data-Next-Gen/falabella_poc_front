@@ -2481,6 +2481,46 @@ export type MotivoUpdate = {
 };
 
 /**
+ * NotifyDriverRequest
+ */
+export type NotifyDriverRequest = {
+    /**
+     * Motivo
+     */
+    motivo?: string;
+    /**
+     * Detalle
+     */
+    detalle?: string | null;
+};
+
+/**
+ * NotifyDriverResult
+ */
+export type NotifyDriverResult = {
+    /**
+     * Sent
+     */
+    sent: boolean;
+    /**
+     * Driver Id
+     */
+    driver_id?: string | null;
+    /**
+     * Driver Nombre
+     */
+    driver_nombre?: string | null;
+    /**
+     * Motivo
+     */
+    motivo: string;
+    /**
+     * Info
+     */
+    info?: string | null;
+};
+
+/**
  * OnTime
  *
  * Punctuality over visitas that have both eta_estimada and completada_at.
@@ -6057,6 +6097,36 @@ export type ListDriverPositionsResponses = {
 };
 
 export type ListDriverPositionsResponse = ListDriverPositionsResponses[keyof ListDriverPositionsResponses];
+
+export type NotifyDriverVisitaData = {
+    body: NotifyDriverRequest;
+    path: {
+        /**
+         * Visita Id
+         */
+        visita_id: number;
+    };
+    query?: never;
+    url: '/api/v1/operacion/visitas/{visita_id}/notify-driver';
+};
+
+export type NotifyDriverVisitaErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NotifyDriverVisitaError = NotifyDriverVisitaErrors[keyof NotifyDriverVisitaErrors];
+
+export type NotifyDriverVisitaResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotifyDriverResult;
+};
+
+export type NotifyDriverVisitaResponse = NotifyDriverVisitaResponses[keyof NotifyDriverVisitaResponses];
 
 export type GetSimClockData = {
     body?: never;
