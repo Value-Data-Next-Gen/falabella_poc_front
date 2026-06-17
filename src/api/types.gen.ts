@@ -2724,6 +2724,10 @@ export type RetenerResult = {
      * Avisos Enviados
      */
     avisos_enviados: number;
+    /**
+     * Sin Whatsapp
+     */
+    sin_whatsapp?: number;
 };
 
 /**
@@ -3507,6 +3511,10 @@ export type VisitaOut = {
      * Estado Fuente
      */
     estado_fuente?: string | null;
+    /**
+     * Cliente Retener
+     */
+    cliente_retener?: boolean;
 };
 
 /**

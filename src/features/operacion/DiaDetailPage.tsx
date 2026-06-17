@@ -18,7 +18,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getCapabilities, ESTADO_BADGE, VISITA_ESTADO_BADGE } from './lib/dia-state-machine'
 import {
   Route, Package, CheckCircle, XCircle, Clock, BarChart3, Plus, Users,
-  ChevronDown, ChevronUp, Map as MapIcon, Crown, AlertTriangle, RotateCcw,
+  ChevronDown, ChevronUp, Map as MapIcon, Crown, AlertTriangle, RotateCcw, Ban,
   GripVertical, ArrowUp, ArrowDown, X as XIcon, MoreVertical, Calculator,
 } from 'lucide-react'
 import { MapaTab } from './components/MapaTab'
@@ -1048,6 +1048,12 @@ function VisitaRow({
               title="Folio cliente / subfolio bulto"
             >
               {folioDisplay}
+            </span>
+          )}
+          {v.cliente_retener && (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-accent-red text-white"
+              title="No entregar a este cliente">
+              <Ban className="w-3 h-3" /> No entregar
             </span>
           )}
           {v.es_vip && (

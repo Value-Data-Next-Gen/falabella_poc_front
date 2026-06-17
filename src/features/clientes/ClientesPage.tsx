@@ -227,9 +227,15 @@ export function ClientesPage() {
       retenerCliente({ path: { cliente_id: id }, body: { retener, motivo, avisar_whatsapp: true } }),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ['clientes'] })
-      const d = (res as { data?: { retener?: boolean; avisos_enviados?: number } }).data
+      const d = (res as { data?: { retener?: boolean; avisos_enviados?: number; visitas_afectadas?: number; sin_whatsapp?: number } }).data
       if (d?.retener) {
-        window.alert(`Cliente marcado NO ENTREGAR. Avisos enviados a conductores: ${d.avisos_enviados ?? 0}.`)
+        const sinWa = d.sin_whatsapp ?? 0
+        window.alert(
+          `Cliente marcado NO ENTREGAR.\n` +
+          `Visitas pendientes afectadas: ${d.visitas_afectadas ?? 0}\n` +
+          `Avisos WhatsApp enviados a conductores: ${d.avisos_enviados ?? 0}` +
+          (sinWa ? `\n⚠ ${sinWa} conductor(es) sin WhatsApp activo (no se les pudo avisar).` : ''),
+        )
       }
     },
   })
