@@ -1,12 +1,20 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 import { getOnboarding, updateDriver, updateEmpresaContacto, updateUser } from '@/api/sdk.gen'
 import type { OnboardingItem, OnboardingSummary } from '@/api'
 import { Badge } from '@/components/Badge'
 import { ActivationStatus } from '@/components/ActivationStatus'
-import { UserPlus, Copy, Check, ExternalLink, QrCode, Search, X, MessageCircle, Pencil } from 'lucide-react'
+import { UserPlus, Copy, Check, ExternalLink, QrCode, Search, X, MessageCircle, Pencil, ArrowUpRight } from 'lucide-react'
 import { clsx } from 'clsx'
+
+/** Where to go to fully edit/delete this person's record. */
+function manageHref(item: OnboardingItem): string | null {
+  if (item.tipo === 'usuario') return '/usuarios'
+  if (item.empresa_id == null) return null
+  return `/empresas/${item.empresa_id}?tab=${item.tipo === 'contacto' ? 'contactos' : 'conductores'}`
+}
 
 /** Route a phone update to the right endpoint based on the onboarding item type.
  * Returns void and throws on error so react-query's mutation error state works
@@ -231,6 +239,16 @@ function OnboardingCard({ item, onShowQr }: { item: OnboardingItem; onShowQr: ()
       )}
       {!item.activado && !link && (
         <div className="text-[10px] text-accent-yellow mt-1">Sin invitación. Edita el registro y agrega teléfono.</div>
+      )}
+
+      {manageHref(item) && (
+        <Link
+          to={manageHref(item) as string}
+          className="flex items-center gap-1 text-[10px] text-text-muted hover:text-brand-500 mt-1 pt-1.5 border-t border-line/60"
+          title="Ir a la ficha completa para editar otros datos o eliminar"
+        >
+          <ArrowUpRight className="w-3 h-3" /> Ver ficha completa (editar / eliminar)
+        </Link>
       )}
     </div>
   )

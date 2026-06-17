@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getEmpresa, getEmpresaSummary,
@@ -34,8 +34,12 @@ type Tab = 'conductores' | 'vehiculos' | 'contactos' | 'documentos'
 export function EmpresaDetailPage() {
   const { empresaId } = useParams()
   const id = Number(empresaId)
+  const [searchParams] = useSearchParams()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('conductores')
+  const _qtab = searchParams.get('tab')
+  const [tab, setTab] = useState<Tab>(
+    (['conductores', 'vehiculos', 'contactos', 'documentos'].includes(_qtab ?? '') ? _qtab : 'conductores') as Tab,
+  )
 
   const empresa = useQuery({ queryKey: ['empresa', id], queryFn: () => getEmpresa({ path: { empresa_id: id } }) })
   const summary = useQuery({ queryKey: ['empresa-summary', id], queryFn: () => getEmpresaSummary({ path: { empresa_id: id } }) })
