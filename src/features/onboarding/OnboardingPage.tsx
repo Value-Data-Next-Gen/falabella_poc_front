@@ -1,12 +1,26 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
-import { getOnboarding } from '@/api/sdk.gen'
+import { getOnboarding, updateDriver, updateEmpresaContacto, updateUser } from '@/api/sdk.gen'
 import type { OnboardingItem, OnboardingSummary } from '@/api'
 import { Badge } from '@/components/Badge'
 import { ActivationStatus } from '@/components/ActivationStatus'
-import { UserPlus, Copy, Check, ExternalLink, QrCode, Search, X, MessageCircle } from 'lucide-react'
+import { UserPlus, Copy, Check, ExternalLink, QrCode, Search, X, MessageCircle, Pencil } from 'lucide-react'
 import { clsx } from 'clsx'
+
+/** Route a phone update to the right endpoint based on the onboarding item type.
+ * Returns void and throws on error so react-query's mutation error state works
+ * (the fetch client resolves with {error} instead of rejecting). */
+async function savePhone(item: OnboardingItem, phone: string): Promise<void> {
+  const body = { phone_e164: phone }
+  const res =
+    item.tipo === 'conductor'
+      ? await updateDriver({ path: { driver_id: item.id }, body })
+      : item.tipo === 'contacto'
+        ? await updateEmpresaContacto({ path: { empresa_id: item.empresa_id as number, contact_id: Number(item.id) }, body })
+        : await updateUser({ path: { user_id: Number(item.id) }, body })
+  if (res.error) throw new Error('update failed')
+}
 
 const WA_NUMBER = '56957018982'
 const waLink = (token: string) => `https://wa.me/${WA_NUMBER}?text=ACTIVAR%20${token}`
@@ -131,8 +145,16 @@ export function OnboardingPage() {
 }
 
 function OnboardingCard({ item, onShowQr }: { item: OnboardingItem; onShowQr: () => void }) {
+  const qc = useQueryClient()
   const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [phone, setPhone] = useState(item.phone_e164 ?? '')
   const link = item.activation_token ? waLink(item.activation_token) : null
+
+  const phoneMut = useMutation({
+    mutationFn: (p: string) => savePhone(item, p),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['onboarding'] }); setEditing(false) },
+  })
 
   function copy() {
     if (!link) return
@@ -155,8 +177,43 @@ function OnboardingCard({ item, onShowQr }: { item: OnboardingItem; onShowQr: ()
         </Badge>
       </div>
 
-      <ActivationStatus phone={item.phone_e164} activationToken={item.activation_token}
-        optedInAt={item.activado ? '1' : null} />
+      <div className="flex items-center justify-between gap-2">
+        <ActivationStatus phone={item.phone_e164} activationToken={item.activation_token}
+          optedInAt={item.activado ? '1' : null} />
+        {!editing && (
+          <button onClick={() => { setPhone(item.phone_e164 ?? ''); setEditing(true) }}
+            className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[10px] font-semibold text-text-muted hover:text-text-primary hover:bg-bg-700"
+            title="Editar teléfono">
+            <Pencil className="w-3 h-3" /> {item.phone_e164 ? 'Teléfono' : 'Agregar tel.'}
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="flex flex-col gap-1.5 rounded bg-bg-700/50 p-2">
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+56912345678"
+            className="w-full rounded border border-line bg-bg-800 px-2 py-1.5 text-[12px] text-text-primary focus:outline-none focus:border-brand-500"
+          />
+          {phoneMut.isError && (
+            <span className="text-[10px] text-accent-red">No se pudo guardar (¿formato +56…? ¿número duplicado?).</span>
+          )}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => phoneMut.mutate(phone.trim())}
+              disabled={phoneMut.isPending || !phone.trim().startsWith('+')}
+              className="flex items-center gap-1 rounded bg-brand-500 text-white px-2 py-1 text-[10px] font-semibold hover:bg-brand-600 disabled:opacity-50">
+              <Check className="w-3 h-3" /> {phoneMut.isPending ? 'Guardando…' : 'Guardar'}
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[10px] font-semibold text-text-muted hover:text-text-primary">
+              <X className="w-3 h-3" /> Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {!item.activado && link && (
         <div className="flex items-center gap-1.5 mt-1">
