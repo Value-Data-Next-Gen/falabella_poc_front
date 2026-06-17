@@ -13,6 +13,7 @@ import {
   cancelClientePendingVisitas,
   updateVisita,
   adminRunGeocoding,
+  retenerCliente,
 } from '@/api/sdk.gen'
 import type {
   ClienteOut,
@@ -221,6 +222,28 @@ export function ClientesPage() {
       setMode({ kind: 'closed' })
     },
   })
+  const retenerMut = useMutation({
+    mutationFn: ({ id, retener, motivo }: { id: number; retener: boolean; motivo?: string }) =>
+      retenerCliente({ path: { cliente_id: id }, body: { retener, motivo, avisar_whatsapp: true } }),
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['clientes'] })
+      const d = (res as { data?: { retener?: boolean; avisos_enviados?: number } }).data
+      if (d?.retener) {
+        window.alert(`Cliente marcado NO ENTREGAR. Avisos enviados a conductores: ${d.avisos_enviados ?? 0}.`)
+      }
+    },
+  })
+
+  function toggleRetener(c: ClienteOut) {
+    if (c.retener) {
+      retenerMut.mutate({ id: c.cliente_id, retener: false })
+      return
+    }
+    const motivo = window.prompt('Motivo para NO ENTREGAR (se avisará al conductor por WhatsApp):', c.retener_motivo ?? '')
+    if (motivo === null) return
+    retenerMut.mutate({ id: c.cliente_id, retener: true, motivo: motivo.trim() || undefined })
+  }
+
   const deleteMut = useMutation({
     mutationFn: (id: number) => deleteCliente({ path: { cliente_id: id } }),
     onSuccess: (res) => {
@@ -536,6 +559,12 @@ export function ClientesPage() {
                         <Info className="w-3 h-3 text-text-muted hover:text-text-secondary" />
                       </span>
                     )}
+                    {c.retener && (
+                      <span title={c.retener_motivo ?? 'No entregar'}
+                        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-accent-red text-white cursor-help">
+                        <Ban className="w-3 h-3" /> No entregar
+                      </span>
+                    )}
                   </div>
                 )
               },
@@ -579,6 +608,15 @@ export function ClientesPage() {
               header: '',
               accessor: (c) => (
                 <div className="flex gap-1 justify-end">
+                  <button
+                    onClick={() => toggleRetener(c)}
+                    disabled={retenerMut.isPending}
+                    className={clsx('p-1.5 rounded transition-colors disabled:opacity-50',
+                      c.retener ? 'bg-accent-red/15 hover:bg-accent-red/25' : 'hover:bg-bg-700')}
+                    title={c.retener ? 'Quitar “No entregar”' : 'Marcar “No entregar” (avisa al conductor por WhatsApp)'}
+                  >
+                    <Ban className={clsx('w-3.5 h-3.5', c.retener ? 'text-accent-red' : 'text-text-muted')} />
+                  </button>
                   <button
                     onClick={() => setMode({ kind: 'edit', cliente: c })}
                     className="p-1.5 hover:bg-bg-700 rounded transition-colors"

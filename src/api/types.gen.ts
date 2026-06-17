@@ -456,6 +456,14 @@ export type ClienteCreate = {
      */
     notas_operativas?: string | null;
     /**
+     * Retener
+     */
+    retener?: boolean;
+    /**
+     * Retener Motivo
+     */
+    retener_motivo?: string | null;
+    /**
      * Direccion Default
      */
     direccion_default?: string | null;
@@ -555,6 +563,14 @@ export type ClienteOut = {
      * Notas Operativas
      */
     notas_operativas?: string | null;
+    /**
+     * Retener
+     */
+    retener?: boolean;
+    /**
+     * Retener Motivo
+     */
+    retener_motivo?: string | null;
     /**
      * Direccion Default
      */
@@ -661,6 +677,14 @@ export type ClienteUpdate = {
      * Notas Operativas
      */
     notas_operativas?: string | null;
+    /**
+     * Retener
+     */
+    retener?: boolean | null;
+    /**
+     * Retener Motivo
+     */
+    retener_motivo?: string | null;
     /**
      * Direccion Default
      */
@@ -2658,6 +2682,48 @@ export type RegionRow = {
      * Success Pct
      */
     success_pct: number | null;
+};
+
+/**
+ * RetenerRequest
+ *
+ * Body for POST /api/v1/clientes/{id}/retener — flag/unflag 'No entregar'.
+ */
+export type RetenerRequest = {
+    /**
+     * Retener
+     */
+    retener?: boolean;
+    /**
+     * Motivo
+     */
+    motivo?: string | null;
+    /**
+     * Avisar Whatsapp
+     */
+    avisar_whatsapp?: boolean;
+};
+
+/**
+ * RetenerResult
+ */
+export type RetenerResult = {
+    /**
+     * Cliente Id
+     */
+    cliente_id: number;
+    /**
+     * Retener
+     */
+    retener: boolean;
+    /**
+     * Visitas Afectadas
+     */
+    visitas_afectadas: number;
+    /**
+     * Avisos Enviados
+     */
+    avisos_enviados: number;
 };
 
 /**
@@ -6419,6 +6485,36 @@ export type GetClienteVisitasFuturasResponses = {
 };
 
 export type GetClienteVisitasFuturasResponse = GetClienteVisitasFuturasResponses[keyof GetClienteVisitasFuturasResponses];
+
+export type RetenerClienteData = {
+    body: RetenerRequest;
+    path: {
+        /**
+         * Cliente Id
+         */
+        cliente_id: number;
+    };
+    query?: never;
+    url: '/api/v1/clientes/{cliente_id}/retener';
+};
+
+export type RetenerClienteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetenerClienteError = RetenerClienteErrors[keyof RetenerClienteErrors];
+
+export type RetenerClienteResponses = {
+    /**
+     * Successful Response
+     */
+    200: RetenerResult;
+};
+
+export type RetenerClienteResponse = RetenerClienteResponses[keyof RetenerClienteResponses];
 
 export type IngestFalabellaXlsxData = {
     body: BodyIngestFalabellaXlsx;

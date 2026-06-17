@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listDias, createDia, ingestFalabellaXlsx } from '@/api/sdk.gen'
 import type { DiaOut, DiaCreate, IngestResult } from '@/api'
@@ -31,6 +31,24 @@ export function DiasListPage() {
     queryFn: () => listDias(empresaFilter ? { query: { empresa_id: Number(empresaFilter) } } : {}),
   })
   const dias = (data?.data ?? []) as DiaOut[]
+
+  // Group días by date (newest first) so an operator sees ALL empresas for a
+  // given day together, instead of a flat per-empresa list.
+  const grouped = useMemo(() => {
+    const m = new Map<string, DiaOut[]>()
+    for (const d of dias) {
+      const arr = m.get(d.fecha) ?? []
+      arr.push(d)
+      m.set(d.fecha, arr)
+    }
+    return [...m.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([fecha, ds]) => ({
+        fecha,
+        dias: [...ds].sort((a, b) =>
+          (empresaMap.get(a.empresa_id) ?? '').localeCompare(empresaMap.get(b.empresa_id) ?? '')),
+      }))
+  }, [dias, empresaMap])
 
   const createMut = useMutation({
     mutationFn: (body: DiaCreate) => createDia({ body }),
@@ -120,8 +138,19 @@ export function DiasListPage() {
           <p className="text-[11px] text-text-muted">Crea un dia para comenzar a planificar entregas</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {dias.map((d) => {
+        <div className="space-y-6">
+          {grouped.map((g) => (
+            <div key={g.fecha}>
+              <div className="flex items-baseline gap-2 mb-2 pb-1 border-b border-line/60">
+                <span className="text-[12px] font-semibold text-text-primary uppercase tracking-wider">
+                  {new Date(g.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
+                <span className="text-[10px] text-text-muted">
+                  {g.dias.length} {g.dias.length === 1 ? 'empresa' : 'empresas'} · {g.dias.reduce((s, d) => s + (d.visitas_count ?? 0), 0)} visitas
+                </span>
+              </div>
+              <div className="space-y-2">
+          {g.dias.map((d) => {
             const badge = ESTADO_BADGE[d.estado] ?? ESTADO_BADGE.BORRADOR!
             const total = d.visitas_count ?? 0
             const done = (d.visitas_entregadas ?? 0) + (d.visitas_no_entregadas ?? 0)
@@ -131,8 +160,7 @@ export function DiasListPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div>
-                      <div className="text-[13px] font-semibold text-text-primary">{new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-                      <div className="text-[11px] text-text-secondary">{empresaMap.get(d.empresa_id) ?? `Empresa ${d.empresa_id}`}</div>
+                      <div className="text-[13px] font-semibold text-text-primary">{empresaMap.get(d.empresa_id) ?? `Empresa ${d.empresa_id}`}</div>
                     </div>
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                   </div>
@@ -172,6 +200,9 @@ export function DiasListPage() {
               </Link>
             )
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
