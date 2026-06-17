@@ -139,6 +139,14 @@ export type AlertOut = {
      */
     resolved_by_user_id: number | null;
     /**
+     * Owner User Id
+     */
+    owner_user_id?: number | null;
+    /**
+     * Acked At
+     */
+    acked_at?: string | null;
+    /**
      * Dedupe Key
      */
     dedupe_key: string | null;
@@ -912,6 +920,25 @@ export type ClockUpdate = {
 };
 
 /**
+ * CommandCenter
+ */
+export type CommandCenter = {
+    /**
+     * Sim Now
+     */
+    sim_now: string | null;
+    counters: Counters;
+    /**
+     * Routes
+     */
+    routes: Array<RouteHealth>;
+    /**
+     * Exceptions
+     */
+    exceptions: Array<ExceptionItem>;
+};
+
+/**
  * Comparison
  */
 export type Comparison = {
@@ -981,6 +1008,36 @@ export type ComplianceReport = {
      * Expired
      */
     expired: number;
+};
+
+/**
+ * Counters
+ */
+export type Counters = {
+    /**
+     * Rutas Activas
+     */
+    rutas_activas: number;
+    /**
+     * Visitas Pendientes
+     */
+    visitas_pendientes: number;
+    /**
+     * Atrasadas
+     */
+    atrasadas: number;
+    /**
+     * Vip Pendientes
+     */
+    vip_pendientes: number;
+    /**
+     * Bloqueados
+     */
+    bloqueados: number;
+    /**
+     * Alertas Abiertas
+     */
+    alertas_abiertas: number;
 };
 
 /**
@@ -1820,6 +1877,72 @@ export type EntityDocumentOut = {
      * Notes
      */
     notes: string | null;
+};
+
+/**
+ * ExceptionItem
+ */
+export type ExceptionItem = {
+    /**
+     * Alert Id
+     */
+    alert_id: number;
+    /**
+     * Tipo
+     */
+    tipo: string;
+    /**
+     * Severity
+     */
+    severity: string;
+    /**
+     * Descripcion
+     */
+    descripcion: string;
+    /**
+     * Empresa Id
+     */
+    empresa_id: number;
+    /**
+     * Empresa Nombre
+     */
+    empresa_nombre: string | null;
+    /**
+     * Dia Id
+     */
+    dia_id: number | null;
+    /**
+     * Visita Id
+     */
+    visita_id: number | null;
+    /**
+     * Cliente Nombre
+     */
+    cliente_nombre: string | null;
+    /**
+     * Folio Cliente
+     */
+    folio_cliente: string | null;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Edad Min
+     */
+    edad_min: number | null;
+    /**
+     * Estado
+     */
+    estado: string;
+    /**
+     * Owner User Id
+     */
+    owner_user_id: number | null;
+    /**
+     * Owner Nombre
+     */
+    owner_nombre: string | null;
 };
 
 /**
@@ -2728,6 +2851,64 @@ export type RetenerResult = {
      * Sin Whatsapp
      */
     sin_whatsapp?: number;
+};
+
+/**
+ * RouteHealth
+ */
+export type RouteHealth = {
+    /**
+     * Ruta Id
+     */
+    ruta_id: number;
+    /**
+     * Dia Id
+     */
+    dia_id: number;
+    /**
+     * Empresa Id
+     */
+    empresa_id: number;
+    /**
+     * Empresa Nombre
+     */
+    empresa_nombre: string | null;
+    /**
+     * Driver Id
+     */
+    driver_id: string | null;
+    /**
+     * Driver Nombre
+     */
+    driver_nombre: string | null;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Entregadas
+     */
+    entregadas: number;
+    /**
+     * No Entregadas
+     */
+    no_entregadas: number;
+    /**
+     * Pendientes
+     */
+    pendientes: number;
+    /**
+     * Atrasadas
+     */
+    atrasadas: number;
+    /**
+     * Success Pct
+     */
+    success_pct: number | null;
+    /**
+     * Estado
+     */
+    estado: string;
 };
 
 /**
@@ -6815,6 +6996,66 @@ export type DispatchAlertResponses = {
 
 export type DispatchAlertResponse = DispatchAlertResponses[keyof DispatchAlertResponses];
 
+export type AckAlertData = {
+    body?: never;
+    path: {
+        /**
+         * Alert Id
+         */
+        alert_id: number;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alert_id}/ack';
+};
+
+export type AckAlertErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AckAlertError = AckAlertErrors[keyof AckAlertErrors];
+
+export type AckAlertResponses = {
+    /**
+     * Successful Response
+     */
+    200: AlertOut;
+};
+
+export type AckAlertResponse = AckAlertResponses[keyof AckAlertResponses];
+
+export type ReleaseAlertData = {
+    body?: never;
+    path: {
+        /**
+         * Alert Id
+         */
+        alert_id: number;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alert_id}/release';
+};
+
+export type ReleaseAlertErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAlertError = ReleaseAlertErrors[keyof ReleaseAlertErrors];
+
+export type ReleaseAlertResponses = {
+    /**
+     * Successful Response
+     */
+    200: AlertOut;
+};
+
+export type ReleaseAlertResponse = ReleaseAlertResponses[keyof ReleaseAlertResponses];
+
 export type ListMapaVisitasData = {
     body?: never;
     path?: never;
@@ -6964,3 +7205,28 @@ export type GetOnboardingResponses = {
 };
 
 export type GetOnboardingResponse = GetOnboardingResponses[keyof GetOnboardingResponses];
+
+export type GetCommandCenterData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/operacion/command-center';
+};
+
+export type GetCommandCenterErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommandCenterError = GetCommandCenterErrors[keyof GetCommandCenterErrors];
+
+export type GetCommandCenterResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommandCenter;
+};
+
+export type GetCommandCenterResponse = GetCommandCenterResponses[keyof GetCommandCenterResponses];

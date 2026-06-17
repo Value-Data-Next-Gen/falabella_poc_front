@@ -27,6 +27,7 @@ interface NavItem {
 
 const nav: NavItem[] = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/centro-control', icon: Radio, label: 'Centro Control' },
   { to: '/operacion', icon: CalendarClock, label: 'Operacion' },
   { to: '/mapa-operativo', icon: Globe, label: 'Mapa Operativo' },
   { to: '/alertas', icon: Bell, label: 'Alertas' },

@@ -18,6 +18,7 @@ import { ClientesPage } from '@/features/clientes/ClientesPage'
 import { AlertasPage } from '@/features/alertas/AlertasPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
 import { OnboardingPage } from '@/features/onboarding/OnboardingPage'
+import { CentroControlPage } from '@/features/operacion/CentroControlPage'
 
 // Code-split the map-heavy routes (deck.gl + maplibre ≈ most of the bundle) so
 // they load on demand instead of bloating the initial download.
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/centro-control" element={<CentroControlPage />} />
               <Route path="/operacion" element={<DiasListPage />} />
               <Route path="/operacion/:diaId" element={<DiaDetailPage />} />
               <Route path="/mapa-operativo" element={<MapaOperativoPage />} />
