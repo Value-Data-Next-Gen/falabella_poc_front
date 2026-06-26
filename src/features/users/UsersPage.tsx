@@ -8,7 +8,7 @@ import { SlidePanel } from '@/components/SlidePanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { FormField, Input, Select, SubmitButton } from '@/components/FormField'
 import { useEmpresas } from '@/lib/use-empresas'
-import { Plus, Pencil, Trash2, Shield } from 'lucide-react'
+import { Plus, Pencil, Trash2, Shield, RotateCcw } from 'lucide-react'
 import { InviteButton } from '@/components/InviteButton'
 import { ActivationStatus } from '@/components/ActivationStatus'
 import type { FormEvent } from 'react'
@@ -31,9 +31,11 @@ export function UsersPage() {
   const [mode, setMode] = useState<Mode>({ kind: 'closed' })
   const [delTarget, setDelTarget] = useState<UserOut | null>(null)
   const [selectedEmpresas, setSelectedEmpresas] = useState<number[]>([])
+  const [showInactive, setShowInactive] = useState(false)
 
   const { data } = useQuery({ queryKey: ['users'], queryFn: () => listUsers() })
-  const users = (data?.data ?? []) as UserOut[]
+  const allUsers = (data?.data ?? []) as UserOut[]
+  const users = showInactive ? allUsers : allUsers.filter((u) => u.activo)
   const { data: empresas } = useEmpresas()
   const empresaMap = new Map((empresas ?? []).map((e) => [e.empresa_id, e.nombre]))
 
@@ -94,14 +96,21 @@ export function UsersPage() {
     <div>
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-sm font-semibold text-text-primary uppercase tracking-wider">Usuarios Plataforma</h1>
-        <button onClick={() => setMode({ kind: 'create' })} className="flex items-center gap-1.5 bg-brand-500 text-white rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-600 transition-colors">
-          <Plus className="w-3.5 h-3.5" /> Nuevo Usuario
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />
+            Mostrar inactivos
+          </label>
+          <button onClick={() => setMode({ kind: 'create' })} className="flex items-center gap-1.5 bg-brand-500 text-white rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-600 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> Nuevo Usuario
+          </button>
+        </div>
       </div>
 
       <DataTable<UserOut>
         keyFn={(u) => u.user_id}
         data={users}
+        rowClassName={(u) => !u.activo ? 'opacity-60' : ''}
         columns={[
           { header: '', accessor: () => (
             <div className="w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center">
@@ -140,7 +149,11 @@ export function UsersPage() {
               <div className="flex gap-1.5 items-center justify-end">
                 <InviteButton name={u.display_name} phone={u.phone_e164} activationToken={u.activation_token} optedIn={!!u.notify_whatsapp} />
                 <button onClick={() => setMode({ kind: 'edit', user: u })} className="p-1.5 hover:bg-bg-700 rounded transition-colors"><Pencil className="w-3.5 h-3.5 text-text-muted" /></button>
-                {u.activo && <button onClick={() => setDelTarget(u)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>}
+                {u.activo ? (
+                  <button onClick={() => setDelTarget(u)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors" aria-label="Desactivar usuario"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>
+                ) : (
+                  <button onClick={() => updateMut.mutate({ id: u.user_id, body: { activo: true } })} className="p-1.5 hover:bg-brand-500/10 rounded transition-colors" aria-label="Reactivar usuario"><RotateCcw className="w-3.5 h-3.5 text-brand-500" /></button>
+                )}
               </div>
             ),
             className: 'w-20',

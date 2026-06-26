@@ -23,7 +23,7 @@ import { DriverDetailPanel } from '@/components/DriverDetailPanel'
 import { ContactoDetailPanel } from '@/components/ContactoDetailPanel'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { FormField, Input, Select, SubmitButton } from '@/components/FormField'
-import { Users, Truck, Contact, FileText, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Users, Truck, Contact, FileText, Plus, Pencil, Trash2, RotateCcw } from 'lucide-react'
 import { InviteButton } from '@/components/InviteButton'
 import { ActivationStatus } from '@/components/ActivationStatus'
 import { clsx } from 'clsx'
@@ -133,9 +133,11 @@ function DriversTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typeo
   const [panel, setPanel] = useState<{ kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; d: DriverOut }>({ kind: 'closed' })
   const [detailDriver, setDetailDriver] = useState<DriverOut | null>(null)
   const [del, setDel] = useState<DriverOut | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
 
   const { data } = useQuery({ queryKey: ['drivers'], queryFn: () => listDrivers() })
-  const drivers = (data?.data ?? []).filter((d: DriverOut) => d.empresa_id === empresaId)
+  const allDrivers = (data?.data ?? []).filter((d: DriverOut) => d.empresa_id === empresaId)
+  const drivers = showInactive ? allDrivers : allDrivers.filter((d) => d.activo)
 
   const { data: vehData } = useQuery({ queryKey: ['vehicles'], queryFn: () => listVehicles() })
   const allVehicles = (vehData?.data ?? []).filter((v: VehicleOut) => v.empresa_id === empresaId && v.activo)
@@ -175,12 +177,16 @@ function DriversTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typeo
     <>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[12px] font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4" /> Conductores ({drivers.length})</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />
+            Mostrar inactivos
+          </label>
           <BulkUpload entity="Conductores" templateUrl="/api/v1/templates/conductores" uploadFn={async (f) => { const r = await bulkImportConductores({ path: { empresa_id: empresaId }, body: { file: f } }); return r.data as unknown as ImportResult }} invalidateKeys={[['drivers'], ['empresa-summary', String(empresaId)]]} />
           <button onClick={() => setPanel({ kind: 'create' })} className="flex items-center gap-1.5 bg-brand-500 text-white rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-600 transition-colors"><Plus className="w-3.5 h-3.5" /> Nuevo</button>
         </div>
       </div>
-      <DataTable<DriverOut> keyFn={(d) => d.driver_id} data={drivers} emptyMessage="Sin conductores" columns={[
+      <DataTable<DriverOut> keyFn={(d) => d.driver_id} data={drivers} emptyMessage="Sin conductores" rowClassName={(d) => !d.activo ? 'opacity-60' : ''} columns={[
         { header: 'ID', accessor: (d) => <span className="font-mono text-[11px] text-text-secondary">{d.driver_id}</span>, className: 'w-24' },
         { header: 'Nombre', accessor: (d) => <button onClick={() => setDetailDriver(d)} className="text-brand-500 hover:text-brand-600 font-medium">{d.nombre}</button> },
         { header: 'Telefono', accessor: (d) => d.phone_e164 ?? '—' },
@@ -191,7 +197,11 @@ function DriversTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typeo
           <div className="flex gap-1.5 items-center justify-end">
             <InviteButton name={d.nombre} phone={d.phone_e164} activationToken={d.activation_token} optedIn={!!d.opted_in_at} />
             <button onClick={() => setPanel({ kind: 'edit', d })} className="p-1.5 hover:bg-bg-700 rounded transition-colors"><Pencil className="w-3.5 h-3.5 text-text-muted" /></button>
-            {d.activo && <button onClick={() => setDel(d)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>}
+            {d.activo ? (
+              <button onClick={() => setDel(d)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors" aria-label="Desactivar conductor"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>
+            ) : (
+              <button onClick={() => updateMut.mutate({ id: d.driver_id, body: { activo: true } })} className="p-1.5 hover:bg-brand-500/10 rounded transition-colors" aria-label="Reactivar conductor"><RotateCcw className="w-3.5 h-3.5 text-brand-500" /></button>
+            )}
           </div>
         ), className: 'w-36' },
       ]} />
@@ -220,9 +230,11 @@ function DriversTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typeo
 function VehiclesTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typeof useQueryClient> }) {
   const [panel, setPanel] = useState<{ kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; v: VehicleOut }>({ kind: 'closed' })
   const [del, setDel] = useState<VehicleOut | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
 
   const { data } = useQuery({ queryKey: ['vehicles'], queryFn: () => listVehicles() })
-  const vehicles = (data?.data ?? []).filter((v: VehicleOut) => v.empresa_id === empresaId)
+  const allVehicles = (data?.data ?? []).filter((v: VehicleOut) => v.empresa_id === empresaId)
+  const vehicles = showInactive ? allVehicles : allVehicles.filter((v) => v.activo)
 
   const createMut = useMutation({
     mutationFn: (body: VehicleCreate) => createVehicle({ body }),
@@ -255,12 +267,16 @@ function VehiclesTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<type
     <>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[12px] font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2"><Truck className="w-4 h-4" /> Vehiculos ({vehicles.length})</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />
+            Mostrar inactivos
+          </label>
           <BulkUpload entity="Vehiculos" templateUrl="/api/v1/templates/vehiculos" uploadFn={async (f) => { const r = await bulkImportVehiculos({ path: { empresa_id: empresaId }, body: { file: f } }); return r.data as unknown as ImportResult }} invalidateKeys={[['vehicles'], ['empresa-summary', String(empresaId)]]} />
           <button onClick={() => setPanel({ kind: 'create' })} className="flex items-center gap-1.5 bg-brand-500 text-white rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-600 transition-colors"><Plus className="w-3.5 h-3.5" /> Nuevo</button>
         </div>
       </div>
-      <DataTable<VehicleOut> keyFn={(v) => v.vehicle_id} data={vehicles} emptyMessage="Sin vehiculos" columns={[
+      <DataTable<VehicleOut> keyFn={(v) => v.vehicle_id} data={vehicles} emptyMessage="Sin vehiculos" rowClassName={(v) => !v.activo ? 'opacity-60' : ''} columns={[
         { header: 'ID', accessor: (v) => v.vehicle_id, className: 'w-12' },
         { header: 'Nombre', accessor: (v) => v.nombre, className: 'font-medium' },
         { header: 'Patente', accessor: (v) => v.plate },
@@ -268,8 +284,12 @@ function VehiclesTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<type
         { header: 'Cap. m3', accessor: (v) => v.capacity_m3 ?? '—', className: 'text-right' },
         { header: '', accessor: (v) => (
           <div className="flex gap-1 justify-end">
-            <button onClick={() => setPanel({ kind: 'edit', v })} className="p-1.5 hover:bg-bg-700 rounded transition-colors"><Pencil className="w-3.5 h-3.5 text-text-muted" /></button>
-            {v.activo && <button onClick={() => setDel(v)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>}
+            <button onClick={() => setPanel({ kind: 'edit', v })} className="p-1.5 hover:bg-bg-700 rounded transition-colors" aria-label="Editar vehículo"><Pencil className="w-3.5 h-3.5 text-text-muted" /></button>
+            {v.activo ? (
+              <button onClick={() => setDel(v)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors" aria-label="Desactivar vehículo"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>
+            ) : (
+              <button onClick={() => updateMut.mutate({ id: v.vehicle_id, body: { activo: true } })} className="p-1.5 hover:bg-brand-500/10 rounded transition-colors" aria-label="Reactivar vehículo"><RotateCcw className="w-3.5 h-3.5 text-brand-500" /></button>
+            )}
           </div>
         ), className: 'w-20' },
       ]} />
@@ -294,9 +314,11 @@ function ContactosTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typ
   const [panel, setPanel] = useState<{ kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; c: EmpresaContactoOut }>({ kind: 'closed' })
   const [del, setDel] = useState<EmpresaContactoOut | null>(null)
   const [detailContacto, setDetailContacto] = useState<EmpresaContactoOut | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
 
   const { data } = useQuery({ queryKey: ['contactos', empresaId], queryFn: () => listEmpresaContactos({ path: { empresa_id: empresaId } }) })
-  const contactos = (data?.data ?? []) as EmpresaContactoOut[]
+  const allContactos = (data?.data ?? []) as EmpresaContactoOut[]
+  const contactos = showInactive ? allContactos : allContactos.filter((c) => c.activo)
 
   const createMut = useMutation({
     mutationFn: (body: EmpresaContactoCreate) => createEmpresaContacto({ path: { empresa_id: empresaId }, body }),
@@ -328,12 +350,16 @@ function ContactosTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typ
     <>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-[12px] font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2"><Contact className="w-4 h-4" /> Contactos ({contactos.length})</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-[11px] text-text-secondary cursor-pointer">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded border-line" />
+            Mostrar inactivos
+          </label>
           <BulkUpload entity="Contactos" templateUrl="/api/v1/templates/contactos" uploadFn={async (f) => { const r = await bulkImportContactos({ path: { empresa_id: empresaId }, body: { file: f } }); return r.data as unknown as ImportResult }} invalidateKeys={[['contactos', String(empresaId)], ['empresa-summary', String(empresaId)]]} />
           <button onClick={() => setPanel({ kind: 'create' })} className="flex items-center gap-1.5 bg-brand-500 text-white rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider hover:bg-brand-600 transition-colors"><Plus className="w-3.5 h-3.5" /> Nuevo</button>
         </div>
       </div>
-      <DataTable<EmpresaContactoOut> keyFn={(c) => c.contact_id} data={contactos} emptyMessage="Sin contactos" columns={[
+      <DataTable<EmpresaContactoOut> keyFn={(c) => c.contact_id} data={contactos} emptyMessage="Sin contactos" rowClassName={(c) => !c.activo ? 'opacity-60' : ''} columns={[
         { header: 'Nombre', accessor: (c) => <button onClick={() => setDetailContacto(c)} className="text-brand-500 hover:text-brand-600 font-medium">{c.nombre}</button> },
         { header: 'Rol', accessor: (c) => { const labels: Record<string, string> = { jefe: 'Jefe', coordinador: 'Coordinador', otro: 'Otro' }; return <Badge variant={c.rol === 'jefe' ? 'blue' : c.rol === 'coordinador' ? 'yellow' : 'gray'}>{labels[c.rol] ?? c.rol}</Badge> } },
         { header: 'Telefono', accessor: (c) => c.phone_e164 ?? '—' },
@@ -343,7 +369,11 @@ function ContactosTab({ empresaId, qc }: { empresaId: number; qc: ReturnType<typ
           <div className="flex gap-1.5 items-center justify-end">
             <InviteButton name={c.nombre} phone={c.phone_e164} activationToken={c.activation_token} optedIn={!!c.opted_in_at} />
             <button onClick={() => setPanel({ kind: 'edit', c })} className="p-1.5 hover:bg-bg-700 rounded transition-colors"><Pencil className="w-3.5 h-3.5 text-text-muted" /></button>
-            {c.activo && <button onClick={() => setDel(c)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>}
+            {c.activo ? (
+              <button onClick={() => setDel(c)} className="p-1.5 hover:bg-accent-red/10 rounded transition-colors" aria-label="Desactivar contacto"><Trash2 className="w-3.5 h-3.5 text-accent-red" /></button>
+            ) : (
+              <button onClick={() => updateMut.mutate({ id: c.contact_id, body: { activo: true } })} className="p-1.5 hover:bg-brand-500/10 rounded transition-colors" aria-label="Reactivar contacto"><RotateCcw className="w-3.5 h-3.5 text-brand-500" /></button>
+            )}
           </div>
         ), className: 'w-36' },
       ]} />
